@@ -1,0 +1,24 @@
+# Environment and secrets
+.env
+.env.*
+!**/.env.example
+
+# Dependencies
+node_modules/
+**/node_modules/
+__pycache__/
+*.py[cod]
+
+# Build and runtime output
+dist/
+**/dist/
+build/
+*.log
+logs/
+
+# Local editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.local
