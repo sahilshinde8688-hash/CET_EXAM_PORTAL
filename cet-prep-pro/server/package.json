@@ -1,0 +1,15 @@
+{
+  "name": "cet-prep-pro-server",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.4",
+    "morgan": "^1.10.0"
+  }
+}

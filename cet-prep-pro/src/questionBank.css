@@ -1,0 +1,224 @@
+/* Question Bank */
+.qb-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.qb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.qb-title {
+  font-family: 'Public Sans', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+.qb-sub {
+  font-size: 13px;
+  color: #64748b;
+  margin: 4px 0 0;
+}
+.qb-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.qb-input, .qb-select, .qb-textarea {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  background: #fff;
+  color: #0f172a;
+  outline: none;
+  min-width: 140px;
+}
+.qb-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+.qb-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #0f172a;
+}
+.qb-btn--primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.qb-btn--danger {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.qb-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+}
+.qb-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+.qb-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.qb-span-2 {
+  grid-column: span 2;
+}
+.qb-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.qb-actions {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.qb-table-wrap {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: auto;
+}
+.qb-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.qb-table th,
+.qb-table td {
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 13px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.qb-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #64748b;
+  background: #f8fafc;
+}
+.qb-text {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qb-badge {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.qb-badge--easy { background: #dcfce7; color: #15803d; }
+.qb-badge--medium { background: #fef9c3; color: #a16207; }
+.qb-badge--hard { background: #fee2e2; color: #dc2626; }
+.qb-actions-cell {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.qb-loading {
+  padding: 40px;
+  text-align: center;
+  color: #64748b;
+}
+
+.qb-image-upload-loader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  margin-bottom: 12px;
+}
+
+.qb-image-loader-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid rgba(37, 99, 235, 0.25);
+  border-top-color: #2563eb;
+  animation: qb-spin 0.8s linear infinite;
+}
+
+@keyframes qb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Rich Text Toolbar Styles */
+.qb-rich-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.qb-toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.qb-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: #cbd5e1;
+  margin: 0 4px;
+}
+
+.qb-toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qb-toolbar-btn:hover {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.qb-toolbar-btn:active {
+  transform: translateY(0);
+  background: #f1f5f9;
+}
