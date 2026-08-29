@@ -3,20 +3,75 @@ import { questionsAPI, usersAPI, testsAPI, session, Question } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
+import FullscreenWarningModal from './FullscreenWarningModal'
+import SubmissionAnimation from './SubmissionAnimation'
+import { useFullscreenGuard } from '../lib/useFullscreenGuard'
 import '../testInterface.css'
 
 // Check if running in production mode
 const isProductionMode = import.meta.env.VITE_PRODUCTION_MODE === 'true'
 
+const QUESTION_ORDER_KEY = 'cet_exam_question_order_v2'
+
+const shuffleQuestionsBySubject = (items: Question[]): Question[] => {
+  const grouped = new Map<string, Question[]>()
+  const subjectOrder: string[] = []
+
+  items.forEach(question => {
+    const subject = question.subject?.trim() || 'General'
+    if (!grouped.has(subject)) {
+      grouped.set(subject, [])
+      subjectOrder.push(subject)
+    }
+    grouped.get(subject)?.push(question)
+  })
+
+  return subjectOrder.flatMap(subject => {
+    const questions = [...(grouped.get(subject) || [])]
+    for (let index = questions.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1))
+      ;[questions[index], questions[randomIndex]] = [questions[randomIndex], questions[index]]
+    }
+    return questions
+  })
+}
+
+const clearQuestionOrder = () => {
+  localStorage.removeItem('cet_exam_question_order')
+  localStorage.removeItem(QUESTION_ORDER_KEY)
+}
+
+const saveQuestionOrder = (questions: Question[]) => {
+  localStorage.setItem(QUESTION_ORDER_KEY, JSON.stringify(questions.map(question => question._id)))
+}
+
+const loadQuestionOrder = (): string[] => {
+  const savedOrder = localStorage.getItem(QUESTION_ORDER_KEY)
+  if (!savedOrder) return []
+  try {
+    return JSON.parse(savedOrder)
+  } catch {
+    return []
+  }
+}
+
 export default function TestInterface({ 
   onClose, 
+  onBackRequest,
+  onBackToAnalysis,
+  onSubmissionComplete,
   onResultSaved,
+  examName = 'MHT-CET Mock Test',
   reviewMode = false, 
   pastAnswers, 
   pastResultData 
 }: { 
   onClose: () => void; 
+  onBackRequest?: () => void;
+  onBackToAnalysis?: () => void;
+  onSubmissionComplete?: () => void;
   onResultSaved?: (result: any) => void;
+  examName?: string;
   reviewMode?: boolean;
   pastAnswers?: Record<string, number>;
   pastResultData?: any;
@@ -67,11 +122,65 @@ export default function TestInterface({
   const [questions, setQuestions] = useState<Question[]>(() => generateDemoQuestions())
   const [loading, setLoading] = useState(false) // Start false since we have demo questions
   const [error, setError] = useState<string | null>(null)
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, number>>(pastAnswers || {}) // questionId -> selected option index
-  const [marked, setMarked] = useState<Record<string, boolean>>({})
-  const [timeRemaining, setTimeRemaining] = useState(2 * 60 * 60) // 2 hours in seconds
-  const [timeElapsed, setTimeElapsed] = useState(0) // Track actual elapsed time
+  const [currentIndex, setCurrentIndex] = useState<number>(() => {
+    if (reviewMode) return 0
+    const saved = localStorage.getItem('cet_exam_current_index')
+    return saved ? parseInt(saved, 10) : 0
+  })
+  const [answers, setAnswers] = useState<Record<string, number>>(() => {
+    if (pastAnswers) return pastAnswers
+    const saved = localStorage.getItem('cet_exam_answers')
+    return saved ? JSON.parse(saved) : {}
+  }) // questionId -> selected option index
+  const [marked, setMarked] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('cet_exam_marked')
+    return saved ? JSON.parse(saved) : {}
+  })
+  const [timeRemaining, setTimeRemaining] = useState<number>(() => {
+    if (reviewMode) return 2 * 60 * 60
+    const saved = localStorage.getItem('cet_exam_time_remaining')
+    return saved ? parseInt(saved, 10) : 2 * 60 * 60
+  }) // 2 hours in seconds
+  const [timeElapsed, setTimeElapsed] = useState<number>(() => {
+    if (reviewMode) return 0
+    const saved = localStorage.getItem('cet_exam_time_elapsed')
+    return saved ? parseInt(saved, 10) : 0
+  }) // Track actual elapsed time
+
+  // Set ongoing test indicator in localStorage for Dashboard resume card
+  useEffect(() => {
+    if (reviewMode) return
+    localStorage.setItem('cet_inProgressTest', JSON.stringify({
+      title: 'MHT-CET Mock Test',
+      message: 'Exam in progress. Resume to continue.'
+    }))
+  }, [reviewMode])
+
+  // Sync state changes to localStorage to handle page reload and cross-page access
+  useEffect(() => {
+    if (reviewMode) return
+    localStorage.setItem('cet_exam_current_index', currentIndex.toString())
+  }, [currentIndex, reviewMode])
+
+  useEffect(() => {
+    if (reviewMode) return
+    localStorage.setItem('cet_exam_answers', JSON.stringify(answers))
+  }, [answers, reviewMode])
+
+  useEffect(() => {
+    if (reviewMode) return
+    localStorage.setItem('cet_exam_marked', JSON.stringify(marked))
+  }, [marked, reviewMode])
+
+  useEffect(() => {
+    if (reviewMode) return
+    localStorage.setItem('cet_exam_time_remaining', timeRemaining.toString())
+  }, [timeRemaining, reviewMode])
+
+  useEffect(() => {
+    if (reviewMode) return
+    localStorage.setItem('cet_exam_time_elapsed', timeElapsed.toString())
+  }, [timeElapsed, reviewMode])
   const [submitted, setSubmitted] = useState(reviewMode)
   const [result, setResult] = useState<{
     total: number
@@ -88,9 +197,25 @@ export default function TestInterface({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
   const [activeQ, setActiveQ] = useState<number | null>(null)
   const [showSuccessPage, setShowSuccessPage] = useState(false)
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [showSubmissionAnimation, setShowSubmissionAnimation] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [showResultPage, setShowResultPage] = useState(reviewMode)
   const [confirmationId, setConfirmationId] = useState<string>('')
   const [user, setUser] = useState<{ name: string; mhcetId?: string; email: string } | null>(null)
+
+  // Full-screen guard — active only during the live exam (not review/result/loading)
+  const examActive = !reviewMode && !submitted && !loading && !showResultPage && !showSuccessPage
+  const { warningType, fullscreenSupported, timerPaused, requestFullscreen, dismissFocusWarning } = useFullscreenGuard(examActive)
+
+  useEffect(() => {
+    if (!showSubmissionAnimation) return
+    const successTimer = window.setTimeout(() => {
+      setShowSubmissionAnimation(false)
+      setShowSuccessPage(true)
+    }, 5000)
+    return () => window.clearTimeout(successTimer)
+  }, [showSubmissionAnimation])
 
   // Load user data on mount
   useEffect(() => {
@@ -187,9 +312,21 @@ export default function TestInterface({
   }
 
   const submitTest = async () => {
+    if (isSubmitting) return
+    setIsSubmitting(true)
     const resultData = calculateResult()
     setResult(resultData)
     setSubmitted(true)
+
+    // Clear saved progress on submission
+    localStorage.removeItem('cet_exam_state')
+    localStorage.removeItem('cet_exam_current_index')
+    localStorage.removeItem('cet_exam_answers')
+    localStorage.removeItem('cet_exam_marked')
+    clearQuestionOrder()
+    localStorage.removeItem('cet_exam_time_remaining')
+    localStorage.removeItem('cet_exam_time_elapsed')
+    localStorage.removeItem('cet_inProgressTest')
     
     // Calculate percentile (simple implementation based on score percentage)
     const percentile = resultData.maxScore > 0 ? ((resultData.score / resultData.maxScore) * 100) : 0
@@ -219,7 +356,7 @@ export default function TestInterface({
     // Save test result to backend
     try {
       const savedResult = await testsAPI.submitResult({
-        testName: 'MHT-CET Mock Test',
+        testName: examName,
         subject: 'Mock Test',
         score: resultData.score,
         totalMarks: resultData.maxScore,
@@ -242,46 +379,10 @@ export default function TestInterface({
       await document.exitFullscreen().catch(() => {})
     }
     
-    // Generate confirmation ID once and store it
-    const newConfirmationId = `CONF-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+    const newConfirmationId = `CONF-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`
     setConfirmationId(newConfirmationId)
-    
-    // Ensure user data is loaded - wait up to 5 seconds
-    const startTime = Date.now()
-    while (!user && Date.now() - startTime < 5000) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-    
-    // If user is still null after waiting, try loading it now
-    if (!user) {
-      try {
-        const userData = await usersAPI.me()
-        if (userData && userData._id) {
-          setUser({
-            name: userData.name,
-            mhcetId: userData.mhcetId,
-            email: userData.email,
-          })
-        } else {
-          console.error('Invalid user data received:', userData)
-          // Still don't show fallback - show error state
-          setUser(null)
-        }
-      } catch (error) {
-        console.error('Failed to load user data on submit:', error)
-        setUser(null)
-      }
-    }
-    
-    // Final check - only show success page if we have user data
-    if (user) {
-      setShowSuccessPage(true)
-    } else {
-      console.error('Cannot show success page - no user data available')
-      // Show error or keep on test page
-      return
-    }
-    
+    setShowSubmissionAnimation(true)
+    setIsSubmitting(false)
   }
 
   const startTest = async () => {
@@ -307,6 +408,7 @@ export default function TestInterface({
     setCurrentIndex(0)
     setActiveQ(null)
     setConfirmationId('')
+    clearQuestionOrder()
   }
 
   // Load questions and user data in background (demo questions already loaded)
@@ -319,7 +421,22 @@ export default function TestInterface({
         
         // If API returns questions, use them
         if (data.length > 0) {
-          setQuestions(data)
+          if (reviewMode) {
+            setQuestions(data)
+          } else {
+            const savedQuestionIds = loadQuestionOrder()
+            const questionsById = new Map(data.map(question => [question._id, question]))
+            const orderedQuestions = savedQuestionIds
+              .map(questionId => questionsById.get(questionId))
+              .filter((question): question is Question => Boolean(question))
+            const newQuestions = data.filter(question => !savedQuestionIds.includes(question._id))
+            const nextQuestions = savedQuestionIds.length > 0
+              ? [...orderedQuestions, ...newQuestions]
+              : shuffleQuestionsBySubject(data)
+
+            setQuestions(nextQuestions)
+            saveQuestionOrder(nextQuestions)
+          }
           setError(null)
         } else {
           console.warn('No questions from API, keeping demo questions')
@@ -340,23 +457,22 @@ export default function TestInterface({
   }, [])
 
 
-  // Timer
+  // Timer — pauses automatically when fullscreen/focus warning is active
   useEffect(() => {
     if (loading) return
     const timer = setInterval(() => {
+      if (timerPaused) return // Do not tick while warning modal is shown
       setTimeRemaining(t => {
         if (t > 0) {
-          const newTime = t - 1
-          // Also track elapsed time
           setTimeElapsed(e => e + 1)
-          return newTime
+          return t - 1
         }
         clearInterval(timer)
         return 0
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [loading])
+  }, [loading, timerPaused])
 
   const formatTime = (seconds: number) => {
     try {
@@ -564,7 +680,7 @@ export default function TestInterface({
       <ExamSuccessPage
         onClose={onClose}
         onViewDashboard={handleViewResults}
-        examName="MHT-CET Mock Test"
+        examName={examName}
         candidateName={user.name}
         rollNumber={user.mhcetId || 'N/A'}
         submissionTime={new Date().toLocaleString()}
@@ -652,10 +768,11 @@ export default function TestInterface({
     return (
       <ExamResultDashboard
         onClose={onClose}
+        onBackToAnalysis={onBackToAnalysis}
         onRetakeExam={handleRetakeExam}
         candidateName={user?.name || 'Student'}
         rollNumber={user?.mhcetId || 'N/A'}
-        examName="MHT-CET Mock Test"
+        examName={examName}
         score={result.score}
         maxScore={result.maxScore}
         percentage={percentage}
@@ -677,10 +794,33 @@ export default function TestInterface({
 
 
 
+  const handleBackAction = () => {
+    if (reviewMode) {
+      setShowResultPage(true)
+    } else if (submitted) {
+      onClose()
+    } else {
+      if (onBackRequest) {
+        onBackRequest()
+      } else {
+        onClose()
+      }
+    }
+  }
+
   const handleNext = () => {
     const currentSubject = questions[currentIndex]?.subject || 'General'
     const nextIdx = questions.findIndex((q, i) => i > currentIndex && (q.subject || 'General') === currentSubject)
-    if (nextIdx !== -1) setCurrentIndex(nextIdx)
+    if (nextIdx !== -1) {
+      setCurrentIndex(nextIdx)
+      return
+    }
+
+    // At the end of a section, continue from the first question in the next section.
+    const nextSectionIdx = questions.findIndex((q, i) => i > currentIndex && (q.subject || 'General') !== currentSubject)
+    if (nextSectionIdx !== -1) {
+      setCurrentIndex(nextSectionIdx)
+    }
   }
 
   const handlePrev = () => {
@@ -699,12 +839,12 @@ export default function TestInterface({
     <div className="test-root">
       <header className="test-header">
         <div className="test-header-left">
-          <button className="test-back-btn" type="button" onClick={onClose}>
+          <button className="test-back-btn" type="button" onClick={handleBackAction}>
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <span className="test-brand">CET Prep Pro</span>
           <div className="test-sep" />
-          <h1 className="test-title">MHT-CET Mock Test</h1>
+          <h1 className="test-title">{examName}</h1>
           {questions.length > 0 && (
             <>
               <div className="test-sep" />
@@ -736,14 +876,24 @@ export default function TestInterface({
           )}
         </div>
         <div className="test-header-right">
-          <div className="test-timer">
-            <span className="material-symbols-outlined">timer</span>
-            <span className="test-timer-text">{reviewMode ? 'Review Mode' : formatTime(timeRemaining)}</span>
+          <div className="test-timer" style={timerPaused ? { borderColor: '#f59e0b', background: 'rgba(245,158,11,0.1)', color: '#d97706' } : {}}>
+            <span className="material-symbols-outlined">{timerPaused ? 'timer_off' : 'timer'}</span>
+            <span className="test-timer-text">
+              {reviewMode ? 'Review Mode' : formatTime(timeRemaining)}
+            </span>
+            {timerPaused && !reviewMode && (
+              <span style={{
+                fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
+                background: '#f59e0b', color: '#fff', padding: '2px 6px',
+                borderRadius: '4px', animation: 'timerPausePulse 1.4s ease-in-out infinite'
+              }}>PAUSED</span>
+            )}
           </div>
+          <style>{`@keyframes timerPausePulse { 0%,100%{opacity:1} 50%{opacity:0.45} }`}</style>
           {reviewMode ? (
             <button className="test-submit-btn" onClick={() => setShowResultPage(true)}>Back to Analysis</button>
           ) : (
-            <button className="test-submit-btn" onClick={onClose}>Exit</button>
+            <button className="test-submit-btn" onClick={handleBackAction}>Exit</button>
           )}
         </div>
       </header>
@@ -892,6 +1042,29 @@ export default function TestInterface({
         </div>
       )}
 
+      {showSubmitConfirm && (
+        <div className="test-submit-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="test-submit-confirm-title">
+          <div className="test-submit-confirm-modal">
+            <span className="material-symbols-outlined test-submit-confirm-icon">task_alt</span>
+            <h2 id="test-submit-confirm-title">Submit Test?</h2>
+            <p>
+              You have answered {Object.keys(answers).filter(id => questions.some(question => question._id === id)).length} of {questions.length} questions.
+            </p>
+            <p className="test-submit-confirm-warning">Once submitted, you cannot change your answers.</p>
+            <div className="test-submit-confirm-actions">
+              <button type="button" onClick={() => setShowSubmitConfirm(false)} disabled={isSubmitting}>
+                Go Back
+              </button>
+              <button type="button" onClick={() => { setShowSubmitConfirm(false); void submitTest() }} disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting...' : 'Submit Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSubmissionAnimation && <SubmissionAnimation />}
+
       <footer className="test-footer">
         <div className="test-footer-left">
           <button className="test-nav-btn test-nav-btn--prev" onClick={handlePrev}>
@@ -923,12 +1096,20 @@ export default function TestInterface({
             <span className="material-symbols-outlined">chevron_right</span>
           </button>
           {!reviewMode && (
-            <button className="test-action-btn test-action-btn--submit" onClick={submitTest}>
+            <button className="test-action-btn test-action-btn--submit" onClick={() => setShowSubmitConfirm(true)} disabled={isSubmitting}>
               Submit Test
             </button>
           )}
         </div>
       </footer>
+
+      {/* ── Fullscreen / Focus-loss warning modal ───────────────────────── */}
+      <FullscreenWarningModal
+        warningType={warningType}
+        fullscreenSupported={fullscreenSupported}
+        onRequestFullscreen={requestFullscreen}
+        onDismissFocusWarning={dismissFocusWarning}
+      />
     </div>
   )
 }

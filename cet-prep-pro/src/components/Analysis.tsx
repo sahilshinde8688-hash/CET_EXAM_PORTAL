@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import Sidebar, { type Page } from './Sidebar'
+import UserAvatar from './UserAvatar'
+import { session, type AuthUser } from '../lib/api'
 
 interface AnalysisProps {
   onNavigate?: (page: Page) => void
@@ -40,6 +42,7 @@ const criticalTopics = isProductionMode ? [
 
 export default function Analysis({ onNavigate }: AnalysisProps) {
   const [activeQ, setActiveQ] = useState<number | null>(null)
+  const user = session.get<AuthUser>()
 
   const navItems = [
     { icon: 'dashboard',            label: 'Dashboard',  page: 'dashboard'  as Page },
@@ -62,11 +65,7 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
           </div>
           <button className="an-icon-btn"><span className="material-symbols-outlined">notifications</span></button>
           <button className="an-icon-btn"><span className="material-symbols-outlined">settings</span></button>
-          <img
-            className="an-avatar"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuALp60gdeAZ7M5pqTfqId9VuZqMX7Zwu95AWw2jbIhC_SuPPBlmQ2EYtrDSU0Q784GSLTLlsIhMVMneNymfJ0J_-2FbE_Wma0MGlcT_67Pus8ELrsU4K3Hbje8C-wOGv6JHrA6NenXG6jEjvuKXC4mOK24n4CU91zpGn64Q9cUtk0Yn5HhL5wEj57lkgjgNVzYPKJbPzGEC6ZEe5B00ZntDqtEycjEqLu7oxO-hIjfR0C5p-cyR08vCidYhXmRXDU4sKGiyh7Ie04w"
-            alt="User"
-          />
+          <UserAvatar user={user} className="an-avatar" onClick={() => onNavigate?.('settings')} />
         </div>
       </nav>
 

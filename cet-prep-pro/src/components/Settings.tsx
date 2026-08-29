@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Sidebar from './Sidebar'
+import ImageCropModal from './ImageCropModal'
 import { session, testsAPI, usersAPI, type AuthUser, type TestResult } from '../lib/api'
 
 type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
@@ -12,6 +13,9 @@ export default function Settings({ onNavigate }: SettingsProps) {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoError, setPhotoError] = useState('')
+  const [cropImage, setCropImage] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', branch: user?.branch || '', batch: user?.batch?.toString() || '' })
 
@@ -44,16 +48,49 @@ export default function Settings({ onNavigate }: SettingsProps) {
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save profile') } finally { setSaving(false) }
   }
 
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please select an image file.')
+      return
+    }
+
+    setPhotoError('')
+    setCropImage(URL.createObjectURL(file))
+  }
+
+  const handleCroppedPhoto = async (file: File) => {
+    if (cropImage) URL.revokeObjectURL(cropImage)
+    setCropImage(null)
+    setPhotoUploading(true)
+    try {
+      const response = await usersAPI.uploadMyPhoto(file)
+      setUser(current => current ? { ...current, photo: response.photoUrl } : current)
+      const savedUser = session.get<AuthUser>()
+      if (savedUser) session.save({ ...savedUser, photo: response.photoUrl })
+    } catch (error) {
+      console.error('Failed to upload profile photo:', error)
+      setPhotoError('Photo upload failed. Please try again.')
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
+
   const exportResults = () => {
     const csv = ['Test,Subject,Score,Percentile,Date', ...results.map(result => [result.testName, result.subject, `${result.score}/${result.totalMarks}`, result.percentile, new Date(result.attemptedAt).toLocaleDateString()].join(','))].join('\n')
     const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'cet-test-history.csv'; link.click(); URL.revokeObjectURL(link.href)
   }
 
   return <div className="settings-root settings-profile-root">
+    {cropImage && <ImageCropModal image={cropImage} onCancel={() => { URL.revokeObjectURL(cropImage); setCropImage(null) }} onConfirm={handleCroppedPhoto} />}
     <Sidebar activePage="settings" onNavigate={onNavigate} />
     <main className="settings-profile-workspace">
       <header className="profile-toolbar"><div className="profile-search"><span className="material-symbols-outlined">search</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search tests, subjects, or logs..." /></div><button className="profile-date"><span className="material-symbols-outlined">calendar_today</span>Last 30 Days<span className="material-symbols-outlined">expand_more</span></button><button className="profile-export" onClick={exportResults}><span className="material-symbols-outlined">table_view</span>Export</button></header>
-      <div className="profile-page-heading"><div><p className="profile-kicker">Account settings</p><h1>Student profile</h1><p>Manage your details and review your preparation record.</p></div><button className="profile-edit-btn" onClick={() => setEditing(!editing)}><span className="material-symbols-outlined">{editing ? 'close' : 'edit'}</span>{editing ? 'Cancel' : 'Edit profile'}</button></div>
+      <div className="profile-page-heading"><div className="profile-heading-identity"><div className="profile-photo-wrap"><img src={user?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Student')}&background=2563eb&color=fff&size=128`} alt={user?.name || 'Student'} /><label className="profile-photo-btn" title="Add profile photo"><span className="material-symbols-outlined">add_a_photo</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={handlePhotoChange} disabled={photoUploading} /></label></div><div><p className="profile-kicker">Account settings</p><h1>{user?.name || 'Student profile'}</h1><p>Manage your details and review your preparation record.</p></div></div><button className="profile-edit-btn" onClick={() => setEditing(!editing)}><span className="material-symbols-outlined">{editing ? 'close' : 'edit'}</span>{editing ? 'Cancel' : 'Edit profile'}</button></div>
+      {photoUploading && <p className="profile-photo-status">Uploading profile photo...</p>}
+      {photoError && <p className="profile-photo-error" role="alert">{photoError}</p>}
       {message && <p className="profile-save-message">{message}</p>}
       {editing ? <form className="profile-edit-form" onSubmit={saveProfile}><label>Full name<input value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} required /></label><label>Phone<input value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} /></label><label>Branch<input value={form.branch} onChange={event => setForm({ ...form, branch: event.target.value })} /></label><label>Batch<input value={form.batch} onChange={event => setForm({ ...form, batch: event.target.value })} /></label><button className="profile-save-btn" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</button></form> : <>
         <section className="profile-overview-grid"><article className="profile-card profile-bio-card"><div className="profile-card-heading"><h2><span className="material-symbols-outlined">person</span>Detailed bio</h2><span className="profile-approved">{user?.status || 'Account'}</span></div><div className="profile-bio-grid"><div><small>Registration date</small><strong>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</strong></div><div><small>Email address</small><strong className="profile-blue">{user?.email || '—'}</strong></div><div><small>Contact number</small><strong>{user?.phone || '—'}</strong></div><div><small>Branch</small><strong>{user?.branch || '—'}</strong></div><div><small>MHT-CET ID</small><strong>{user?.mhcetId || 'Not assigned'}</strong></div><div><small>Batch</small><strong>{user?.batch || '—'}</strong></div></div></article><div className="profile-kpi-column"><article className="profile-percentile-card"><small>Average percentile</small><strong>{averagePercentile.toFixed(1)}%</strong><span>{results.length ? `${results.length} completed test${results.length === 1 ? '' : 's'}` : 'No completed tests yet'}</span></article><div className="profile-mini-grid"><article className="profile-mini-card"><small>Tests done</small><strong>{results.length}</strong></article><article className="profile-mini-card"><small>Average score</small><strong>{averageScore.toFixed(0)}<em>/{results[0]?.totalMarks || 200}</em></strong></article></div></div></section>

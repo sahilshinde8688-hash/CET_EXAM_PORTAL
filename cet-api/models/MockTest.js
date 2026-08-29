@@ -11,6 +11,7 @@ const MockTestSchema = new mongoose.Schema({
   avgScore: { type: Number, default: 0 },
   scheduledDate: String,
   createdBy: String,
+  questionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Question' }],
 }, { timestamps: true })
 
 module.exports = mongoose.models.MockTest || mongoose.model('MockTest', MockTestSchema)

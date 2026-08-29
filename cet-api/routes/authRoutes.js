@@ -195,8 +195,9 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       return res.status(403).json({ message: 'Your account has been rejected. Contact support for help.' })
     }
 
+    const isMhcetLogin = /^MHC-/i.test(input)
     let isMatch = false
-    if (/^MHC-/i.test(input)) {
+    if (isMhcetLogin || (user.role === 'student' && user.mustResetPassword)) {
       isMatch = password === user.mhcetPassword
     } else {
       isMatch = await user.matchPassword(password)
@@ -215,7 +216,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
 
     const payload = await createAuthSession(user, req, res, Boolean(rememberMe))
 
-    if (user.mustResetPassword && /^MHC-/i.test(input)) {
+    if (user.mustResetPassword) {
       payload.mustResetPassword = true
     }
 

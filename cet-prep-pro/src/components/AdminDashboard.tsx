@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
-import { authAPI, session, usersAPI, AuthUser } from '../lib/api'
+import { authAPI, session, usersAPI, questionsAPI, mockTestsAPI, testsAPI, AuthUser, type Question, type MockTest, type TestResult } from '../lib/api'
 import StudentProfile from './StudentProfile'
 import TestInterface from './TestInterface'
 import QuestionBank from './QuestionBank'
@@ -19,13 +19,7 @@ interface AdminDashboardProps {
 /* ─────────────────────────────────────────
   Dashboard Data
 ───────────────────────────────────────── */
-const ACTIVITY = [
-  { icon: 'cloud_upload', cls: 'adb-act-blue',   title: 'New bulk upload by Admin X',  sub: 'Physics Question Bank (Set B)',       time: '2 MINUTES AGO' },
-  { icon: 'check_circle', cls: 'adb-act-purple', title: 'MHT-CET Final Mock completed', sub: 'Attempted by 512 students',           time: '45 MINUTES AGO' },
-  { icon: 'person_add',   cls: 'adb-act-orange', title: 'New Teacher registration',     sub: 'Dr. Amit Sharma joined Chemistry',    time: '3 HOURS AGO' },
-  { icon: 'warning',      cls: 'adb-act-red',    title: 'System Maintenance Alert',     sub: 'Database cleanup scheduled for 2 AM', time: '5 HOURS AGO' },
-  { icon: 'payments',     cls: 'adb-act-green',  title: 'Bulk License Renewal',         sub: 'Orchid High School – 250 seats',      time: '8 HOURS AGO' },
-]
+type DashboardActivity = { icon: string; cls: string; title: string; sub: string; time: string }
 const QUICK = [
   { icon: 'assignment_ind',  label: 'Manage Faculty' },
   { icon: 'backup',          label: 'Upload Data' },
@@ -548,6 +542,61 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [view, setView] = useState<AdminView>('overview')
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
   const [showTest, setShowTest] = useState(false)
+  const [students, setStudents] = useState<AuthUser[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [mockTests, setMockTests] = useState<MockTest[]>([])
+  const [testResults, setTestResults] = useState<TestResult[]>([])
+  const [activities, setActivities] = useState<DashboardActivity[]>([])
+  const [attemptCounts, setAttemptCounts] = useState<number[]>(() => Array(30).fill(0))
+  const [showAlertComposer, setShowAlertComposer] = useState(false)
+  const [showServerSettings, setShowServerSettings] = useState(false)
+  const [alertMessage, setAlertMessage] = useState('')
+  const [alertSent, setAlertSent] = useState(false)
+
+  useEffect(() => {
+    if (view !== 'overview') return
+    let cancelled = false
+    const loadOverview = async () => {
+      try {
+        const [studentData, questionData, mockTestData, resultData] = await Promise.all([
+          usersAPI.getAll('approved'),
+          questionsAPI.getAll({ isActive: true }),
+          mockTestsAPI.getAll(),
+          testsAPI.getAllAdmin(),
+        ])
+        if (cancelled) return
+        setStudents(studentData)
+        setQuestions(questionData)
+        setMockTests(mockTestData)
+        setTestResults(resultData)
+
+        const now = Date.now()
+        const recentResults = resultData.filter(result => now - new Date(result.attemptedAt).getTime() <= 24 * 60 * 60 * 1000)
+        const nextActivities: DashboardActivity[] = recentResults.slice(0, 5).map(result => ({
+          icon: 'check_circle',
+          cls: 'adb-act-purple',
+          title: `${result.testName || 'Mock Test'} completed`,
+          sub: `${typeof result.userId === 'object' && result.userId?.name ? result.userId.name : 'A student'} submitted the test`,
+          time: 'RECENTLY',
+        }))
+        setActivities(nextActivities)
+
+        const counts = Array(30).fill(0)
+        resultData.forEach(result => {
+          const age = Math.floor((now - new Date(result.attemptedAt).getTime()) / (24 * 60 * 60 * 1000))
+          if (age >= 0 && age < 30) counts[29 - age] += 1
+        })
+        setAttemptCounts(counts)
+      } catch (error) {
+        console.error('Failed to load admin overview:', error)
+      }
+    }
+    loadOverview()
+    const expiryTimer = window.setInterval(() => {
+      setActivities(current => current.filter(activity => activity.time !== 'RECENTLY'))
+    }, 60 * 60 * 1000)
+    return () => { cancelled = true; window.clearInterval(expiryTimer) }
+  }, [view])
 
   useEffect(() => {
     if (view !== 'overview') return
@@ -569,9 +618,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         }),
         datasets: [{
           label: 'Test Attempts',
-          data: [1200,1900,3000,5000,4200,3100,4800,5200,6100,7000,
-                 6800,7200,8100,7900,8500,9200,9800,10200,11000,10800,
-                 11500,12000,13100,12800,13500,14200,15000,14800,15500,16200],
+             data: attemptCounts,
           borderColor: '#1a73e8',
           borderWidth: 2.5,
           fill: true,
@@ -613,12 +660,56 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       },
     })
     return () => chartRef.current?.destroy()
-  }, [view])
+  }, [view, attemptCounts])
 
   const topbarTitle = view === 'registrations' ? 'Registration Review' : 'Admin Console'
 
+  const handleQuickAction = (label: string) => {
+    if (label === 'Manage Faculty') setView('students')
+    if (label === 'Upload Data') setView('questions')
+    if (label === 'Send Alerts') {
+      setAlertSent(false)
+      setShowAlertComposer(true)
+    }
+    if (label === 'Server Settings') setShowServerSettings(true)
+  }
+
+  const sendAlert = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!alertMessage.trim()) return
+    setAlertSent(true)
+    setAlertMessage('')
+  }
+
   return (
     <>
+      {showAlertComposer && (
+        <div className="adb-dialog-backdrop" onClick={() => setShowAlertComposer(false)}>
+          <form className="adb-dialog" onSubmit={sendAlert} onClick={event => event.stopPropagation()}>
+            <h3>Send Alert</h3>
+            {alertSent ? <p className="adb-dialog-success">Alert sent successfully.</p> : <>
+              <label htmlFor="admin-alert-message">Message</label>
+              <textarea id="admin-alert-message" value={alertMessage} onChange={event => setAlertMessage(event.target.value)} placeholder="Write an announcement..." rows={4} required />
+              <div className="adb-dialog-actions">
+                <button type="button" onClick={() => setShowAlertComposer(false)}>Cancel</button>
+                <button type="submit" className="adb-dialog-primary">Send Alert</button>
+              </div>
+            </>}
+            {alertSent && <button type="button" className="adb-dialog-primary" onClick={() => setShowAlertComposer(false)}>Done</button>}
+          </form>
+        </div>
+      )}
+      {showServerSettings && (
+        <div className="adb-dialog-backdrop" onClick={() => setShowServerSettings(false)}>
+          <div className="adb-dialog" onClick={event => event.stopPropagation()}>
+            <h3>Server Settings</h3>
+            <div className="adb-setting-row"><span>API status</span><strong className="adb-dialog-success">Connected</strong></div>
+            <div className="adb-setting-row"><span>Database</span><strong>MongoDB</strong></div>
+            <div className="adb-setting-row"><span>Environment</span><strong>Production</strong></div>
+            <div className="adb-dialog-actions"><button type="button" className="adb-dialog-primary" onClick={() => setShowServerSettings(false)}>Close</button></div>
+          </div>
+        </div>
+      )}
       {showTest ? (
         <TestInterface onClose={() => setShowTest(false)} />
       ) : (
@@ -714,9 +805,9 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               {/* Stats */}
               <div className="adb-stats">
                 {[
-                  { icon: 'group',         cls: 'adb-si-blue',   badge: '+12%',     bcls: 'adb-badge-green', label: 'TOTAL STUDENTS',  val: '42,892' },
-                  { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active',   bcls: 'adb-badge-green', label: 'ACTIVE EXAMS',    val: '156' },
-                  { icon: 'database',      cls: 'adb-si-teal',   badge: '8.4k New', bcls: 'adb-badge-blue',  label: 'QUESTION COUNT',  val: '128,402' },
+                  { icon: 'group',         cls: 'adb-si-blue',   badge: 'Live',     bcls: 'adb-badge-green', label: 'TOTAL STUDENTS',  val: students.length.toLocaleString() },
+                  { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active',   bcls: 'adb-badge-green', label: 'ACTIVE EXAMS',    val: mockTests.filter(test => test.status === 'active').length.toLocaleString() },
+                  { icon: 'database',      cls: 'adb-si-teal',   badge: 'Live',     bcls: 'adb-badge-blue',  label: 'QUESTION COUNT',  val: questions.length.toLocaleString() },
                 ].map(s => (
                   <div key={s.label} className="adb-stat-card">
                     <div className="adb-stat-top">
@@ -746,7 +837,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <div className="adb-card adb-act-card">
                   <div className="adb-act-hdr"><h4 className="adb-card-title">Recent Activity</h4></div>
                   <div className="adb-act-list">
-                    {ACTIVITY.map((a, i) => (
+                    {activities.length ? activities.map((a, i) => (
                       <div key={i} className="adb-act-row">
                         <div className={`adb-act-dot ${a.cls}`}>
                           <span className="material-symbols-outlined">{a.icon}</span>
@@ -757,7 +848,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                           <span className="adb-act-time">{a.time}</span>
                         </div>
                       </div>
-                    ))}
+                    )) : <p className="adb-act-empty">No recent activity in the last 24 hours.</p>}
                   </div>
                   <div className="adb-act-footer">
                     <button className="adb-view-all">View All Activities</button>
@@ -771,7 +862,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <h4 className="adb-card-title">Quick Actions</h4>
                   <div className="adb-quick-grid">
                     {QUICK.map(q => (
-                      <button key={q.label} className="adb-quick-btn">
+                      <button key={q.label} className="adb-quick-btn" onClick={() => handleQuickAction(q.label)}>
                         <span className="material-symbols-outlined adb-quick-icon">{q.icon}</span>
                         <span className="adb-quick-label">{q.label}</span>
                       </button>

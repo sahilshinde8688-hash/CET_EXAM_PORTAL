@@ -1,5 +1,17 @@
 import { useState } from 'react'
 
+async function enterFullscreen(): Promise<void> {
+  const el = document.documentElement
+  try {
+    if (el.requestFullscreen) await el.requestFullscreen()
+    else if ((el as any).webkitRequestFullscreen) await (el as any).webkitRequestFullscreen()
+    else if ((el as any).mozRequestFullScreen) await (el as any).mozRequestFullScreen()
+    else if ((el as any).msRequestFullscreen) await (el as any).msRequestFullscreen()
+  } catch {
+    // User denied or browser blocked — still proceed to exam
+  }
+}
+
 interface ExamInstructionsProps {
   onStart: () => void
   onCancel: () => void
@@ -9,146 +21,161 @@ export default function ExamInstructions({ onStart, onCancel }: ExamInstructions
   const [agreed, setAgreed] = useState(false)
 
   return (
-    <div className="font-body-md text-on-background selection:bg-primary-fixed bg-background min-h-[100dvh]">
-      {/* TopAppBar Section */}
-      <header className="fixed inset-x-0 top-0 z-[60] h-14 bg-slate-900 font-public-sans shadow-lg">
-        <div className="mx-auto flex h-full w-full items-center justify-between px-4 sm:px-6 lg:px-8">
-          <span className="text-base font-bold text-white">CET Exam Session</span>
-          <div className="flex items-center gap-3 sm:gap-4">
-            <button
-              onClick={onCancel}
-              className="rounded px-3 py-1.5 text-label-md text-white transition-all hover:bg-slate-800 cursor-pointer sm:px-4"
-            >
-              Cancel
-            </button>
-            <div className="h-6 w-px bg-slate-700"></div>
-            <div className="flex items-center gap-2 text-white">
-              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>timer</span>
-              <span className="text-label-md font-mono">00:00:00</span>
-            </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: '#f8f9fa', fontFamily: "'Public Sans', sans-serif", color: '#191c1d' }}>
+
+      {/* ── Header ───────────────────────────────────────── */}
+      <header style={{ flexShrink: 0, height: '56px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+        <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>CET Exam Session</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button
+            onClick={onCancel}
+            style={{ background: 'transparent', border: 'none', color: '#cbd5e1', fontSize: '14px', fontWeight: 500, cursor: 'pointer', padding: '6px 12px', borderRadius: '6px', transition: 'background 0.2s' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Cancel
+          </button>
+          <div style={{ width: '1px', height: '20px', background: '#475569' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 0, 'wght' 400" }}>timer</span>
+            <span style={{ fontFamily: 'monospace', fontSize: '14px', color: '#e2e8f0' }}>00:00:00</span>
           </div>
         </div>
       </header>
 
-      {/* Main Content Canvas */}
-      <main className="mx-auto w-full max-w-[680px] px-4 pb-28 pt-20 sm:px-6">
-        {/* Header Section */}
-        <section className="mb-6">
-          <h1 className="font-display-lg text-display-lg text-on-background mb-1">General Instructions</h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant text-sm">Please read the following rules carefully before beginning your examination.</p>
-        </section>
+      {/* ── Scrollable Body ───────────────────────────────── */}
+      <main style={{ flex: 1, overflowY: 'auto', padding: '0' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto', padding: '32px 24px 40px' }}>
 
-        {/* Critical Warning Box */}
-        <div className="mb-6 bg-error-container/30 border border-error/20 p-4 rounded-lg flex gap-3">
-          <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
-          <div>
-            <h3 className="font-headline-md text-body-md font-bold text-on-error-container mb-1">Full-Screen Mode Requirement</h3>
-            <p className="text-on-error-container opacity-90">
-              This examination requires you to be in full-screen mode at all times. Switching tabs, minimizing the window, or exiting full-screen will result in an automatic submission and potential disqualification.
-            </p>
+          {/* Page Title */}
+          <div style={{ marginBottom: '24px' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', margin: '0 0 6px' }}>General Instructions</h1>
+            <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Please read the following rules carefully before beginning your examination.</p>
           </div>
-        </div>
 
-        {/* Instructions Grid */}
-        <div className="space-y-6">
-          {/* Rules Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant p-4 rounded-lg shadow-[0px_2px_4px_rgba(0,0,0,0.04)]">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-primary">gavel</span>
-              <h2 className="font-headline-md text-headline-md">Exam Rules</h2>
+          {/* Warning Banner */}
+          <div style={{ display: 'flex', gap: '14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+            <span className="material-symbols-outlined" style={{ color: '#dc2626', flexShrink: 0, fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>warning</span>
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: '#991b1b' }}>Full-Screen Mode Requirement</p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#b91c1c', lineHeight: '1.6' }}>
+                This examination requires you to be in full-screen mode at all times. Switching tabs, minimizing the window, or exiting full-screen will result in an automatic submission and potential disqualification.
+              </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-primary mt-2.5 flex-shrink-0"></div>
-                <p className="text-on-surface-variant">The clock will be set at the server. The countdown timer in the top right corner of the screen will display the remaining time available for you to complete the examination.</p>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-primary mt-2.5 flex-shrink-0"></div>
-                <p className="text-on-surface-variant">You are strictly prohibited from using calculators, mobile phones, or any other electronic devices during the test.</p>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-primary mt-2.5 flex-shrink-0"></div>
-                <p className="text-on-surface-variant">Ensure you have a stable internet connection. In case of disruption, do not refresh; wait for the system to attempt reconnection.</p>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-2 h-2 rounded-full bg-primary mt-2.5 flex-shrink-0"></div>
-                <p className="text-on-surface-variant">Any suspicious activity or multiple face detections will be flagged by the AI proctoring system.</p>
-              </div>
+          </div>
+
+          {/* Exam Rules Card */}
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <span className="material-symbols-outlined" style={{ color: '#2563eb', fontSize: '22px' }}>gavel</span>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Exam Rules</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {[
+                'The clock will be set at the server. The countdown timer in the top right corner will display the remaining time available for you to complete the examination.',
+                'You are strictly prohibited from using calculators, mobile phones, or any other electronic devices during the test.',
+                'Ensure you have a stable internet connection. In case of disruption, do not refresh; wait for the system to attempt reconnection.',
+                'Any suspicious activity or multiple face detections will be flagged by the AI proctoring system.',
+              ].map((rule, i) => (
+                <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#2563eb', flexShrink: 0, marginTop: '6px' }} />
+                  <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: '1.65' }}>{rule}</p>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Navigation Guide Card */}
-          <div className="bg-surface-container-lowest border border-outline-variant p-4 rounded-lg shadow-[0px_2px_4px_rgba(0,0,0,0.04)]">
-            <div className="flex items-center gap-3 mb-4">
-              <span className="material-symbols-outlined text-primary">explore</span>
-              <h2 className="font-headline-md text-headline-md">Navigating the Portal</h2>
+          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <span className="material-symbols-outlined" style={{ color: '#2563eb', fontSize: '22px' }}>explore</span>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Navigating the Portal</h2>
             </div>
-            <div className="space-y-4">
-              <div className="flex items-center p-3 bg-surface-container-low rounded-lg">
-                <div className="w-10 h-10 flex items-center justify-center bg-green-600 text-white font-bold rounded mr-4">1</div>
-                <span className="text-on-surface">Indicates questions you have answered and saved.</span>
-              </div>
-              <div className="flex items-center p-3 bg-surface-container-low rounded-lg">
-                <div className="w-10 h-10 flex items-center justify-center bg-red-600 text-white font-bold rounded mr-4">2</div>
-                <span className="text-on-surface">Indicates questions you have viewed but not yet answered.</span>
-              </div>
-              <div className="flex items-center p-3 bg-surface-container-low rounded-lg">
-                <div className="w-10 h-10 flex items-center justify-center bg-yellow-500 text-on-tertiary-container font-bold rounded mr-4">3</div>
-                <span className="text-on-surface">Indicates questions marked for later review. These will NOT be evaluated if left unanswered.</span>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[
+                { num: '1', bg: '#16a34a', label: 'Indicates questions you have answered and saved.' },
+                { num: '2', bg: '#dc2626', label: 'Indicates questions you have viewed but not yet answered.' },
+                { num: '3', bg: '#d97706', label: 'Indicates questions marked for later review. These will NOT be evaluated if left unanswered.' },
+              ].map(({ num, bg, label }) => (
+                <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '10px', padding: '12px 14px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: bg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{num}</div>
+                  <span style={{ fontSize: '13px', color: '#334155' }}>{label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Visual Context Image */}
-          <div className="relative w-full h-[240px] rounded-xl overflow-hidden shadow-sm group">
-            <img 
-              alt="Examination environment" 
-              className="w-full h-full object-cover grayscale opacity-80 group-hover:grayscale-0 transition-all duration-500" 
+          {/* Exam Room Image */}
+          <div style={{ position: 'relative', width: '100%', height: '180px', borderRadius: '14px', overflow: 'hidden', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+            <img
+              alt="Examination environment"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'grayscale(60%) brightness(0.85)' }}
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_q6iEWQVBFJNuogQSu6iVWtwkyy9ubcjstHmdzvtsAGYlN3ZQLp2XD5dC8yFpGRh5eH2idRAHdfGcTFqovF8M15nmI2HPwTXGI5DPQDViabZcAhkuQTbm0nKv7eL0G_xAi6uCJkUyl6v-qo2sRWXNi2lLFsn-c4Q_f5YvWXVwkb73kLGUVa6_ZVGSX67qJ8KGcXyVKJbXEjEvyyQJfmO1hkbH0zjM3XVtqJR9pUvYb9Hfaqqf3EvIL9iIDfji4MxIdCvLacnHcmc"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-6">
-              <p className="text-white text-label-md font-medium">Standardized Digital Testing Environment - CET 2024</p>
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)', display: 'flex', alignItems: 'flex-end', padding: '14px 16px' }}>
+              <p style={{ margin: 0, color: '#fff', fontSize: '12px', fontWeight: 500 }}>Standardized Digital Testing Environment – CET 2024</p>
             </div>
           </div>
 
-          {/* Agreement Checkbox */}
-          <label className="flex items-start gap-3 p-4 bg-primary/5 border border-primary/10 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors">
-            <div className="flex items-center h-6">
-              <input 
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-                className="w-5 h-5 text-primary border-outline rounded focus:ring-primary" 
-                type="checkbox"
-              />
-            </div>
-            <div className="text-sm">
-              <p className="font-bold text-on-surface mb-1">Declaration of Candidate</p>
-              <p className="text-on-surface-variant">I have read and understood all the instructions mentioned above. I agree that I will not use any unfair means during the examination and will adhere to the full-screen requirement as specified. I understand that any violation may lead to the cancellation of my test.</p>
+          {/* Declaration Checkbox */}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', background: agreed ? 'rgba(37,99,235,0.06)' : '#f0f4ff', border: `1.5px solid ${agreed ? '#2563eb' : '#bfdbfe'}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', transition: 'all 0.2s' }}>
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={e => setAgreed(e.target.checked)}
+              style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer', marginTop: '2px', flexShrink: 0 }}
+            />
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Declaration of Candidate</p>
+              <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: '1.65' }}>
+                I have read and understood all the instructions mentioned above. I agree that I will not use any unfair means during the examination and will adhere to the full-screen requirement as specified. I understand that any violation may lead to the cancellation of my test.
+              </p>
             </div>
           </label>
+
         </div>
       </main>
 
-      {/* Bottom Action Bar */}
-      <footer className="fixed inset-x-0 bottom-0 z-50 flex min-h-20 items-center justify-center border-t border-outline-variant bg-white shadow-[0px_-4px_12px_rgba(0,0,0,0.04)]">
-        <div className="mx-auto flex w-full max-w-[680px] items-center justify-between px-4 py-3 sm:px-6">
-          <div className="hidden md:block">
-            <p className="text-label-sm text-on-surface-variant uppercase tracking-widest">Candidate ID: CET-2024-9921</p>
+      {/* ── Footer ───────────────────────────────────────── */}
+      <footer style={{ flexShrink: 0, background: '#fff', borderTop: '1px solid #e2e8f0', boxShadow: '0 -2px 8px rgba(0,0,0,0.05)' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          {/* Left: Candidate info + fullscreen notice */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div>
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Candidate ID</p>
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#334155' }}>CET-2024-9921</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#16a34a', fontVariationSettings: "'FILL' 1" }}>fullscreen</span>
+              <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>Full-screen will be requested on start</span>
+            </div>
           </div>
-          <button 
+
+          {/* Right: Start Test button */}
+          <button
             disabled={!agreed}
-            onClick={onStart}
-            className={`px-8 py-3 rounded-lg font-headline-md text-body-md flex items-center gap-2 transition-all ${
-              agreed 
-                ? 'bg-primary-container text-on-primary-container hover:shadow-lg active:scale-95 cursor-pointer' 
-                : 'bg-surface-variant text-on-surface-variant opacity-50 cursor-not-allowed'
-            }`}
+            onClick={async () => {
+              await enterFullscreen()
+              onStart()
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '13px 28px', borderRadius: '10px', border: 'none',
+              fontSize: '15px', fontWeight: 700,
+              cursor: agreed ? 'pointer' : 'not-allowed',
+              background: agreed ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#e2e8f0',
+              color: agreed ? '#fff' : '#94a3b8',
+              boxShadow: agreed ? '0 4px 16px rgba(37,99,235,0.35)' : 'none',
+              transition: 'all 0.2s',
+              flexShrink: 0,
+            }}
           >
             Start Test
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 0" }}>arrow_forward</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 0" }}>arrow_forward</span>
           </button>
         </div>
       </footer>
     </div>
   )
 }
+

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import Sidebar, { type Page } from './Sidebar'
-import { testsAPI, type TestResult } from '../lib/api'
+import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import TestInterface from './TestInterface'
+import UserAvatar from './UserAvatar'
 
 interface ResultsProps {
   onNavigate?: (page: Page) => void
@@ -19,19 +20,34 @@ export default function Results({ onNavigate }: ResultsProps) {
   const [loading, setLoading] = useState(true)
   const [reviewingTest, setReviewingTest] = useState<TestResult | null>(null)
   const [displayLimit, setDisplayLimit] = useState(3)
+  const user = session.get<AuthUser>()
+  const branchLabel = user?.branch ? `${user.branch}${user.batch ? `, Batch ${user.batch}` : ''}` : 'CET preparation'
+
+  const loadResults = async () => {
+    try {
+      const results = await testsAPI.getMyResults()
+      const sortedResults = results.sort((a, b) => new Date(b.attemptedAt).getTime() - new Date(a.attemptedAt).getTime())
+      setTestHistory(sortedResults)
+      setDisplayLimit(sortedResults.length)
+    } catch (error) {
+      console.error('Failed to load test results:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadResults = async () => {
-      try {
-        const results = await testsAPI.getMyResults()
-        setTestHistory(results.sort((a, b) => new Date(b.attemptedAt).getTime() - new Date(a.attemptedAt).getTime()))
-      } catch (error) {
-        console.error('Failed to load test results:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadResults()
+
+    const refreshResults = () => {
+      if (document.visibilityState === 'visible') loadResults()
+    }
+    window.addEventListener('focus', refreshResults)
+    document.addEventListener('visibilitychange', refreshResults)
+    return () => {
+      window.removeEventListener('focus', refreshResults)
+      document.removeEventListener('visibilitychange', refreshResults)
+    }
   }, [])
 
   const testsCount = testHistory.length
@@ -90,6 +106,7 @@ export default function Results({ onNavigate }: ResultsProps) {
     return (
       <TestInterface 
         onClose={() => setReviewingTest(null)} 
+        examName={reviewingTest.testName || 'MHT-CET Mock Test'}
         reviewMode={true} 
         pastAnswers={reviewingTest.answers || {}} 
         pastResultData={{
@@ -137,14 +154,10 @@ export default function Results({ onNavigate }: ResultsProps) {
             <div className="rs-divider" />
             <div className="rs-user-chip">
               <div className="rs-user-info">
-                <p className="rs-user-name">Aditya Shinde</p>
-                <p className="rs-user-roll">Roll: #MHT2401</p>
+                <p className="rs-user-name">{user?.name || 'Student'}</p>
+                <p className="rs-user-roll">{branchLabel}</p>
               </div>
-              <img
-                className="rs-avatar"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1nYROE-Un9tvSG6ogyRFct5QYtXWIFLIyc9wqI3T16Zs8SwQwHTzZ22OcVYDP6xRpAZjbwux_QPYU6KECbK0uUas_PMoli-r873Ea7my5xDTsb9yqnkEbzE9qlcep-QiN-VSUcM1F9mIBsgChk-YszAxRKS-OM7phzmEuFSwZfyd98aUaJQZ5F5zhIZiqr7c_Qr67h4ZoCGBoq3l1LSHdV9l8_wyV6oDr6P-QnkpS_6znHtFO2RF0GBeTeENDmjMiKUKTXBtGgeQ"
-                alt="Aditya Shinde"
-              />
+              <UserAvatar user={user} className="rs-avatar" onClick={() => onNavigate?.('settings')} />
             </div>
           </div>
         </header>

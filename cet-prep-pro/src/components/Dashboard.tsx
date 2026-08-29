@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Sidebar from './Sidebar'
 import TestInterface from './TestInterface'
+import UserAvatar from './UserAvatar'
 import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 
 interface DashboardProps {
@@ -112,7 +113,11 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {showTest ? (
         <TestInterface
           onClose={() => setShowTest(false)}
-          onResultSaved={(result) => setTestHistory(current => [result, ...current.filter(item => item._id !== result._id)])}
+          onBackRequest={() => setShowTest(false)}
+          onResultSaved={(result) => {
+            setInProgressTest(null)
+            setTestHistory(current => [result, ...current.filter(item => item._id !== result._id)])
+          }}
         />
       ) : (
         <div className="db-root">
@@ -147,11 +152,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 <p className="db-user-name">{user?.name || 'Student'}</p>
                 <p className="db-user-role">{branchLabel}</p>
               </div>
-              <img
-                className="db-avatar"
-                src={user?.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Student')}&background=2563eb&color=fff`}
-                alt={user?.name || 'Student'}
-              />
+              <UserAvatar user={user} className="db-avatar" onClick={() => onNavigate?.('settings')} />
             </div>
           </div>
         </header>

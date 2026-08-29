@@ -49,6 +49,34 @@
   object-fit: cover;
 }
 
+.sp-photo-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 12px;
+  padding: 8px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sp-photo-upload:hover { background: #dbeafe; }
+.sp-photo-upload .material-symbols-outlined { font-size: 17px; }
+.sp-photo-upload input { display: none; }
+.sp-photo-error { margin: 0 0 10px; color: #dc2626; font-size: 11px; }
+.sp-profile-empty { min-height: 100px; display: grid; place-items: center; color: #7a8aa0; font-size: 13px; text-align: center; }
+.sp-history-list { display: grid; gap: 8px; }
+.sp-history-row { display: grid; grid-template-columns: minmax(220px, 1fr) 110px 150px 80px; align-items: center; gap: 16px; padding: 13px 14px; border: 1px solid #e5ebf2; border-radius: 9px; background: #fbfcfe; color: #26364d; }
+.sp-history-row strong { font-size: 14px; }
+.sp-history-row > div { display: grid; gap: 4px; }
+.sp-history-row small { color: #7a8aa0; font-size: 11px; }
+.sp-history-row > span { color: #1769c2; font-size: 12px; font-weight: 700; }
+@media (max-width: 700px) { .sp-history-row { grid-template-columns: 1fr auto; gap: 8px; } .sp-history-row > span, .sp-history-row > small { grid-column: 2; } }
+
 .sp-online {
   position: absolute;
   bottom: 6px;
@@ -130,6 +158,68 @@
   font-weight: 700;
   grid-column: span 1;
 }
+
+.sp-password-section {
+  padding: 16px 24px 20px;
+  border-top: 1px solid #E2E8F0;
+}
+
+.sp-password-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: #64748B;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sp-password-heading .material-symbols-outlined {
+  color: #2563EB;
+  font-size: 16px;
+}
+
+.sp-password-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid #DBEAFE;
+  border-radius: 8px;
+  background: #EFF6FF;
+  color: #0F172A;
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.sp-password-value > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-password-toggle {
+  display: grid;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #2563EB;
+  cursor: pointer;
+}
+
+.sp-password-toggle:hover { background: #DBEAFE; }
+.sp-password-toggle .material-symbols-outlined { font-size: 18px; }
 
 .sp-sidebar-actions {
   padding: 20px 24px;

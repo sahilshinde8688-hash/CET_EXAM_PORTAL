@@ -659,6 +659,20 @@ body {
 }
 .signin-error-msg .material-symbols-outlined { font-size: 18px; flex-shrink: 0; }
 
+.user-avatar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: #2563eb;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
 /* ── Pending Approval Card ─────────────── */
 .pending-success-card {
   display: flex; flex-direction: column; align-items: center;

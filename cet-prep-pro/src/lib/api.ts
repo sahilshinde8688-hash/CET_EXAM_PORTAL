@@ -17,7 +17,6 @@ const getCsrfToken = (): string | null => {
  * - Token refresh on 401 errors
  */
 let isRefreshing = false
-let refreshPromise: Promise<void> | null = null
 
 // Special error class to signal that token was refreshed and request should be retried
 export class TokenRefreshedError extends Error {
@@ -27,9 +26,9 @@ export class TokenRefreshedError extends Error {
   }
 }
 
-async function handle(res: Response) {
+async function handle(res: Response, refreshOnUnauthorized = true) {
   // If unauthorized, try to refresh the token once
-  if (res.status === 401 && !isRefreshing) {
+  if (res.status === 401 && refreshOnUnauthorized && !isRefreshing) {
     isRefreshing = true
     try {
       await doRefreshTokens()
@@ -44,7 +43,6 @@ async function handle(res: Response) {
       throw new Error('Session expired. Please log in again.')
     } finally {
       isRefreshing = false
-      refreshPromise = null
     }
   }
 
@@ -68,9 +66,14 @@ async function handle(res: Response) {
  * Refresh access token using refresh token (internal, doesn't use handle to avoid recursion)
  */
 async function doRefreshTokens(): Promise<void> {
+  const csrfToken = getCsrfToken()
+  const headers: Record<string, string> = {}
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
   const res = await fetch(`${BASE}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
+    headers,
   })
   if (!res.ok) {
     session.clear()
@@ -149,7 +152,7 @@ export const authAPI = {
       headers,
       body: JSON.stringify({ email, password, rememberMe }),
     })
-    const data = await handle(res).then(() => res.json())
+    const data = await handle(res, false).then(() => res.json())
     return data
   },
   register: async (name: string, email: string, phone: string, branch: string, batch: string | number) => {
@@ -164,9 +167,14 @@ export const authAPI = {
   refresh: async () => {
     // Don't use handle() here to avoid infinite recursion
     // handle() would try to refresh on 401, causing infinite loop
+    const csrfToken = getCsrfToken()
+    const headers: Record<string, string> = {}
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
     const res = await fetch(`${BASE}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
+      headers,
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
@@ -342,6 +350,17 @@ export const usersAPI = {
     const data = await handle(res).then(() => res.json())
     return data as { photoUrl: string; message: string }
   },
+  async uploadMyPhoto(file: File) {
+    const form = new FormData()
+    form.append('image', file)
+    const res = await fetch(`${BASE}/upload/profile`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as { photoUrl: string; message: string }
+  },
   async resetPassword(newPassword: string) {
     const res = await fetch(`${BASE}/users/reset-password`, {
       method: 'POST',
@@ -370,11 +389,12 @@ export interface MockTest {
   scheduledDate?: string
   createdBy: string
   createdAt: string
+  questionIds?: string[]
 }
 
 export interface TestResult {
   _id: string
-  userId: string
+  userId: string | { _id?: string; name?: string; email?: string; branch?: string }
   testName: string
   subject: string
   score: number
@@ -401,10 +421,16 @@ const dashboardResultsRequests = new Map<string, Promise<TestResult[]>>()
 const getDashboardCacheKey = () => session.get<{ _id?: string }>()?._id || 'anonymous'
 
 export const testsAPI = {
+  async getAllAdmin() {
+    const res = await fetch(`${BASE}/tests`, { credentials: 'include' })
+    const data = await handle(res).then(() => res.json())
+    return data as TestResult[]
+  },
   async getMyResults() {
     const res = await fetch(`${BASE}/tests/my`, {
       method: 'GET',
       credentials: 'include',
+      cache: 'no-store',
     })
     const data = await handle(res).then(() => res.json())
     return data as TestResult[]

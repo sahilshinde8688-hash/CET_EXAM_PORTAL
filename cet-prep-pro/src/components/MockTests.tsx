@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Sidebar from './Sidebar'
 import TestInterface from './TestInterface'
 import ExamInstructions from './ExamInstructions'
-import { mockTestsAPI, testsAPI, MockTest, TestResult } from '../lib/api'
+import UserAvatar from './UserAvatar'
+import { mockTestsAPI, testsAPI, session, MockTest, TestResult, type AuthUser } from '../lib/api'
 
 type TabType = 'Full Length' | 'Subject-wise' | 'Chapter-wise' | 'Previous Year'
 type DiffFilter = 'All Levels' | 'Easy' | 'Medium' | 'Hard'
@@ -135,15 +136,61 @@ interface MockTestsProps {
 }
 
 export default function MockTests({ onNavigate }: MockTestsProps) {
+  const user = session.get<AuthUser>()
   const [activeTab, setActiveTab] = useState<TabType>('Full Length')
   const [diff, setDiff] = useState<DiffFilter>('All Levels')
   const [subj, setSubj] = useState<SubjFilter>('All Subjects')
   const [rangeVal, setRangeVal] = useState(60)
-  const [testActive, setTestActive] = useState(false)
-  const [startingTest, setStartingTest] = useState(false)
   const [mockTests, setMockTests] = useState<MockTest[]>([])
   const [testResults, setTestResults] = useState<TestResult[]>([])
   const [loading, setLoading] = useState(true)
+  const [showResumeDialog, setShowResumeDialog] = useState(false)
+  const [selectedTestName, setSelectedTestName] = useState(() => localStorage.getItem('cet_selected_test_name') || 'MHT-CET Mock Test')
+  const bypassBackGuard = useRef(false)
+
+  // ── Restore exam state on reload ─────────────────────────────────────────
+  const EXAM_STATE_KEY = 'cet_exam_state'
+  const savedState = localStorage.getItem(EXAM_STATE_KEY)
+  const [testActive, setTestActive] = useState(savedState === 'test')
+  const [startingTest, setStartingTest] = useState(savedState === 'instructions')
+
+  const enterExamInstructions = () => {
+    localStorage.setItem(EXAM_STATE_KEY, 'instructions')
+    setStartingTest(true)
+  }
+
+  const enterTest = () => {
+    bypassBackGuard.current = false
+    localStorage.setItem(EXAM_STATE_KEY, 'test')
+    setStartingTest(false)
+    setTestActive(true)
+  }
+
+  const exitExam = () => {
+    localStorage.removeItem(EXAM_STATE_KEY)
+    setTestActive(false)
+    setStartingTest(false)
+  }
+
+  // ── Back button interception during exam ──────────────────────────────────
+  useEffect(() => {
+    const isExamOpen = testActive || startingTest
+    if (!isExamOpen) return
+
+    // Push a sentinel entry so the back button hits it first
+    window.history.pushState({ examGuard: true }, '')
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (bypassBackGuard.current) return
+      // Browser just consumed our sentinel — show the resume dialog instead of leaving
+      e.preventDefault?.()
+      window.history.pushState({ examGuard: true }, '') // push sentinel back immediately
+      setShowResumeDialog(true)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [testActive, startingTest])
 
   useEffect(() => {
     loadMockTests()
@@ -232,23 +279,121 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     .sort((a, b) => a.percentage - b.percentage)
     .slice(0, 2)
 
+  // ── Resume Test Dialog ───────────────────────────────────────────────────
+  const ResumeDialog = () => (
+    <>
+      <style>{`
+        @keyframes rd-fadein  { from { opacity:0 } to { opacity:1 } }
+        @keyframes rd-slidein { from { transform:translateY(20px) scale(.97); opacity:0 } to { transform:translateY(0) scale(1); opacity:1 } }
+      `}</style>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 999998,
+        background: 'rgba(2,6,23,0.75)', backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'rd-fadein 0.18s ease',
+      }}>
+        <div style={{
+          background: '#fff', borderRadius: '20px', width: '90%', maxWidth: '440px',
+          padding: '40px 36px 32px', textAlign: 'center',
+          boxShadow: '0 32px 64px rgba(0,0,0,0.3)',
+          animation: 'rd-slidein 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+          position: 'relative', overflow: 'hidden',
+        }}>
+          {/* Blue accent strip */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '5px', background: 'linear-gradient(90deg,#1d4ed8,#2563eb)', borderRadius: '20px 20px 0 0' }} />
+
+          {/* Icon */}
+          <div style={{ width: '68px', height: '68px', borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '34px', color: '#2563eb', fontVariationSettings: "'FILL' 1" }}>quiz</span>
+          </div>
+
+          {/* Tag */}
+          <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '12px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+            Exam In Progress
+          </div>
+
+          <h2 style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>
+            You have an exam in progress
+          </h2>
+          <p style={{ margin: '0 0 28px', fontSize: '13.5px', color: '#64748b', lineHeight: 1.65 }}>
+            Your answers and timer are saved. Would you like to resume your test or exit?
+          </p>
+
+          {/* Resume button */}
+          <button
+            autoFocus
+            onClick={() => setShowResumeDialog(false)}
+            style={{
+              width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+              background: 'linear-gradient(135deg,#1d4ed8,#2563eb)', color: '#fff',
+              fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 6px 20px rgba(37,99,235,0.35)', marginBottom: '10px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '20px', fontVariationSettings: "'FILL' 0" }}>play_arrow</span>
+            Resume Test
+          </button>
+
+          {/* Exit button */}
+          <button
+            onClick={() => {
+              bypassBackGuard.current = true
+              setShowResumeDialog(false)
+              exitExam()
+              // Pop the sentinel history entry we pushed, then exit
+              window.history.go(-1)
+            }}
+            style={{
+              width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e2e8f0',
+              background: '#f8fafc', color: '#64748b',
+              fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 0" }}>exit_to_app</span>
+            Exit Exam & Go Back
+          </button>
+
+          <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#94a3b8' }}>
+            Exiting will end your current exam session. Your progress may not be saved.
+          </p>
+        </div>
+      </div>
+    </>
+  )
+
   return (
     <>
+    {showResumeDialog && <ResumeDialog />}
     {testActive ? (
-      <TestInterface onClose={() => setTestActive(false)} />
+      <TestInterface
+        onClose={exitExam}
+        examName={selectedTestName}
+        onBackToAnalysis={() => {
+          exitExam()
+          onNavigate?.('analytics')
+        }}
+        onSubmissionComplete={() => {
+          exitExam()
+          onNavigate?.('dashboard')
+        }}
+        onBackRequest={() => setShowResumeDialog(true)}
+      />
     ) : startingTest ? (
-      <ExamInstructions 
-        onStart={() => {
+      <ExamInstructions
+        onStart={enterTest}
+        onCancel={() => {
+          sessionStorage.removeItem(EXAM_STATE_KEY)
           setStartingTest(false)
-          setTestActive(true)
-        }} 
-        onCancel={() => setStartingTest(false)} 
+        }}
       />
     ) : (
     <div className="db-root mt-page-content">
 
       {/* ── Sidebar ──────────────────────────────── */}
-      <Sidebar activePage="mocktests" onNavigate={onNavigate} onStartTest={() => setStartingTest(true)} />
+      <Sidebar activePage="mocktests" onNavigate={onNavigate} onStartTest={enterExamInstructions} />
 
       {/* ── Main ─────────────────────────────────── */}
       <main className="db-main">
@@ -271,11 +416,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
               <span className="material-symbols-outlined">help</span>
             </button>
             <div className="mt-avatar-wrap">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSQ6dVaCJOlm1KZIRIqJKCzM2KMFyjuarIYCDkGlwZPd4iMqnnhUj4rqWbJzGG2ID9nZbUPU8ErBzcdNLiK_sqLCTEn5Dpf-LJP1Laq5P87J5PUEhZyqAykDjJst3k90YiBVoYolO9RWFtv9vnZe1KiVrz1VP2SWwv4hG-o-IfefCWmEj7dbKF11XSW8NQVfN_TTTLtfyqljmhl-N-jgRigxu_EBCwqSIiXKDKM14QGTRkg_lKmwZUCroEG5AtziK4KPvWOOEBTXE"
-                alt="User avatar"
-                className="mt-avatar"
-              />
+              <UserAvatar user={user} className="mt-avatar" onClick={() => onNavigate?.('settings')} />
             </div>
           </div>
         </header>
@@ -359,7 +500,11 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                       </span>
                       <span className={`mt-diff-badge ${diffColors[test.difficulty]}`}>{test.difficulty}</span>
                     </div>
-                    <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} onClick={() => setStartingTest(true)}>
+                    <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} onClick={() => {
+                      localStorage.setItem('cet_selected_test_name', test.title)
+                      setSelectedTestName(test.title)
+                      setStartingTest(true)
+                    }}>
                       Start Now
                       <span className="material-symbols-outlined">arrow_forward</span>
                     </button>

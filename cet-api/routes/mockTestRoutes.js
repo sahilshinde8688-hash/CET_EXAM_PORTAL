@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const MockTest = require('../models/MockTest')
 const { apiLimiter } = require('../middleware/rateLimit')
+const { protect, adminOnly } = require('../middleware/auth')
 
 // GET all mock tests
 router.get('/', apiLimiter, async (req, res) => {
@@ -35,7 +36,7 @@ router.put('/:id', apiLimiter, async (req, res) => {
 })
 
 // DELETE mock test
-router.delete('/:id', apiLimiter, async (req, res) => {
+router.delete('/:id', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
     await MockTest.findByIdAndDelete(req.params.id)
     res.json({ message: 'Deleted' })

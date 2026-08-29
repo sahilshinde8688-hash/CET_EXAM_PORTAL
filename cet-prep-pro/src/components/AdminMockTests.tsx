@@ -4,7 +4,7 @@ import {
   Clock, Users, FileText, CheckCircle, X, Calendar, BarChart3,
   ChevronLeft, ChevronRight, Info, HelpCircle, Lock
 } from 'lucide-react'
-import { mockTestsAPI, MockTest, questionsAPI } from '../lib/api'
+import { mockTestsAPI, MockTest, questionsAPI, testsAPI, type Question, type TestResult } from '../lib/api'
 
 type TabType = 'all' | 'active' | 'scheduled' | 'draft'
 
@@ -18,6 +18,18 @@ export default function AdminMockTests() {
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([])
   const [availableChaptersBySubject, setAvailableChaptersBySubject] = useState<Record<string, string[]>>({})
   const [loadingMeta, setLoadingMeta] = useState(false)
+  const [selectedTest, setSelectedTest] = useState<MockTest | null>(null)
+  const [testAttempts, setTestAttempts] = useState<TestResult[]>([])
+  const [attemptsLoading, setAttemptsLoading] = useState(false)
+  const [editingTest, setEditingTest] = useState<MockTest | null>(null)
+  const [settingsTest, setSettingsTest] = useState<MockTest | null>(null)
+  const [availableQuestionCount, setAvailableQuestionCount] = useState(0)
+  const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({})
+  const [questionCountError, setQuestionCountError] = useState('')
+  const [questionSubjectFilter, setQuestionSubjectFilter] = useState('Mixed')
+  const [availableQuestions, setAvailableQuestions] = useState<Question[]>([])
+  const [questionDifficultyFilter, setQuestionDifficultyFilter] = useState('All Difficulties')
+  const [questionChapterFilter, setQuestionChapterFilter] = useState('All Chapters')
 
   const [formData, setFormData] = useState({
     // Step 1: Basic Information
@@ -87,23 +99,89 @@ export default function AdminMockTests() {
     }
   }
 
+  const viewTestAttempts = async (test: MockTest) => {
+    setSelectedTest(test)
+    setAttemptsLoading(true)
+    try {
+      const results = await testsAPI.getAllAdmin()
+      setTestAttempts(results.filter(result => result.testName?.trim().toLowerCase() === test.title.trim().toLowerCase()))
+    } catch (error) {
+      console.error('Failed to load test attempts:', error)
+      setTestAttempts([])
+    } finally {
+      setAttemptsLoading(false)
+    }
+  }
+
+  const openEditWizard = (test: MockTest) => {
+    const category = ['PCM', 'PCB', 'PCMB'].includes(test.subject) ? test.subject : 'PCM'
+    setEditingTest(test)
+    setFormData(previous => ({
+      ...previous,
+      title: test.title,
+      subject: category === test.subject ? 'Mixed' : test.subject,
+      category,
+      difficulty: test.difficulty,
+      totalQuestions: test.questions,
+      duration: test.duration,
+      totalMarks: test.questions * marksForSubject(test.subject),
+      marksPerQuestion: marksForSubject(test.subject),
+      selectedQuestions: test.questionIds || [],
+      publishNow: test.status === 'active',
+      visibility: test.status === 'active' ? 'published' : 'draft',
+    }))
+    setQuestionSubjectFilter('Mixed')
+    setCurrentStep(1)
+    setShowCreateModal(true)
+  }
+
+  const saveTestSettings = async (status: MockTest['status']) => {
+    if (!settingsTest) return
+    try {
+      await mockTestsAPI.update(settingsTest._id, { status })
+      setSettingsTest(null)
+      await loadMockTests()
+    } catch (error) {
+      console.error('Failed to update test settings:', error)
+      alert('Failed to update test settings. Please try again.')
+    }
+  }
+
+  const deleteTest = async (test: MockTest) => {
+    if (!window.confirm(`Delete "${test.title}" permanently?`)) return
+    try {
+      await mockTestsAPI.delete(test._id)
+      setMockTests(current => current.filter(item => item._id !== test._id))
+    } catch (error) {
+      console.error('Failed to delete mock test:', error)
+      alert('Failed to delete test. Please try again.')
+    }
+  }
+
   const handleCreateTest = async () => {
     try {
-      const status = formData.publishNow ? 'active' : formData.visibility === 'published' ? 'active' : 'draft'
+      const status = formData.visibility === 'draft' ? 'draft' : formData.publishNow ? 'active' : 'scheduled'
       const scheduledDate = formData.publishNow ? new Date().toISOString() : 
                           formData.scheduleDate && formData.scheduleTime ? 
                           `${formData.scheduleDate}T${formData.scheduleTime}` : undefined
 
-      await mockTestsAPI.create({
+      const payload = {
         title: formData.title,
         subject: formData.subject === 'Mixed' ? formData.category : formData.subject,
         difficulty: formData.difficulty as 'Easy' | 'Medium' | 'Hard',
         questions: formData.totalQuestions,
         duration: formData.duration,
+        questionIds: formData.questionSelection === 'bank' ? formData.selectedQuestions : [],
         status: status as 'active' | 'scheduled' | 'draft',
         scheduledDate,
         createdBy: 'Admin X',
-      })
+      }
+      if (editingTest) {
+        await mockTestsAPI.update(editingTest._id, payload)
+      } else {
+        await mockTestsAPI.create(payload)
+      }
+      setEditingTest(null)
       setShowCreateModal(false)
       setCurrentStep(1)
       loadMockTests()
@@ -117,8 +195,122 @@ export default function AdminMockTests() {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const nextStep = () => setCurrentStep(prev => Math.min(7, prev + 1))
+  const nextStep = () => {
+    if (currentStep === 2) {
+      const requestedQuestions = Number(formData.totalQuestions)
+      const availableQuestions = questionSubjectFilter === 'Mixed'
+        ? categorySubjects.reduce((total, subject) => total + (questionCounts[subject] || 0), 0)
+        : questionCounts[questionSubjectFilter] || 0
+      if (!Number.isInteger(requestedQuestions) || requestedQuestions < 1) {
+        setQuestionCountError('Enter at least 1 question.')
+        return
+      }
+      if (requestedQuestions > availableQuestions) {
+        setQuestionCountError(`Only ${availableQuestions} active question${availableQuestions === 1 ? '' : 's'} available in the selected category.`)
+        return
+      }
+      setQuestionCountError('')
+    }
+    if (currentStep === 3 && formData.questionSelection === 'bank' && formData.selectedQuestions.length === 0) {
+      setQuestionCountError('Select at least one question from the question bank.')
+      return
+    }
+    setCurrentStep(prev => Math.min(7, prev + 1))
+  }
   const prevStep = () => setCurrentStep(prev => Math.max(1, prev - 1))
+
+  const marksForSubject = (subject: string) => subject === 'Mathematics' || subject === 'Biology' ? 2 : 1
+
+  const categorySubjects = formData.category === 'PCM'
+    ? ['Physics', 'Chemistry', 'Mathematics']
+    : formData.category === 'PCB'
+      ? ['Physics', 'Chemistry', 'Biology']
+      : ['Physics', 'Chemistry', 'Mathematics', 'Biology']
+
+  const getFilteredQuestionCount = (subject: string) => subject === 'Mixed'
+    ? Object.entries(questionCounts).filter(([name]) => subjectOptions.includes(name)).reduce((total, [, count]) => total + count, 0)
+    : questionCounts[subject] || 0
+
+  const updateQuestionSubjectFilter = (subject: string) => {
+    setQuestionSubjectFilter(subject)
+    const totalQuestions = getFilteredQuestionCount(subject)
+    const totalMarks = subject === 'Mixed'
+      ? ['Physics', 'Chemistry'].reduce((total, name) => total + (questionCounts[name] || 0), 0) + ['Mathematics', 'Biology'].reduce((total, name) => total + (questionCounts[name] || 0) * 2, 0)
+      : totalQuestions * marksForSubject(subject)
+    updateFormData('totalQuestions', totalQuestions)
+    updateFormData('totalMarks', totalMarks)
+  }
+
+  const filteredQuestionBank = availableQuestions.filter(question => {
+    const matchesCategory = categorySubjects.includes(question.subject?.trim() || '')
+    const matchesSubject = questionSubjectFilter === 'Mixed' || question.subject === questionSubjectFilter
+    const matchesDifficulty = questionDifficultyFilter === 'All Difficulties' || question.difficulty === questionDifficultyFilter
+    const matchesChapter = questionChapterFilter === 'All Chapters' || question.chapter === questionChapterFilter
+    return matchesCategory && matchesSubject && matchesDifficulty && matchesChapter
+  })
+
+  const toggleQuestionSelection = (question: Question) => {
+    const selected = formData.selectedQuestions.includes(question._id)
+    const selectedQuestions = selected
+      ? formData.selectedQuestions.filter(id => id !== question._id)
+      : [...formData.selectedQuestions, question._id]
+    const selectedItems = availableQuestions.filter(item => selectedQuestions.includes(item._id))
+    updateFormData('selectedQuestions', selectedQuestions)
+    updateFormData('totalQuestions', selectedQuestions.length)
+    updateFormData('totalMarks', selectedItems.reduce((total, item) => total + marksForSubject(item.subject), 0))
+  }
+
+  const toggleChapterSelection = (subject: string, chapter: string, checked: boolean) => {
+    const chapterQuestions = availableQuestions.filter(question => question.subject === subject && question.chapter === chapter)
+    const selectedQuestions = checked
+      ? [...new Set([...formData.selectedQuestions, ...chapterQuestions.map(question => question._id)])]
+      : formData.selectedQuestions.filter(id => !chapterQuestions.some(question => question._id === id))
+    const selectedItems = availableQuestions.filter(question => selectedQuestions.includes(question._id))
+    const selectedChapters = selectedItems.reduce<Record<string, string[]>>((chapters, question) => {
+      const key = question.subject.toLowerCase()
+      if (question.chapter && !chapters[key]?.includes(question.chapter)) chapters[key] = [...(chapters[key] || []), question.chapter]
+      return chapters
+    }, {})
+    updateFormData('selectedChapters', selectedChapters)
+    updateFormData('selectedQuestions', selectedQuestions)
+    updateFormData('totalQuestions', selectedQuestions.length)
+    updateFormData('totalMarks', selectedItems.reduce((total, question) => total + marksForSubject(question.subject), 0))
+  }
+
+  const selectAllSubjectQuestions = (subject: string, checked: boolean) => {
+    const subjectQuestions = availableQuestions.filter(question => question.subject === subject)
+    const selectedQuestions = checked
+      ? [...new Set([...formData.selectedQuestions, ...subjectQuestions.map(question => question._id)])]
+      : formData.selectedQuestions.filter(id => !subjectQuestions.some(question => question._id === id))
+    const selectedItems = availableQuestions.filter(question => selectedQuestions.includes(question._id))
+    updateFormData('selectedQuestions', selectedQuestions)
+    updateFormData('totalQuestions', selectedQuestions.length)
+    updateFormData('totalMarks', selectedItems.reduce((total, question) => total + marksForSubject(question.subject), 0))
+  }
+
+  useEffect(() => {
+    if (formData.subject === 'Mixed') return
+    const marks = marksForSubject(formData.subject)
+    setFormData(previous => ({
+      ...previous,
+      marksPerQuestion: marks,
+      totalMarks: (Number(previous.totalQuestions) || 0) * marks,
+    }))
+  }, [formData.subject, formData.totalQuestions])
+
+  useEffect(() => {
+    if (!showCreateModal || !Object.keys(questionCounts).length) return
+    const allowedSubjects = categorySubjects
+    const totalQuestions = questionSubjectFilter === 'Mixed'
+      ? allowedSubjects.reduce((total, subject) => total + (questionCounts[subject] || 0), 0)
+      : questionCounts[questionSubjectFilter] || 0
+    const totalMarks = questionSubjectFilter === 'Mixed'
+      ? allowedSubjects.reduce((total, subject) => total + (questionCounts[subject] || 0) * marksForSubject(subject), 0)
+      : totalQuestions * marksForSubject(questionSubjectFilter)
+    setFormData(previous => previous.totalQuestions === totalQuestions && previous.totalMarks === totalMarks
+      ? previous
+      : { ...previous, totalQuestions, totalMarks, marksPerQuestion: questionSubjectFilter === 'Mixed' ? previous.marksPerQuestion : marksForSubject(questionSubjectFilter) })
+  }, [showCreateModal, questionCounts, questionSubjectFilter, formData.category])
 
   useEffect(() => {
     loadMockTests()
@@ -127,8 +319,18 @@ export default function AdminMockTests() {
   useEffect(() => {
     if (showCreateModal) {
       loadQuestionBankMeta()
+      const subject = formData.subject && formData.subject !== 'Mixed' ? formData.subject : undefined
+      questionsAPI.getAll({ isActive: true }).then(questions => {
+        setAvailableQuestions(questions)
+        setQuestionCounts(questions.reduce<Record<string, number>>((counts, question) => {
+          const subjectName = question.subject?.trim() || 'Other'
+          counts[subjectName] = (counts[subjectName] || 0) + 1
+          return counts
+        }, {}))
+      }).catch(error => console.error('Failed to count questions:', error))
+      questionsAPI.getAll({ isActive: true, subject }).then(questions => setAvailableQuestionCount(questions.length)).catch(error => console.error('Failed to count selected subject questions:', error))
     }
-  }, [showCreateModal])
+  }, [showCreateModal, formData.subject])
 
   const filtered = mockTests.filter(test => {
     const matchesTab = activeTab === 'all' || test.status === activeTab
@@ -163,6 +365,12 @@ export default function AdminMockTests() {
     }
   }
 
+  const subjectOptions = formData.category === 'PCM'
+    ? ['Physics', 'Chemistry', 'Mathematics']
+    : formData.category === 'PCB'
+      ? ['Physics', 'Chemistry', 'Biology']
+      : ['Physics', 'Chemistry', 'Mathematics', 'Biology']
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -179,15 +387,28 @@ export default function AdminMockTests() {
             <div className="amt-form-row">
               <div className="amt-form-group">
                 <label className="amt-label">Category</label>
-                <select className="amt-select" value={formData.category} onChange={e => updateFormData('category', e.target.value)}>
+                <select className="amt-select" value={formData.category} onChange={e => {
+                  const category = e.target.value
+                  updateFormData('category', category)
+                  setQuestionSubjectFilter('Mixed')
+                  const subjects = category === 'PCM' ? ['Physics', 'Chemistry', 'Mathematics'] : category === 'PCB' ? ['Physics', 'Chemistry', 'Biology'] : ['Physics', 'Chemistry', 'Mathematics', 'Biology']
+                  if (formData.subject !== 'Mixed' && !subjects.includes(formData.subject)) updateFormData('subject', 'Physics')
+                }}>
                   <option>PCM</option>
                   <option>PCB</option>
+                  <option>PCMB</option>
                 </select>
+                <div className="amt-question-counts">
+                  {categorySubjects.map(subject => (
+                    <span key={subject}>{subject}: <strong>{questionCounts[subject] || 0}</strong> available</span>
+                  ))}
+                </div>
               </div>
               <div className="amt-form-group">
                 <label className="amt-label">Subject *</label>
                 <select className="amt-select" value={formData.subject} onChange={e => updateFormData('subject', e.target.value)}>
-                  {availableSubjects.map(subject => (
+                  <option value="Mixed">All Subjects</option>
+                  {subjectOptions.map(subject => (
                     <option key={subject} value={subject}>{subject}</option>
                   ))}
                 </select>
@@ -211,11 +432,19 @@ export default function AdminMockTests() {
             <div className="amt-form-row">
               <div className="amt-form-group">
                 <label className="amt-label">Total Questions *</label>
-                <input type="number" className="amt-input" value={formData.totalQuestions} onChange={e => updateFormData('totalQuestions', parseInt(e.target.value))} />
+                <input type="number" min="1" className="amt-input" value={formData.totalQuestions} onChange={e => { setQuestionCountError(''); updateFormData('totalQuestions', parseInt(e.target.value)) }} />
+                <small className="amt-availability-note">{categorySubjects.reduce((total, subject) => total + (questionCounts[subject] || 0), 0)} active questions available for {formData.category}</small>
+                {questionCountError && <p className="amt-validation-error">{questionCountError}</p>}
+                <div className="amt-category-total">
+                  {categorySubjects.map((subject, index) => (
+                    <span key={subject}>{index > 0 && ' + '}{subject} <strong>{questionCounts[subject] || 0}</strong></span>
+                  ))}
+                  {' = '}<strong>{categorySubjects.reduce((total, subject) => total + (questionCounts[subject] || 0), 0)} total</strong>
+                </div>
               </div>
               <div className="amt-form-group">
                 <label className="amt-label">Total Marks *</label>
-                <input type="number" className="amt-input" value={formData.totalMarks} onChange={e => updateFormData('totalMarks', parseInt(e.target.value))} />
+                <input type="number" className="amt-input" value={formData.totalMarks} readOnly={formData.subject !== 'Mixed'} onChange={e => updateFormData('totalMarks', parseInt(e.target.value))} />
               </div>
             </div>
             <div className="amt-form-row">
@@ -225,7 +454,8 @@ export default function AdminMockTests() {
               </div>
               <div className="amt-form-group">
                 <label className="amt-label">Marks per Question</label>
-                <input type="number" className="amt-input" value={formData.marksPerQuestion} onChange={e => updateFormData('marksPerQuestion', parseInt(e.target.value))} />
+                <input type="number" className="amt-input" value={formData.subject === 'Mixed' ? formData.marksPerQuestion : marksForSubject(formData.subject)} readOnly={formData.subject !== 'Mixed'} onChange={e => updateFormData('marksPerQuestion', parseInt(e.target.value))} />
+                <small className="amt-availability-note">Physics/Chemistry: 1 mark · Mathematics/Biology: 2 marks</small>
               </div>
             </div>
             <div className="amt-form-row">
@@ -283,16 +513,16 @@ export default function AdminMockTests() {
                 <div className="amt-form-row">
                   <div className="amt-form-group">
                     <label className="amt-label">Subject</label>
-                    <select className="amt-select">
-                      <option>All Subjects</option>
-                      {availableSubjects.map(subject => (
+                      <select className="amt-select" value={questionSubjectFilter} onChange={e => updateQuestionSubjectFilter(e.target.value)}>
+                      <option value="Mixed">All Subjects ({getFilteredQuestionCount('Mixed')})</option>
+                      {subjectOptions.map(subject => (
                         <option key={subject} value={subject}>{subject}</option>
                       ))}
                     </select>
                   </div>
                   <div className="amt-form-group">
                     <label className="amt-label">Difficulty</label>
-                    <select className="amt-select">
+                      <select className="amt-select" value={questionDifficultyFilter} onChange={e => setQuestionDifficultyFilter(e.target.value)}>
                       <option>All Difficulties</option>
                       <option>Easy</option>
                       <option>Medium</option>
@@ -302,16 +532,46 @@ export default function AdminMockTests() {
                 </div>
                 <div className="amt-form-group">
                   <label className="amt-label">Chapter</label>
-                  <select className="amt-select">
+                  <select className="amt-select" value={questionChapterFilter} onChange={e => setQuestionChapterFilter(e.target.value)}>
                     <option>All Chapters</option>
                     {Object.values(availableChaptersBySubject).flat().map(chapter => (
                       <option key={chapter} value={chapter}>{chapter}</option>
                     ))}
                   </select>
                 </div>
+                <div className="amt-question-bank-list">
+                  {filteredQuestionBank.length === 0 ? <p className="amt-no-chapters">No questions match the selected filters.</p> : filteredQuestionBank.map((question, index) => (
+                    <label key={question._id} className={`amt-question-option ${formData.selectedQuestions.includes(question._id) ? 'selected' : ''}`}>
+                      <input type="checkbox" checked={formData.selectedQuestions.includes(question._id)} onChange={() => toggleQuestionSelection(question)} />
+                      <div className="amt-question-content">
+                        <span className="amt-question-meta">Q{index + 1} · {question.subject} · {question.topic} · ID: {question._id}</span>
+                        <span className="amt-question-text">{question.text}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
                 <div className="amt-info-box">
                   <Info size={16} />
-                  <p>Select questions from the question bank based on filters. Questions will be automatically selected based on your criteria.</p>
+                  <p><strong>{formData.selectedQuestions.length} questions selected</strong> from {questionSubjectFilter === 'Mixed' ? 'all subjects' : questionSubjectFilter}. Choose questions above.</p>
+                </div>
+                {questionCountError && <p className="amt-validation-error">{questionCountError}</p>}
+                <div className="amt-question-selection-actions">
+                  <button type="button" onClick={() => {
+                    const selectedQuestions = [...new Set([...formData.selectedQuestions, ...filteredQuestionBank.map(question => question._id)])]
+                    const selectedItems = availableQuestions.filter(question => selectedQuestions.includes(question._id))
+                    updateFormData('selectedQuestions', selectedQuestions)
+                    updateFormData('totalQuestions', selectedQuestions.length)
+                    updateFormData('totalMarks', selectedItems.reduce((total, question) => total + marksForSubject(question.subject), 0))
+                    setQuestionCountError('')
+                  }}>Select All Visible</button>
+                  <button type="button" onClick={() => {
+                    const visibleIds = new Set(filteredQuestionBank.map(question => question._id))
+                    const selectedQuestions = formData.selectedQuestions.filter(id => !visibleIds.has(id))
+                    const selectedItems = availableQuestions.filter(question => selectedQuestions.includes(question._id))
+                    updateFormData('selectedQuestions', selectedQuestions)
+                    updateFormData('totalQuestions', selectedQuestions.length)
+                    updateFormData('totalMarks', selectedItems.reduce((total, question) => total + marksForSubject(question.subject), 0))
+                  }}>Clear Visible</button>
                 </div>
               </>
             )}
@@ -334,175 +594,26 @@ export default function AdminMockTests() {
       case 4:
         return (
           <div className="amt-chapters-container">
-            {formData.category === 'PCM' ? (
-              <>
-                <div className="amt-chapter-section">
-                  <h4>Physics</h4>
+            {categorySubjects.map(subject => {
+              const chapters = availableChaptersBySubject[subject] || []
+              const subjectQuestions = availableQuestions.filter(question => question.subject === subject)
+              const allSelected = subjectQuestions.length > 0 && subjectQuestions.every(question => formData.selectedQuestions.includes(question._id))
+              return (
+                <div className="amt-chapter-section" key={subject}>
+                  <div className="amt-chapter-header">
+                    <h4>{subject}</h4>
+                    <label className="amt-select-all-label"><input type="checkbox" checked={allSelected} onChange={event => selectAllSubjectQuestions(subject, event.target.checked)} /> Select All</label>
+                  </div>
                   <div className="amt-chapter-list">
-                    {(availableChaptersBySubject['Physics'] || []).length > 0 
-                      ? availableChaptersBySubject['Physics'].map(chapter => {
-                          const isSelected = formData.selectedChapters.physics?.includes(chapter)
-                          return (
-                            <label key={chapter} className="amt-checkbox-label">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={e => {
-                                  const current = formData.selectedChapters.physics || []
-                                  const updated = e.target.checked 
-                                    ? [...current, chapter]
-                                    : current.filter(c => c !== chapter)
-                                  updateFormData('selectedChapters', { ...formData.selectedChapters, physics: updated })
-                                }} 
-                              />
-                              <span>{chapter}</span>
-                            </label>
-                          )
-                        })
-                      : <p className="amt-no-chapters">No chapters available in question bank</p>
-                    }
+                    {chapters.length > 0 ? chapters.map(chapter => {
+                      const chapterQuestions = availableQuestions.filter(question => question.subject === subject && question.chapter === chapter)
+                      const isSelected = chapterQuestions.length > 0 && chapterQuestions.some(question => formData.selectedQuestions.includes(question._id))
+                      return <label key={chapter} className="amt-checkbox-label"><input type="checkbox" checked={isSelected} onChange={event => toggleChapterSelection(subject, chapter, event.target.checked)} /><span>{chapter} ({chapterQuestions.length})</span></label>
+                    }) : <p className="amt-no-chapters">No chapters available in question bank</p>}
                   </div>
                 </div>
-                <div className="amt-chapter-section">
-                  <h4>Chemistry</h4>
-                  <div className="amt-chapter-list">
-                    {(availableChaptersBySubject['Chemistry'] || []).length > 0 
-                      ? availableChaptersBySubject['Chemistry'].map(chapter => {
-                          const isSelected = formData.selectedChapters.chemistry?.includes(chapter)
-                          return (
-                            <label key={chapter} className="amt-checkbox-label">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={e => {
-                                  const current = formData.selectedChapters.chemistry || []
-                                  const updated = e.target.checked 
-                                    ? [...current, chapter]
-                                    : current.filter(c => c !== chapter)
-                                  updateFormData('selectedChapters', { ...formData.selectedChapters, chemistry: updated })
-                                }} 
-                              />
-                              <span>{chapter}</span>
-                            </label>
-                          )
-                        })
-                      : <p className="amt-no-chapters">No chapters available in question bank</p>
-                    }
-                  </div>
-                </div>
-                <div className="amt-chapter-section">
-                  <h4>Mathematics</h4>
-                  <div className="amt-chapter-list">
-                    {(availableChaptersBySubject['Mathematics'] || []).length > 0 
-                      ? availableChaptersBySubject['Mathematics'].map(chapter => {
-                          const isSelected = formData.selectedChapters.mathematics?.includes(chapter)
-                          return (
-                            <label key={chapter} className="amt-checkbox-label">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={e => {
-                                  const current = formData.selectedChapters.mathematics || []
-                                  const updated = e.target.checked 
-                                    ? [...current, chapter]
-                                    : current.filter(c => c !== chapter)
-                                  updateFormData('selectedChapters', { ...formData.selectedChapters, mathematics: updated })
-                                }} 
-                              />
-                              <span>{chapter}</span>
-                            </label>
-                          )
-                        })
-                      : <p className="amt-no-chapters">No chapters available in question bank</p>
-                    }
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="amt-chapter-section">
-                  <h4>Physics</h4>
-                  <div className="amt-chapter-list">
-                    {(availableChaptersBySubject['Physics'] || []).length > 0 
-                      ? availableChaptersBySubject['Physics'].map(chapter => {
-                          const isSelected = formData.selectedChapters.physics?.includes(chapter)
-                          return (
-                            <label key={chapter} className="amt-checkbox-label">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={e => {
-                                  const current = formData.selectedChapters.physics || []
-                                  const updated = e.target.checked 
-                                    ? [...current, chapter]
-                                    : current.filter(c => c !== chapter)
-                                  updateFormData('selectedChapters', { ...formData.selectedChapters, physics: updated })
-                                }} 
-                              />
-                              <span>{chapter}</span>
-                            </label>
-                          )
-                        })
-                      : <p className="amt-no-chapters">No chapters available in question bank</p>
-                    }
-                  </div>
-                </div>
-                <div className="amt-chapter-section">
-                  <h4>Chemistry</h4>
-                  <div className="amt-chapter-list">
-                    {(availableChaptersBySubject['Chemistry'] || []).length > 0 
-                      ? availableChaptersBySubject['Chemistry'].map(chapter => {
-                          const isSelected = formData.selectedChapters.chemistry?.includes(chapter)
-                          return (
-                            <label key={chapter} className="amt-checkbox-label">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={e => {
-                                  const current = formData.selectedChapters.chemistry || []
-                                  const updated = e.target.checked 
-                                    ? [...current, chapter]
-                                    : current.filter(c => c !== chapter)
-                                  updateFormData('selectedChapters', { ...formData.selectedChapters, chemistry: updated })
-                                }} 
-                              />
-                              <span>{chapter}</span>
-                            </label>
-                          )
-                        })
-                      : <p className="amt-no-chapters">No chapters available in question bank</p>
-                    }
-                  </div>
-                </div>
-                <div className="amt-chapter-section">
-                  <h4>Biology</h4>
-                  <div className="amt-chapter-list">
-                    {(availableChaptersBySubject['Biology'] || []).length > 0 
-                      ? availableChaptersBySubject['Biology'].map(chapter => {
-                          const isSelected = formData.selectedChapters.biology?.includes(chapter)
-                          return (
-                            <label key={chapter} className="amt-checkbox-label">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={e => {
-                                  const current = formData.selectedChapters.biology || []
-                                  const updated = e.target.checked 
-                                    ? [...current, chapter]
-                                    : current.filter(c => c !== chapter)
-                                  updateFormData('selectedChapters', { ...formData.selectedChapters, biology: updated })
-                                }} 
-                              />
-                              <span>{chapter}</span>
-                            </label>
-                          )
-                        })
-                      : <p className="amt-no-chapters">No chapters available in question bank</p>
-                    }
-                  </div>
-                </div>
-              </>
-            )}
+              )
+            })}
           </div>
         )
 
@@ -581,7 +692,7 @@ Example:
             <label className="amt-label">Visibility *</label>
             <div className="amt-visibility-options">
               <label className={`amt-visibility-card ${formData.visibility === 'draft' ? 'active' : ''}`}>
-                <input type="radio" name="visibility" value="draft" checked={formData.visibility === 'draft'} onChange={e => updateFormData('visibility', e.target.value as any)} />
+                <input type="radio" name="visibility" value="draft" checked={formData.visibility === 'draft'} onChange={e => { updateFormData('visibility', e.target.value as any); updateFormData('publishNow', false) }} />
                 <div className="amt-visibility-content">
                   <FileText size={24} />
                   <h5>Draft</h5>
@@ -642,7 +753,7 @@ Example:
           <h1 className="amt-title">Mock Tests Management</h1>
           <p className="amt-sub">Create, schedule, and manage mock tests</p>
         </div>
-        <button className="amt-create-btn" onClick={() => setShowCreateModal(true)}>
+        <button className="amt-create-btn" onClick={() => { setEditingTest(null); setCurrentStep(1); setShowCreateModal(true) }}>
           <Plus size={18} />
           Create New Test
         </button>
@@ -806,16 +917,16 @@ Example:
                   <td>{new Date(test.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                   <td>
                     <div className="amt-actions">
-                      <button className="amt-action-btn" title="View Details">
+                      <button className="amt-action-btn" title="View Student Attempts" onClick={() => viewTestAttempts(test)}>
                         <Eye size={16} />
                       </button>
-                      <button className="amt-action-btn" title="Edit">
+                      <button className="amt-action-btn" title="Edit" onClick={() => openEditWizard(test)}>
                         <Edit size={16} />
                       </button>
-                      <button className="amt-action-btn" title="Settings">
+                      <button className="amt-action-btn" title="Settings" onClick={() => setSettingsTest(test)}>
                         <Settings size={16} />
                       </button>
-                      <button className="amt-action-btn amt-action-btn--danger" title="Delete">
+                      <button className="amt-action-btn amt-action-btn--danger" title="Delete" onClick={() => deleteTest(test)}>
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -827,12 +938,53 @@ Example:
         </table>
       </div>
 
+      {selectedTest && (
+        <div className="amt-modal-overlay" onClick={() => setSelectedTest(null)}>
+          <div className="amt-modal amt-attempts-modal" onClick={event => event.stopPropagation()}>
+            <div className="amt-modal-header">
+              <div>
+                <h2>{selectedTest.title}</h2>
+                <p className="amt-attempts-subtitle">Students who completed this exam</p>
+              </div>
+              <button className="amt-modal-close" onClick={() => setSelectedTest(null)}><X size={20} /></button>
+            </div>
+            <div className="amt-attempts-body">
+              {attemptsLoading ? <p className="amt-attempts-empty">Loading student attempts...</p> : testAttempts.length === 0 ? <p className="amt-attempts-empty">No students have completed this exam yet.</p> : (
+                <div className="amt-attempts-list">
+                  {testAttempts.map(result => {
+                    const student = typeof result.userId === 'object' ? result.userId : null
+                    const percentage = result.totalMarks ? Math.round(result.score / result.totalMarks * 100) : 0
+                    return (
+                      <div className="amt-attempt-row" key={result._id}>
+                        <div><strong>{student?.name || 'Student'}</strong><span>{student?.email || 'No email available'}</span></div>
+                        <div><strong>{Math.round(result.score)}/{Math.round(result.totalMarks)}</strong><span>{percentage}% marks</span></div>
+                        <div><strong>{result.percentile?.toFixed(1) || '0.0'}th</strong><span>{new Date(result.attemptedAt).toLocaleDateString('en-IN')}</span></div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settingsTest && (
+        <div className="amt-modal-overlay" onClick={() => setSettingsTest(null)}>
+          <div className="amt-modal amt-small-modal" onClick={event => event.stopPropagation()}>
+            <div className="amt-modal-header"><h2>Test Settings</h2><button className="amt-modal-close" onClick={() => setSettingsTest(null)}><X size={20} /></button></div>
+            <p className="amt-settings-test-name">{settingsTest.title}</p>
+            <label className="amt-status-select">Test status<select value={settingsTest.status} onChange={event => saveTestSettings(event.target.value as MockTest['status'])}><option value="active">Active</option><option value="scheduled">Scheduled</option><option value="draft">Draft</option></select></label>
+          </div>
+        </div>
+      )}
+
       {/* Create Modal with Steps */}
       {showCreateModal && (
         <div className="amt-modal-overlay" onClick={() => setShowCreateModal(false)}>
 <div className="amt-modal amt-modal--fullscreen" onClick={e => e.stopPropagation()}>
             <div className="amt-modal-header">
-              <h2>Create New Mock Test</h2>
+              <h2>{editingTest ? 'Edit Mock Test' : 'Create New Mock Test'}</h2>
               <button className="amt-modal-close" onClick={() => setShowCreateModal(false)}>
                 <X size={20} />
               </button>
@@ -871,7 +1023,7 @@ Example:
                 ) : (
                   <button className="amt-btn amt-btn-primary" onClick={handleCreateTest}>
                     <Plus size={16} />
-                    Create Test
+                    {editingTest ? 'Save Changes' : 'Create Test'}
                   </button>
                 )}
               </div>

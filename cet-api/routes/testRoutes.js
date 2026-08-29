@@ -22,7 +22,7 @@ router.post('/', protect, apiLimiter, async (req, res) => {
 router.get('/my', protect, apiLimiter, async (req, res) => {
   try {
     const query = TestResult.find({ userId: req.user._id })
-      .select('testName subject score totalMarks percentile duration attemptedAt correct incorrect unanswered totalQuestions subjectWiseScores')
+      .select('testName subject score totalMarks percentile duration attemptedAt correct incorrect unanswered totalQuestions subjectWiseScores answers')
       .sort({ attemptedAt: -1 })
     const results = await query.lean()
     res.json(results)
