@@ -12,16 +12,19 @@ const rateLimit = require('express-rate-limit')
 // Optional Redis store for production scaling
 let RedisStore = null
 let redisClient = null
-try {
-  RedisStore = require('rate-limit-redis')
-  const { createClient } = require('redis')
-  redisClient = createClient({
-    url: process.env.REDIS_URL,
-  })
-  redisClient.connect().catch(console.error)
-} catch (err) {
-  // Redis dependencies not installed, using in-memory store
-  console.warn('Redis not configured, using in-memory rate limiting (not recommended for production)')
+
+if (process.env.REDIS_URL) {
+  try {
+    const RedisStoreModule = require('rate-limit-redis')
+    RedisStore = RedisStoreModule.default || RedisStoreModule
+    const { createClient } = require('redis')
+    redisClient = createClient({
+      url: process.env.REDIS_URL,
+    })
+    redisClient.connect().catch(console.error)
+  } catch (err) {
+    console.warn('Redis not configured, using in-memory rate limiting (not recommended for production)')
+  }
 }
 
 // In-memory store for single-server deployments
@@ -35,7 +38,11 @@ const stores = new Map()
  */
 const createSlidingWindowLimiter = (windowMs, max) => {
   return rateLimit({
-    store: redisClient && RedisStore ? new RedisStore({ client: redisClient }) : undefined,
+    store: redisClient && RedisStore
+      ? new RedisStore({
+          sendCommand: (...command) => redisClient.sendCommand(command),
+        })
+      : undefined,
     windowMs,
     max,
     standardHeaders: true,
