@@ -8,6 +8,15 @@ const { applySecurityHeaders, configureCors } = require('./middleware/securityHe
 const { generateCsrfToken } = require('./middleware/csrf')
 const { apiLimiter } = require('./middleware/rateLimit')
 
+const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'CLIENT_URL']
+const missingEnv = requiredEnv.filter((key) => !process.env[key])
+
+if (missingEnv.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missingEnv.join(', ')}`)
+  console.error('Add them in Render Environment Variables or a local .env file before starting the app.')
+  process.exit(1)
+}
+
 // Use Google DNS to bypass restrictive network DNS
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1'])
 
