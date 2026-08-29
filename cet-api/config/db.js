@@ -5,6 +5,11 @@ const dns      = require('dns')
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1'])
 
 const connectDB = async () => {
+  if (!process.env.MONGO_URI) {
+    console.error('❌ MONGO_URI is not defined. Add it in Render environment variables or your local .env file before starting the app.')
+    process.exit(1)
+  }
+
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI)
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`)
