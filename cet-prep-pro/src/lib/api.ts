@@ -114,6 +114,7 @@ export async function signin(email: string, password: string) {
 
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
+    credentials: 'include',
     headers,
     body: JSON.stringify({ email, password }),
   })
@@ -124,6 +125,7 @@ export async function signin(email: string, password: string) {
 export async function register(payload: { name: string; email: string; phone: string; branch: string; batch: number }) {
   const res = await fetch(`${BASE}/auth/register`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
@@ -134,6 +136,7 @@ export async function register(payload: { name: string; email: string; phone: st
 export async function resetPassword(payload: { token: string; newPassword: string }) {
   const res = await fetch(`${BASE}/users/reset-password`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
