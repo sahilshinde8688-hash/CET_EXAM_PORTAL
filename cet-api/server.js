@@ -8,13 +8,17 @@ const { applySecurityHeaders, configureCors } = require('./middleware/securityHe
 const { generateCsrfToken } = require('./middleware/csrf')
 const { apiLimiter } = require('./middleware/rateLimit')
 
-const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'CLIENT_URL']
+const requiredEnv = ['MONGO_URI', 'JWT_SECRET']
 const missingEnv = requiredEnv.filter((key) => !process.env[key])
 
 if (missingEnv.length > 0) {
   console.error(`❌ Missing required environment variables: ${missingEnv.join(', ')}`)
   console.error('Add them in Render Environment Variables or a local .env file before starting the app.')
   process.exit(1)
+}
+
+if (!process.env.FRONTEND_URL && !process.env.CLIENT_URL) {
+  console.warn('⚠️ No FRONTEND_URL/CLIENT_URL configured. Add the Vercel domain to allow browser requests in production.')
 }
 
 // Use Google DNS to bypass restrictive network DNS

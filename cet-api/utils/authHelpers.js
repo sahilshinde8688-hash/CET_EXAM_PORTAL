@@ -20,7 +20,7 @@ const setAuthCookies = (res, accessToken, refreshToken, csrfToken) => {
   const cookieOptions = {
     httpOnly: true,
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
   }
 
@@ -36,7 +36,7 @@ const setAuthCookies = (res, accessToken, refreshToken, csrfToken) => {
 
   res.cookie('csrfToken', csrfToken, {
     secure: isProd,
-    sameSite: 'lax',
+    sameSite: isProd ? 'none' : 'lax',
     path: '/',
     maxAge: 15 * 60 * 1000,
   })

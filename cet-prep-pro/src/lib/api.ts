@@ -1,4 +1,5 @@
-const BASE = (import.meta as unknown as Record<string, Record<string, string>>)?.env?.VITE_API_BASE?.replace(/\/$/, '') || '/api'
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '')
+const BASE = `${API_URL}/api`
 
 /**
  * Get CSRF token from cookies
