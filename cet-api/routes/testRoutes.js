@@ -1,6 +1,6 @@
-const express    = require('express')
-const router     = express.Router()
-const TestResult = require('../models/TestResult')
+const express = require('express')
+const router = express.Router()
+const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
 const { apiLimiter } = require('../middleware/rateLimit')
 
@@ -8,9 +8,21 @@ const { apiLimiter } = require('../middleware/rateLimit')
 router.post('/', protect, apiLimiter, async (req, res) => {
   const { testName, subject, score, totalMarks, percentile, duration, subjectWiseScores, answers, correct, incorrect, unanswered, totalQuestions } = req.body
   try {
-    const result = await TestResult.create({
-      userId: req.user._id,
-      testName, subject, score, totalMarks, percentile, duration, subjectWiseScores, answers, correct, incorrect, unanswered, totalQuestions,
+    const userId = req.user.id || req.user._id
+    const result = await db.createTestResult({
+      userId,
+      testName,
+      subject,
+      score,
+      totalMarks,
+      percentile,
+      duration,
+      subjectWiseScores,
+      answers,
+      correct,
+      incorrect,
+      unanswered,
+      totalQuestions,
     })
     res.status(201).json(result)
   } catch (err) {
@@ -21,10 +33,8 @@ router.post('/', protect, apiLimiter, async (req, res) => {
 // GET /api/tests/my — logged-in student's results
 router.get('/my', protect, apiLimiter, async (req, res) => {
   try {
-    const query = TestResult.find({ userId: req.user._id })
-      .select('testName subject score totalMarks percentile duration attemptedAt correct incorrect unanswered totalQuestions subjectWiseScores answers')
-      .sort({ attemptedAt: -1 })
-    const results = await query.lean()
+    const userId = req.user.id || req.user._id
+    const results = await db.getTestResultsByUserId(userId)
     res.json(results)
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -34,10 +44,29 @@ router.get('/my', protect, apiLimiter, async (req, res) => {
 // GET /api/tests — admin: all results
 router.get('/', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const results = await TestResult.find()
-      .populate('userId', 'name email branch')
-      .sort({ attemptedAt: -1 })
-    res.json(results)
+    const users = await db.getAllUsers()
+    const usersMap = Object.fromEntries(users.map((u) => [u.id, u]))
+    const allUsers = users
+    const allResults = []
+
+    for (const u of allUsers) {
+      const userResults = await db.getTestResultsByUserId(u.id)
+      for (const r of userResults) {
+        allResults.push({
+          ...r,
+          userId: {
+            _id: u.id,
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            branch: u.branch,
+          },
+        })
+      }
+    }
+
+    allResults.sort((a, b) => new Date(b.attemptedAt) - new Date(a.attemptedAt))
+    res.json(allResults)
   } catch (err) {
     res.status(500).json({ message: err.message })
   }

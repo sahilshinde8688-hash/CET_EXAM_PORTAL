@@ -1,7 +1,8 @@
 const { MongoClient } = require('mongodb');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../cet-api/.env') });
 
-// Original SRV connection string provided by user
-const uri = 'mongodb+srv://sahilshinde8688_db_user:bU5C4VRDJdT4Jhbg@cluster0.tunytzw.mongodb.net/?appName=Cluster0';
+const uri = process.env.MONGO_URI;
 
 const client = new MongoClient(uri, {
   serverApi: {

@@ -3,12 +3,12 @@ const express   = require('express')
 const cors      = require('cors')
 const cookieParser = require('cookie-parser')
 const dns       = require('dns')
-const connectDB = require('./config/db')
+const supabase  = require('./config/supabase')
 const { applySecurityHeaders, configureCors } = require('./middleware/securityHeaders')
 const { generateCsrfToken } = require('./middleware/csrf')
 const { apiLimiter } = require('./middleware/rateLimit')
 
-const requiredEnv = ['MONGO_URI', 'JWT_SECRET']
+const requiredEnv = ['JWT_SECRET']
 const missingEnv = requiredEnv.filter((key) => !process.env[key])
 
 if (missingEnv.length > 0) {
@@ -23,9 +23,6 @@ if (!process.env.FRONTEND_URL && !process.env.CLIENT_URL) {
 
 // Use Google DNS to bypass restrictive network DNS
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1'])
-
-// Connect to MongoDB
-connectDB()
 
 const app = express()
 
@@ -55,10 +52,12 @@ app.use('/api/questions', require('./routes/questionRoutes'))
 app.use('/api/mock-tests', require('./routes/mockTestRoutes'))
 
 // Health check
-app.get('/', (req, res) => res.json({ status: 'CET API is running ✅' }))
+app.get('/', (req, res) => res.json({ status: 'CET API is running ✅ (Supabase DB)' }))
 
 // 404 handler
 app.use((req, res) => res.status(404).json({ message: 'Route not found' }))
 
 const PORT = process.env.PORT || 5000
+
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on http://localhost:${PORT}`))
+

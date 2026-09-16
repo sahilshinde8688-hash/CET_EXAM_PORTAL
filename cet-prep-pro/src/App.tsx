@@ -5,144 +5,156 @@ import MockTests from './components/MockTests'
 import Results from './components/Results'
 import Analysis from './components/Analysis'
 import Settings from './components/Settings'
+import AdminPanel from './components/AdminPanel'
 import AdminDashboard from './components/AdminDashboard'
-import GlobalLoader from './components/GlobalLoader'
-import { authAPI, session, type AuthUser, TokenRefreshedError } from './lib/api'
+import { clearAdminCredentials, isAdminCredentials } from './adminAuth'
 import './dashboard.css'
 import './mocktests.css'
 import './results.css'
 import './analysis.css'
 import './settings.css'
-import './admin.css'
-import './testInterface.css'
-import './global-loader.css'
 
-export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
+export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin'
 
-const PAGE_PATHS: Record<Page, string> = {
-  signin: '/signin',
-  dashboard: '/dashboard',
-  mocktests: '/tests',
-  results: '/results',
-  analytics: '/analytics',
-  settings: '/settings',
-  'admin-dashboard': '/admin-dashboard',
+  const PAGE_ICONS: Record<string, string> = {
+  dashboard: 'dashboard',
+  mocktests: 'quiz',
+  results:   'history',
+  analytics: 'analytics',
+  settings:  'settings',
+}
+const PAGE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  mocktests: 'Mock Tests',
+  results:   'Results',
+  analytics: 'Analytics',
+  settings:  'Settings',
 }
 
-function pageFromPath(pathname: string): Page | null {
-  if (pathname === '/' || pathname === '/signin' || pathname === '/login') return pathname === '/' ? null : 'signin'
-  if (pathname === '/dashboard') return 'dashboard'
-  if (pathname === '/tests' || /^\/test\/[^/]+$/.test(pathname)) return 'mocktests'
-  if (pathname === '/results' || /^\/results\/[^/]+$/.test(pathname)) return 'results'
-  if (pathname === '/analytics') return 'analytics'
-  if (pathname === '/settings' || pathname === '/profile') return 'settings'
-  if (pathname === '/admin-dashboard') return 'admin-dashboard'
-  return null
+/* ── Initial boot loader — freezes the screen ── */
+function BootLoader() {
+  return (
+    <div className="boot-overlay">
+      <div className="boot-inner">
+        {/* Logo mark */}
+        <div className="boot-logo-wrap">
+          <div className="boot-logo-circle">
+            <span className="material-symbols-outlined boot-logo-icon">school</span>
+          </div>
+          <div className="boot-logo-pulse" />
+        </div>
+
+        {/* Brand name */}
+        <h1 className="boot-brand">CET Prep Pro</h1>
+        <p className="boot-tagline">Elevate your future with precision learning</p>
+
+        {/* Animated bar */}
+        <div className="boot-bar-track">
+          <div className="boot-bar-fill" />
+        </div>
+
+        <p className="boot-status">Initializing portal…</p>
+      </div>
+    </div>
+  )
 }
 
-function currentPage(): Page | null {
-  return pageFromPath(window.location.pathname)
-}
-
-/* ── Boot loader ── */
-/* ── App ── */
-export default function App() {
-  const [booting, setBooting]           = useState(true)
-  const [page, setPage]                 = useState<Page>(() => currentPage() || 'signin')
-  const [globalLoading, setGlobalLoading] = useState(false)
-
+/* ── Page transition loader ── */
+function PageLoader({ target }: { target: Page }) {
+  const [progress, setProgress] = useState(0)
   useEffect(() => {
-    let cancelled = false
+    const steps = [10, 25, 40, 58, 72, 85]
+    let i = 0
+    const interval = setInterval(() => {
+      if (i < steps.length) { setProgress(steps[i]); i++ }
+      else clearInterval(interval)
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
+  const icon = PAGE_ICONS[target] ?? 'school'
+  const label = PAGE_LABELS[target] ?? 'Loading'
+  return (
+    <div className="ld-root">
+      <div className="ld-progress-track">
+        <div className="ld-progress-bar" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="ld-card">
+        <div className="ld-icon-bubble">
+          <span className="material-symbols-outlined ld-icon">{icon}</span>
+          <div className="ld-icon-ring ld-ring-1" />
+          <div className="ld-icon-ring ld-ring-2" />
+          <div className="ld-icon-ring ld-ring-3" />
+        </div>
+        <p className="ld-label">{label}</p>
+        <div className="ld-shimmer-wrap">
+          <div className="ld-shimmer ld-shimmer--w80" />
+          <div className="ld-shimmer ld-shimmer--w60" />
+          <div className="ld-shimmer ld-shimmer--w70" />
+        </div>
+        <div className="ld-dots">
+          <span className="ld-dot" style={{ animationDelay: '0s' }} />
+          <span className="ld-dot" style={{ animationDelay: '0.18s' }} />
+          <span className="ld-dot" style={{ animationDelay: '0.36s' }} />
+        </div>
+      </div>
+    </div>
+  )
+}
 
-    const handlePopState = () => {
-      const requestedPage = currentPage()
-      if (requestedPage) {
-        setPage(requestedPage)
-      } else {
-        const fallback = session.get<AuthUser>()?._id ? 'dashboard' : 'signin'
-        window.history.replaceState(null, '', PAGE_PATHS[fallback])
-        setPage(fallback)
-      }
-    }
-    window.addEventListener('popstate', handlePopState)
-    const handleGlobalLoading = (event: Event) => setGlobalLoading((event as CustomEvent<boolean>).detail)
-    window.addEventListener('app:loading', handleGlobalLoading)
+export default function App() {
+  const [booting, setBooting] = useState(true)
+  const [page, setPage] = useState<Page>('signin')
+  const [transitioning, setTransitioning] = useState(false)
+  const [nextPage, setNextPage] = useState<Page | null>(null)
+  const [adminLoggedIn, setAdminLoggedIn] = useState(false)
 
-    const restoreSession = async () => {
-      const loaderStartedAt = Date.now()
-      try {
-        // Try to get current user - handle() will auto-refresh token if needed
-        const me = await authAPI.me()
-        if (!cancelled && me?._id) {
-          session.save(me)
-          const requestedPage = currentPage()
-          const destination = requestedPage && requestedPage !== 'signin' ? requestedPage : me.role === 'admin' ? 'admin-dashboard' : 'dashboard'
-          if (!requestedPage || requestedPage === 'signin') window.history.replaceState(null, '', PAGE_PATHS[destination])
-          setPage(destination)
-        }
-      } catch (err) {
-        // Check if error is a signal to retry (token was refreshed)
-        if (err instanceof TokenRefreshedError) {
-          // Token was refreshed, retry the original request without going through handle()
-          try {
-            const me = await authAPI.meAfterRefresh()
-            if (!cancelled && me?._id) {
-              session.save(me)
-              const requestedPage = currentPage()
-              const destination = requestedPage && requestedPage !== 'signin' ? requestedPage : me.role === 'admin' ? 'admin-dashboard' : 'dashboard'
-              if (!requestedPage || requestedPage === 'signin') window.history.replaceState(null, '', PAGE_PATHS[destination])
-              setPage(destination)
-              return
-            }
-          } catch {
-            // Retry failed, continue to catch block below
-          }
-        }
-        
-        if (!cancelled) {
-          session.clear()
-          if (currentPage() !== 'signin') {
-            window.history.replaceState(null, '', '/signin')
-            setPage('signin')
-          }
-        }
-      } finally {
-        if (!cancelled) {
-          const remaining = Math.max(0, 600 - (Date.now() - loaderStartedAt))
-          window.setTimeout(() => {
-            if (!cancelled) setBooting(false)
-          }, remaining)
-        }
-      }
-    }
-
-    const t = setTimeout(restoreSession, 250)
-    return () => {
-      cancelled = true
-      clearTimeout(t)
-      window.removeEventListener('popstate', handlePopState)
-      window.removeEventListener('app:loading', handleGlobalLoading)
-    }
+  /* Boot loader runs once on first load — 2.4s */
+  useEffect(() => {
+    const t = setTimeout(() => setBooting(false), 2400)
+    return () => clearTimeout(t)
   }, [])
 
   const navigate = (target: Page) => {
     if (target === page) return
-    const path = PAGE_PATHS[target]
-    if (target === 'signin') window.history.replaceState(null, '', path)
-    else window.history.pushState(null, '', path)
-    setGlobalLoading(true)
-    setPage(target)
-    window.setTimeout(() => setGlobalLoading(false), 600)
+    setNextPage(target)
+    setTransitioning(true)
   }
 
-  if (booting) return <GlobalLoader message="Checking your session" />
-  if (globalLoading) return <GlobalLoader message="Loading page" />
+  useEffect(() => {
+    if (!transitioning || !nextPage) return
+    const t = setTimeout(() => {
+      setPage(nextPage)
+      setNextPage(null)
+      setTransitioning(false)
+    }, 950)
+    return () => clearTimeout(t)
+  }, [transitioning, nextPage])
 
-  if (page === 'signin')          return <SignIn onSuccess={() => navigate('dashboard')} onAdminLogin={() => navigate('admin-dashboard')} />
-  if (page === 'mocktests')       return <MockTests onNavigate={navigate} />
-  if (page === 'results')         return <Results onNavigate={navigate} />
-  if (page === 'analytics')       return <Analysis onNavigate={navigate} />
-  if (page === 'settings')        return <Settings onNavigate={navigate} />
-  if (page === 'admin-dashboard') return <AdminDashboard onNavigate={navigate} />
+  /* Boot: render page behind the overlay so it's ready instantly after */
+  if (booting) return <BootLoader />
+
+  if (transitioning && nextPage) return <PageLoader target={nextPage} />
+  if (page === 'signin') {
+    return (
+      <SignIn
+        onSuccess={() => navigate('dashboard')}
+        onAdminLogin={(email, password) => {
+          if (isAdminCredentials(email, password)) {
+            setAdminLoggedIn(true)
+            navigate('admin')
+          } else {
+            navigate('dashboard')
+          }
+        }}
+      />
+    )
+  }
+  if (page === 'mocktests') return <MockTests onNavigate={navigate} />
+  if (page === 'results')   return <Results onNavigate={navigate} />
+  if (page === 'analytics') return <Analysis onNavigate={navigate} />
+  if (page === 'settings')  return <Settings onNavigate={navigate} />
+  if (page === 'admin') {
+    return <AdminDashboard onLogout={() => { clearAdminCredentials(); setAdminLoggedIn(false); navigate('signin') }} />
+  }
   return <Dashboard onNavigate={navigate} />
 }

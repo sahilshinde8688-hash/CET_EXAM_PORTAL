@@ -1,12 +1,13 @@
 const dns = require('dns');
 const { MongoClient } = require('mongodb');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../cet-api/.env') });
 
 // Use Google's DNS servers (8.8.8.8, 8.8.4.4) to resolve MongoDB hostnames
 const resolver = new dns.Resolver();
 resolver.setServers(['8.8.8.8', '8.8.4.4']);
 
-// Original SRV connection string provided by user
-const uri = 'mongodb+srv://sahilshinde8688_db_user:bU5C4VRDJdT4Jhbg@cluster0.tunytzw.mongodb.net/?appName=Cluster0';
+const uri = process.env.MONGO_URI;
 
 // Monkey-patch the default DNS resolution to use Google's DNS
 const originalLookup = dns.lookup;

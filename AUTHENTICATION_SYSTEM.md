@@ -251,9 +251,11 @@ Implemented via Helmet.js:
 # Server (.env)
 NODE_ENV=production|development
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/cet-portal
+MONGO_URI=mongodb://localhost:27017/cet-portal
 JWT_SECRET=your-super-secret-jwt-key-min-32-chars
 CLIENT_URL=https://your-frontend-domain.com
+# Optional: comma-separated list of additional frontend origins
+CORS_ORIGINS=https://your-frontend-domain.com,https://preview.example.com
 
 # Optional (for production scaling)
 REDIS_URL=redis://localhost:6379  # For distributed rate limiting
@@ -311,7 +313,7 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 **Solution**: Add `?skipRateLimit=true` to URLs or adjust limits in `rateLimit.js`.
 
 **Issue**: CORS errors
-**Solution**: Add your frontend URL to `CLIENT_URL` env variable and CORS config.
+**Solution**: Add the exact frontend origin (including `https://` and no trailing slash) to `CLIENT_URL` or the comma-separated `CORS_ORIGINS` env variable on the API host, then redeploy/restart the API.
 
 ## Production Deployment Checklist
 

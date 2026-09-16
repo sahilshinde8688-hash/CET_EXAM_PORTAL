@@ -101,9 +101,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     return {
       icon: t.subject?.includes('Math') ? 'calculate' : t.subject?.includes('Chem') ? 'science' : 'assignment_turned_in',
       title: t.testName || 'Mock Test',
-      meta: `${date.toLocaleDateString()} • ${Math.round(t.duration / 60)}m Duration`,
-      score: `${Math.round(t.score)}/${t.totalMarks}`,
-      percentile: `${t.percentile.toFixed(1)}th Percentile`,
+      meta: `${date.toLocaleDateString()} • ${Math.round((t.duration || 0) / 60)}m Duration`,
+      score: `${Math.round(t.score || 0)}/${t.totalMarks || 0}`,
+      percentile: `${Number(t.percentile || 0).toFixed(1)}th Percentile`,
       highlight: i === 0,
     }
   })

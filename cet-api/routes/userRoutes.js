@@ -1,14 +1,16 @@
-const express  = require('express')
-const router   = express.Router()
-const axios    = require('axios')
-const User     = require('../models/User')
+const express = require('express')
+const router = express.Router()
+const axios = require('axios')
+const bcrypt = require('bcryptjs')
+const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
 const { apiLimiter } = require('../middleware/rateLimit')
 
 // Generate unique MHT-CET ID: MHC-YYYY-NNNNN
 const generateMhcetId = async () => {
   const year = new Date().getFullYear()
-  const count = await User.countDocuments({ mhcetId: { $exists: true } })
+  const users = await db.getAllUsers()
+  const count = users.filter((u) => Boolean(u.mhcetId)).length
   const num = String(count + 1).padStart(5, '0')
   return `MHC-${year}-${num}`
 }
@@ -26,45 +28,49 @@ router.get('/me', protect, apiLimiter, (req, res) => res.json(req.user))
 router.put('/profile', protect, apiLimiter, async (req, res) => {
   try {
     const { name, email, phone, branch, batch } = req.body
-    
-    const user = await User.findById(req.user._id)
+
+    const user = await db.findUserById(req.user.id || req.user._id)
     if (!user) return res.status(404).json({ message: 'User not found' })
 
-    // Check if email is being changed and if it's already taken
+    const updates = {}
+
     if (email && email !== user.email) {
-      const emailExists = await User.findOne({ email, _id: { $ne: user._id } })
-      if (emailExists) return res.status(400).json({ message: 'Email already in use' })
-      user.email = email
+      const emailUser = await db.findUserByEmail(email)
+      if (emailUser && emailUser.id !== user.id) {
+        return res.status(400).json({ message: 'Email already in use' })
+      }
+      updates.email = email
     }
 
-    // Check if phone is being changed and if it's already taken
     if (phone && phone !== user.phone) {
-      const phoneExists = await User.findOne({ phone, _id: { $ne: user._id } })
-      if (phoneExists) return res.status(400).json({ message: 'Phone number already in use' })
-      user.phone = phone
+      const allUsers = await db.getAllUsers()
+      const phoneUser = allUsers.find((u) => u.phone === phone && u.id !== user.id)
+      if (phoneUser) return res.status(400).json({ message: 'Phone number already in use' })
+      updates.phone = phone
     }
 
-    if (name) user.name = name
-    if (branch) user.branch = branch
-    if (batch) user.batch = Number(batch)
+    if (name) updates.name = name
+    if (branch) updates.branch = branch
+    if (batch) updates.batch = Number(batch)
 
-    await user.save()
+    const updatedUser = await db.updateUser(user.id, updates)
 
     res.json({
       message: 'Profile updated successfully',
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        branch: user.branch,
-        batch: user.batch,
-        role: user.role,
-        status: user.status,
-        mhcetId: user.mhcetId,
-        photo: user.photo,
-        createdAt: user.createdAt,
-      }
+        _id: updatedUser.id,
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        branch: updatedUser.branch,
+        batch: updatedUser.batch,
+        role: updatedUser.role,
+        status: updatedUser.status,
+        mhcetId: updatedUser.mhcetId,
+        photo: updatedUser.photo,
+        createdAt: updatedUser.createdAt,
+      },
     })
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -77,8 +83,13 @@ router.get('/', protect, adminOnly, apiLimiter, async (req, res) => {
     const { status } = req.query
     const filter = { role: 'student' }
     if (status) filter.status = status
-    const users = await User.find(filter).select('-password').sort({ createdAt: -1 })
-    res.json(users)
+    const users = await db.getAllUsers(filter)
+    const sanitizedUsers = users.map((u) => {
+      const userObj = { ...u, _id: u.id }
+      delete userObj.password
+      return userObj
+    })
+    res.json(sanitizedUsers)
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
@@ -91,18 +102,24 @@ router.post('/reset-password', protect, apiLimiter, async (req, res) => {
     if (!newPassword || newPassword.length < 6)
       return res.status(400).json({ message: 'Password must be at least 6 characters' })
 
-    const user = await User.findById(req.user._id)
+    const userId = req.user.id || req.user._id
+    const user = await db.findUserById(userId)
     if (!user) return res.status(404).json({ message: 'User not found' })
 
     if (!user.mustResetPassword)
       return res.status(400).json({ message: 'Password reset is not required' })
 
-    user.password = newPassword
-    user.mhcetPassword = newPassword
-    user.mustResetPassword = false
-    await user.save()
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+    const updatedUser = await db.updateUser(userId, {
+      password: hashedPassword,
+      mhcetPassword: newPassword,
+      mustResetPassword: false,
+    })
 
-    res.json({ message: 'Password reset successful', user: { _id: user._id, name: user.name, email: user.email } })
+    res.json({
+      message: 'Password reset successful',
+      user: { _id: updatedUser.id, id: updatedUser.id, name: updatedUser.name, email: updatedUser.email },
+    })
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
@@ -111,10 +128,12 @@ router.post('/reset-password', protect, apiLimiter, async (req, res) => {
 // GET /api/users/stats — admin dashboard stats
 router.get('/stats', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const total    = await User.countDocuments({ role: 'student' })
-    const pending  = await User.countDocuments({ role: 'student', status: 'pending' })
-    const approved = await User.countDocuments({ role: 'student', status: 'approved' })
-    const rejected = await User.countDocuments({ role: 'student', status: 'rejected' })
+    const students = await db.getAllUsers({ role: 'student' })
+    const total = students.length
+    const pending = students.filter((s) => s.status === 'pending').length
+    const approved = students.filter((s) => s.status === 'approved').length
+    const rejected = students.filter((s) => s.status === 'rejected').length
+
     res.json({ total, pending, approved, rejected })
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -124,39 +143,32 @@ router.get('/stats', protect, adminOnly, apiLimiter, async (req, res) => {
 // POST /api/users/:id/approve — admin approves student
 router.post('/:id/approve', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const user = await db.findUserById(req.params.id)
     if (!user) return res.status(404).json({ message: 'User not found' })
     if (user.status === 'approved') return res.status(400).json({ message: 'Already approved' })
 
-    // Generate credentials
-    const mhcetId  = await generateMhcetId()
+    const mhcetId = await generateMhcetId()
     const mhcetPwd = generatePassword()
 
-    // Use updateOne to bypass validation on fields we're not changing
-    await User.updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          status:            'approved',
-          mhcetId:           mhcetId,
-          mhcetPassword:     mhcetPwd,
-          mustResetPassword: true,
-          approvedAt:        new Date(),
-        }
-      }
-    )
+    const updatedUser = await db.updateUser(user.id, {
+      status: 'approved',
+      mhcetId,
+      mhcetPassword: mhcetPwd,
+      mustResetPassword: true,
+      approvedAt: new Date().toISOString(),
+    })
 
     let emailWarning = ''
     try {
       const emailPayload = {
-        name:      user.name,
-        email:     user.email,
-        branch:    user.branch || 'N/A',
-        mhcetId:   mhcetId,
-        password:  mhcetPwd,
+        name: user.name,
+        email: user.email,
+        branch: user.branch || 'N/A',
+        mhcetId: mhcetId,
+        password: mhcetPwd,
       }
       console.log('📧 Sending email payload:', emailPayload)
-      const emailRes = await axios.post(
+      await axios.post(
         `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-approval`,
         emailPayload
       )
@@ -167,9 +179,9 @@ router.post('/:id/approve', protect, adminOnly, apiLimiter, async (req, res) => 
     }
 
     res.json({
-      message:  `Student approved. MHT-CET ID: ${mhcetId}${emailWarning}`,
+      message: `Student approved. MHT-CET ID: ${mhcetId}${emailWarning}`,
       mhcetId,
-      user: { _id: user._id, name: user.name, email: user.email, status: 'approved' },
+      user: { _id: updatedUser.id, id: updatedUser.id, name: updatedUser.name, email: updatedUser.email, status: 'approved' },
     })
   } catch (err) {
     res.status(500).json({ message: err.message })
@@ -179,7 +191,7 @@ router.post('/:id/approve', protect, adminOnly, apiLimiter, async (req, res) => 
 // POST /api/users/:id/resend-credentials — admin resends credentials email
 router.post('/:id/resend-credentials', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const user = await db.findUserById(req.params.id)
     if (!user) return res.status(404).json({ message: 'User not found' })
     if (user.status !== 'approved' || !user.mhcetId) {
       return res.status(400).json({ message: 'User is not approved yet' })
@@ -187,11 +199,11 @@ router.post('/:id/resend-credentials', protect, adminOnly, apiLimiter, async (re
 
     try {
       const emailPayload = {
-        name:      user.name,
-        email:     user.email,
-        branch:    user.branch || 'N/A',
-        mhcetId:   user.mhcetId,
-        password:  user.mhcetPassword,
+        name: user.name,
+        email: user.email,
+        branch: user.branch || 'N/A',
+        mhcetId: user.mhcetId,
+        password: user.mhcetPassword,
       }
       await axios.post(
         `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-approval`,
@@ -211,43 +223,37 @@ router.post('/:id/resend-credentials', protect, adminOnly, apiLimiter, async (re
 router.post('/:id/reject', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
     const { reason } = req.body
-    const user = await User.findById(req.params.id)
+    const user = await db.findUserById(req.params.id)
     if (!user) return res.status(404).json({ message: 'User not found' })
 
     const rejectionReason = reason || 'Application did not meet requirements'
 
-    // Notify student via email before deleting
     try {
       await axios.post(`${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-rejection`, {
-        name:   user.name,
-        email:  user.email,
+        name: user.name,
+        email: user.email,
         reason: rejectionReason,
       })
     } catch (emailErr) {
       console.error('⚠️ Email service error:', emailErr.message)
     }
 
-    // Delete the user from the database
-    await User.findByIdAndDelete(req.params.id)
+    await db.deleteUser(req.params.id)
 
-    res.json({ message: 'Student rejected and deleted', user: { _id: user._id, name: user.name, status: 'rejected' } })
+    res.json({ message: 'Student rejected and deleted', user: { _id: user.id, id: user.id, name: user.name, status: 'rejected' } })
   } catch (err) {
     res.status(500).json({ message: err.message })
   }
 })
 
-// DELETE /api/users/:id — admin deletes a student and cascades to test results
+// DELETE /api/users/:id — admin deletes a student
 router.delete('/:id', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const user = await db.findUserById(req.params.id)
     if (!user) return res.status(404).json({ message: 'User not found' })
 
-    // Remove related test results manually to avoid orphaned records
-    const TestResult = require('../models/TestResult')
-    await TestResult.deleteMany({ userId: user._id })
-
-    await User.findByIdAndDelete(req.params.id)
-    res.json({ message: 'User deleted', userId: user._id })
+    await db.deleteUser(req.params.id)
+    res.json({ message: 'User deleted', userId: user.id })
   } catch (err) {
     res.status(500).json({ message: err.message })
   }

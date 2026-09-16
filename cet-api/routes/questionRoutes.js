@@ -1,7 +1,7 @@
 const express = require('express')
 const multer = require('multer')
 const XLSX = require('xlsx')
-const Question = require('../models/Question')
+const db = require('../services/dbService')
 const router = express.Router()
 const { apiLimiter, uploadLimiter } = require('../middleware/rateLimit')
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
@@ -14,43 +14,53 @@ router.get('/', apiLimiter, async (req, res) => {
   if (difficulty) filter.difficulty = difficulty
   if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true'
   try {
-    const questions = await Question.find(filter).sort({ createdAt: -1 })
+    const questions = await db.getQuestions(filter)
     res.json(questions)
-  } catch (e) { res.status(500).json({ message: 'Failed to load questions' }) }
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to load questions' })
+  }
 })
 
 router.get('/meta/subjects-chapters', apiLimiter, async (req, res) => {
   try {
-    const subjects = await Question.distinct('subject', { isActive: true })
-    const questions = await Question.find({ isActive: true, chapter: { $nin: ['', null] } }).select('subject chapter').lean()
-    
+    const questions = await db.getQuestions({ isActive: true })
+
+    const subjectsSet = new Set()
     const chaptersBySubject = {}
-    questions.forEach(q => {
-      if (q.chapter && q.subject) {
-        if (!chaptersBySubject[q.subject]) {
-          chaptersBySubject[q.subject] = new Set()
+
+    questions.forEach((q) => {
+      if (q.subject) {
+        subjectsSet.add(q.subject)
+        if (q.chapter) {
+          if (!chaptersBySubject[q.subject]) {
+            chaptersBySubject[q.subject] = new Set()
+          }
+          chaptersBySubject[q.subject].add(q.chapter)
         }
-        chaptersBySubject[q.subject].add(q.chapter)
       }
     })
-    
+
     const result = Object.fromEntries(
       Object.entries(chaptersBySubject).map(([subject, chaptersSet]) => [subject, Array.from(chaptersSet)])
     )
-    
-    res.json({ subjects: subjects.filter(Boolean), chaptersBySubject: result })
-  } catch (e) { res.status(500).json({ message: 'Failed to load subjects and chapters' }) }
+
+    res.json({ subjects: Array.from(subjectsSet), chaptersBySubject: result })
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to load subjects and chapters' })
+  }
 })
 
 router.post('/', apiLimiter, async (req, res) => {
   try {
-    const question = await Question.create(req.body)
+    const question = await db.createQuestion(req.body)
     res.status(201).json(question)
-  } catch (e) { res.status(400).json({ message: 'Invalid question data' }) }
+  } catch (e) {
+    res.status(400).json({ message: 'Invalid question data: ' + e.message })
+  }
 })
 
 const uploadHandler = (req, res, next) => {
-  upload.any()(req, res, err => {
+  upload.any()(req, res, (err) => {
     if (err) {
       console.error('Multer upload error:', err)
       return res.status(400).json({
@@ -65,7 +75,7 @@ const uploadHandler = (req, res, next) => {
 }
 
 router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
-  const file = (req.files && req.files.length ? req.files[0] : undefined)
+  const file = req.files && req.files.length ? req.files[0] : undefined
   if (!file) return res.status(400).json({ message: 'File is required' })
 
   try {
@@ -76,11 +86,11 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
     const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
     if (!rawRows.length) return res.status(400).json({ message: 'No rows found in file' })
 
-    const normalize = key => String(key || '').trim().toLowerCase().replace(/[_\s]+/g, ' ')
+    const normalize = (key) => String(key || '').trim().toLowerCase().replace(/[_\s]+/g, ' ')
     const headerCandidates = rawRows.slice(0, 5)
 
     const candidateScores = headerCandidates.map((row, index) => {
-      const keys = row.map(cell => normalize(cell))
+      const keys = row.map((cell) => normalize(cell))
       const score = keys.reduce((count, key) => {
         if (!key) return count
         if (['question', 'question text', 'item', 'stem', 'question statement', 'q'].includes(key)) return count + 3
@@ -95,7 +105,11 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       return { index, score, keys }
     })
 
-    const bestHeader = candidateScores.reduce((best, current) => current.score > best.score ? current : best, { index: 0, score: -1, keys: [] })
+    const bestHeader = candidateScores.reduce((best, current) => (current.score > best.score ? current : best), {
+      index: 0,
+      score: -1,
+      keys: [],
+    })
     const headerRowIndex = bestHeader.score > 0 ? bestHeader.index : 0
     const headerRow = rawRows[headerRowIndex]
     const headers = headerRow.map(normalize)
@@ -105,8 +119,8 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       return acc
     }, {})
 
-    const findHeader = names => names.map(name => normalize(name)).find(key => key && headerMap[key] !== undefined)
-    const headerIndex = names => {
+    const findHeader = (names) => names.map((name) => normalize(name)).find((key) => key && headerMap[key] !== undefined)
+    const headerIndex = (names) => {
       const key = findHeader(names)
       return key !== undefined ? headerMap[key] : undefined
     }
@@ -123,10 +137,11 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
     const negativeIndex = headerIndex(['negative marks', 'neg marks', 'penalty'])
     const statusIndex = headerIndex(['status', 'is active', 'active'])
 
-    let optionIndices = headers.map((key, index) => ({ key, index }))
-      .filter(item => /^(?:option|choice|opt)\s*[a-d1-4]$/.test(item.key) || /^[a-d1-4]$/.test(item.key))
+    let optionIndices = headers
+      .map((key, index) => ({ key, index }))
+      .filter((item) => /^(?:option|choice|opt)\s*[a-d1-4]$/.test(item.key) || /^[a-d1-4]$/.test(item.key))
       .sort((a, b) => {
-        const order = key => {
+        const order = (key) => {
           const match = key.match(/([1-4]|[a-d])$/)
           if (!match) return 0
           const value = match[1]
@@ -135,7 +150,7 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
         }
         return order(a.key) - order(b.key)
       })
-      .map(item => item.index)
+      .map((item) => item.index)
 
     if (!optionIndices.length) {
       const questionCol = textIndex !== undefined ? textIndex : headers.indexOf('question')
@@ -151,11 +166,11 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       const value = String(raw).trim()
       if (/^[1-4]$/.test(value)) return Number(value) - 1
       if (/^[a-d]$/i.test(value)) return value.toLowerCase().charCodeAt(0) - 97
-      const optionIndex = options.findIndex(opt => opt.toLowerCase() === value.toLowerCase())
+      const optionIndex = options.findIndex((opt) => opt.toLowerCase() === value.toLowerCase())
       return optionIndex >= 0 ? optionIndex : 0
     }
 
-    const parseBool = raw => {
+    const parseBool = (raw) => {
       if (typeof raw === 'boolean') return raw
       const value = String(raw).trim().toLowerCase()
       if (['false', 'no', '0', 'draft', 'inactive', 'not active'].includes(value)) return false
@@ -179,9 +194,9 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
 
     for (let rowIndex = headerRowIndex + 1; rowIndex < rawRows.length; rowIndex += 1) {
       const row = rawRows[rowIndex]
-      if (!row || row.every(cell => String(cell || '').trim() === '')) continue
+      if (!row || row.every((cell) => String(cell || '').trim() === '')) continue
 
-      const get = idx => row[idx] ?? ''
+      const get = (idx) => row[idx] ?? ''
       let questionText = ''
       if (textIndex !== undefined) {
         questionText = String(get(textIndex)).trim()
@@ -190,7 +205,7 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       }
 
       if (!questionText) {
-        const firstNonEmpty = row.find(cell => String(cell ?? '').trim())
+        const firstNonEmpty = row.find((cell) => String(cell ?? '').trim())
         if (firstNonEmpty && typeof firstNonEmpty === 'string') questionText = String(firstNonEmpty).trim()
       }
 
@@ -199,13 +214,13 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
         continue
       }
 
-      const options = optionIndices.map(idx => String(get(idx)).trim()).filter(Boolean)
+      const options = optionIndices.map((idx) => String(get(idx)).trim()).filter(Boolean)
       if (!options.length) {
         options.push(...findFallbackOptions(row, textIndex))
       }
 
       if (!options.length && row.length > 1) {
-        const fallback = row.slice(1, 5).map(cell => String(cell ?? '').trim()).filter(Boolean)
+        const fallback = row.slice(1, 5).map((cell) => String(cell ?? '').trim()).filter(Boolean)
         if (fallback.length >= 2) options.push(...fallback)
       }
 
@@ -217,7 +232,12 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       const question = {
         subject: subjectIndex !== undefined ? String(get(subjectIndex)).trim() || 'General' : 'General',
         chapter: chapterIndex !== undefined ? String(get(chapterIndex)).trim() : '',
-        topic: topicIndex !== undefined ? String(get(topicIndex)).trim() || (chapterIndex !== undefined ? String(get(chapterIndex)).trim() || 'General' : 'General') : (chapterIndex !== undefined ? String(get(chapterIndex)).trim() || 'General' : 'General'),
+        topic:
+          topicIndex !== undefined
+            ? String(get(topicIndex)).trim() || (chapterIndex !== undefined ? String(get(chapterIndex)).trim() || 'General' : 'General')
+            : chapterIndex !== undefined
+            ? String(get(chapterIndex)).trim() || 'General'
+            : 'General',
         subTopic: subTopicIndex !== undefined ? String(get(subTopicIndex)).trim() : '',
         text: questionText,
         options,
@@ -225,9 +245,10 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
         correctIndex: convertCorrectIndex(correctIndex !== undefined ? get(correctIndex) : '', options),
         marks: Number(marksIndex !== undefined ? get(marksIndex) : 0) || 2,
         negativeMarks: Number(negativeIndex !== undefined ? get(negativeIndex) : 0) || 0,
-        difficulty: difficultyIndex !== undefined && ['Easy', 'Medium', 'Hard'].includes(String(get(difficultyIndex)).trim())
-          ? String(get(difficultyIndex)).trim()
-          : 'Medium',
+        difficulty:
+          difficultyIndex !== undefined && ['Easy', 'Medium', 'Hard'].includes(String(get(difficultyIndex)).trim())
+            ? String(get(difficultyIndex)).trim()
+            : 'Medium',
         isActive: statusIndex !== undefined ? parseBool(get(statusIndex)) : true,
       }
       rowsToSave.push(question)
@@ -248,7 +269,12 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       })
     }
 
-    const created = await Question.insertMany(rowsToSave)
+    const created = []
+    for (const qData of rowsToSave) {
+      const q = await db.createQuestion(qData)
+      created.push(q)
+    }
+
     res.status(201).json({ imported: created.length, total: rowsToSave.length, errors })
   } catch (e) {
     console.error(e)
@@ -258,16 +284,20 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
 
 router.put('/:id', apiLimiter, async (req, res) => {
   try {
-    const updated = await Question.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    const updated = await db.updateQuestion(req.params.id, req.body)
     res.json(updated)
-  } catch (e) { res.status(400).json({ message: 'Invalid question data' }) }
+  } catch (e) {
+    res.status(400).json({ message: 'Invalid question data: ' + e.message })
+  }
 })
 
 router.delete('/:id', apiLimiter, async (req, res) => {
   try {
-    await Question.findByIdAndDelete(req.params.id)
+    await db.deleteQuestion(req.params.id)
     res.json({ message: 'Deleted' })
-  } catch (e) { res.status(400).json({ message: 'Delete failed' }) }
+  } catch (e) {
+    res.status(400).json({ message: 'Delete failed' })
+  }
 })
 
 module.exports = router

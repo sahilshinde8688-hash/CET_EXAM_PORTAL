@@ -1,7 +1,7 @@
-const express  = require('express')
-const router   = express.Router()
+const express = require('express')
+const router = express.Router()
 const { upload, uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary')
-const User     = require('../models/User')
+const db = require('../services/dbService')
 const { protect } = require('../middleware/auth')
 const { uploadLimiter } = require('../middleware/rateLimit')
 
@@ -10,21 +10,18 @@ router.post('/profile', protect, uploadLimiter, upload.single('image'), async (r
   try {
     if (!req.file) return res.status(400).json({ message: 'No image file provided' })
 
-    // Upload to Cloudinary under cet-students folder
+    const userId = req.user.id || req.user._id
+
     const result = await uploadToCloudinary(
       req.file.buffer,
       'cet-students',
-      `student_${req.user._id}`  // consistent public ID per student
+      `student_${userId}`
     )
 
-    // Save URL to user's photo field
-    await User.updateOne(
-      { _id: req.user._id },
-      { $set: { photo: result.secure_url } }
-    )
+    await db.updateUser(userId, { photo: result.secure_url })
 
     res.json({
-      message:  'Profile photo updated',
+      message: 'Profile photo updated',
       photoUrl: result.secure_url,
       publicId: result.public_id,
     })
@@ -38,10 +35,9 @@ router.post('/admin/student/:id', protect, uploadLimiter, upload.single('image')
   try {
     if (!req.file) return res.status(400).json({ message: 'No image file provided' })
 
-    const student = await User.findById(req.params.id)
+    const student = await db.findUserById(req.params.id)
     if (!student) return res.status(404).json({ message: 'Student not found' })
 
-    // Delete old photo from Cloudinary if exists
     if (student.photo) {
       const oldPublicId = `cet-students/student_${req.params.id}`
       await deleteFromCloudinary(oldPublicId).catch(() => {})
@@ -53,13 +49,10 @@ router.post('/admin/student/:id', protect, uploadLimiter, upload.single('image')
       `student_${req.params.id}`
     )
 
-    await User.updateOne(
-      { _id: req.params.id },
-      { $set: { photo: result.secure_url } }
-    )
+    await db.updateUser(req.params.id, { photo: result.secure_url })
 
     res.json({
-      message:  'Student photo updated',
+      message: 'Student photo updated',
       photoUrl: result.secure_url,
     })
   } catch (err) {

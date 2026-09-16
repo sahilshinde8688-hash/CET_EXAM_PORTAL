@@ -75,7 +75,7 @@ loginLimiter.keyGenerator = (req) => `login:${req.ip}`
  */
 const registerLimiter = createSlidingWindowLimiter(
   60 * 60 * 1000, // 1 hour
-  3 // 3 attempts per hour
+  process.env.NODE_ENV === 'production' ? 3 : 50 // 3 attempts per hour in prod, 50 in dev
 )
 registerLimiter.keyGenerator = (req) => `register:${req.ip}`
 

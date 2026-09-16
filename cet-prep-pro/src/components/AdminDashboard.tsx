@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
 import { authAPI, session, usersAPI, questionsAPI, mockTestsAPI, testsAPI, AuthUser, type Question, type MockTest, type TestResult } from '../lib/api'
+import { supabase } from '../lib/supabaseClient'
 import StudentProfile from './StudentProfile'
 import TestInterface from './TestInterface'
 import QuestionBank from './QuestionBank'
 import AdminMockTests from './AdminMockTests'
+import '../admin.css'
 import '../testInterface.css'
 import '../questionBank.css'
 Chart.register(...registerables)
@@ -97,8 +99,32 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
 
   useEffect(() => {
     fetchStudents()
-    const interval = setInterval(() => fetchStudents(true), 5000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => fetchStudents(true), 1500)
+
+    const handleLocalUpdate = () => fetchStudents(true)
+    window.addEventListener('cet:registration', handleLocalUpdate)
+    window.addEventListener('storage', handleLocalUpdate)
+
+    let bc: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      bc = new BroadcastChannel('cet_registrations_channel')
+      bc.onmessage = () => fetchStudents(true)
+    }
+
+    const channel = supabase
+      .channel('realtime_students_list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchStudents(true)
+      })
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('cet:registration', handleLocalUpdate)
+      window.removeEventListener('storage', handleLocalUpdate)
+      if (bc) bc.close()
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   const handleDelete = async (id: string, name: string) => {
@@ -107,6 +133,7 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
       await usersAPI.delete(id)
       showToast(`🗑️ ${name} deleted successfully.`)
       setStudents(s => s.filter(u => u._id !== id))
+      await fetchStudents(true)
     } catch (e: unknown) {
       showToast(`❌ ${e instanceof Error ? e.message : 'Delete failed'}`)
     } finally {
@@ -308,8 +335,32 @@ function RegistrationReview() {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(() => fetchData(true), 5000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => fetchData(true), 1500)
+
+    const handleLocalUpdate = () => fetchData(true)
+    window.addEventListener('cet:registration', handleLocalUpdate)
+    window.addEventListener('storage', handleLocalUpdate)
+
+    let bc: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      bc = new BroadcastChannel('cet_registrations_channel')
+      bc.onmessage = () => fetchData(true)
+    }
+
+    const channel = supabase
+      .channel('realtime_pending_registrations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchData(true)
+      })
+      .subscribe()
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('cet:registration', handleLocalUpdate)
+      window.removeEventListener('storage', handleLocalUpdate)
+      if (bc) bc.close()
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   const toggle = (id: string) =>
