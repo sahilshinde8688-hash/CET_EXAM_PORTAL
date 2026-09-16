@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient'
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '')
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
+const API_URL = (configuredApiUrl || 'http://localhost:5000').replace(/\/$/, '')
 const BASE = `${API_URL}/api`
 
 
@@ -178,6 +179,7 @@ export const authAPI = {
     }
 
     // 2. Try Node Backend API
+    let backendError: Error | null = null
     try {
       const csrfToken = await ensureCsrfToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -198,7 +200,15 @@ export const authAPI = {
         const data = await res.json()
         if (data && (data._id || data.id || data.email || data.role)) return data
       }
-    } catch {}
+      const body = await res.json().catch(() => ({}))
+      backendError = new Error(body.message || `Login failed with status ${res.status}.`)
+    } catch (error) {
+      backendError = error instanceof Error ? error : new Error('Unable to reach the login server.')
+    }
+
+    if (import.meta.env.PROD || configuredApiUrl) {
+      throw backendError || new Error('Unable to reach the login server.')
+    }
 
     // 3. Fallback to Supabase Database
     try {
