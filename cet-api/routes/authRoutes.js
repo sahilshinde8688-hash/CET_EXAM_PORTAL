@@ -291,6 +291,10 @@ router.post('/logout', validateCsrfToken, sensitiveHeaders, async (req, res) => 
   return res.status(200).json({ message: 'Logged out successfully.' })
 })
 
+router.get('/csrf', (req, res) => {
+  return res.json({ csrfToken: req.csrfToken })
+})
+
 router.get('/me', sensitiveHeaders, async (req, res) => {
   const accessToken = req.cookies?.accessToken
   if (!accessToken) {

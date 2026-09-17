@@ -23,33 +23,33 @@ interface AdminDashboardProps {
 ───────────────────────────────────────── */
 type DashboardActivity = { icon: string; cls: string; title: string; sub: string; time: string }
 const QUICK = [
-  { icon: 'assignment_ind',  label: 'Manage Faculty' },
-  { icon: 'backup',          label: 'Upload Data' },
-  { icon: 'mail',            label: 'Send Alerts' },
-  { icon: 'settings_suggest',label: 'Server Settings' },
+  { icon: 'assignment_ind', label: 'Manage Faculty' },
+  { icon: 'backup', label: 'Upload Data' },
+  { icon: 'mail', label: 'Send Alerts' },
+  { icon: 'settings_suggest', label: 'Server Settings' },
 ]
 const NAV = [
-  { icon: 'dashboard',      label: 'Dashboard',        view: 'overview'       as AdminView },
-  { icon: 'quiz',           label: 'Mock Tests',        view: 'mocktests'      as AdminView },
-  { icon: 'how_to_reg',     label: 'Registrations',     view: 'registrations'  as AdminView },
-  { icon: 'group',          label: 'Students',          view: 'students'       as AdminView },
-  { icon: 'menu_book',      label: 'Question Bank',     view: 'questions'      as AdminView },
-  { icon: 'analytics',      label: 'Analytics',         view: null },
-  { icon: 'settings',       label: 'Settings',          view: null },
+  { icon: 'dashboard', label: 'Dashboard', view: 'overview' as AdminView },
+  { icon: 'quiz', label: 'Mock Tests', view: 'mocktests' as AdminView },
+  { icon: 'how_to_reg', label: 'Registrations', view: 'registrations' as AdminView },
+  { icon: 'group', label: 'Students', view: 'students' as AdminView },
+  { icon: 'menu_book', label: 'Question Bank', view: 'questions' as AdminView },
+  { icon: 'analytics', label: 'Analytics', view: null },
+  { icon: 'settings', label: 'Settings', view: null },
 ]
 
 /* ─────────────────────────────────────────
   Registered Students — LIVE DATA
 ───────────────────────────────────────── */
 function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => void }) {
-  const [students, setStudents]       = useState<AuthUser[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [deleting, setDeleting]       = useState<string | null>(null)
-  const [confirmId, setConfirmId]     = useState<string | null>(null)
-  const [resending, setResending]     = useState<string | null>(null)
-  const [uploading, setUploading]     = useState<string | null>(null)
-  const [toast, setToast]             = useState('')
-  const [search, setSearch]           = useState('')
+  const [students, setStudents] = useState<AuthUser[]>([])
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [resending, setResending] = useState<string | null>(null)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [toast, setToast] = useState('')
+  const [search, setSearch] = useState('')
   const [branchFilter, setBranchFilter] = useState('All')
 
   const showToast = (msg: string) => {
@@ -133,7 +133,6 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
       await usersAPI.delete(id)
       showToast(`🗑️ ${name} deleted successfully.`)
       setStudents(s => s.filter(u => u._id !== id))
-      await fetchStudents(true)
     } catch (e: unknown) {
       showToast(`❌ ${e instanceof Error ? e.message : 'Delete failed'}`)
     } finally {
@@ -310,10 +309,10 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
   Registration Review Page — LIVE DATA
 ───────────────────────────────────────── */
 function RegistrationReview() {
-  const [students, setStudents]   = useState<AuthUser[]>([])
-  const [stats, setStats]         = useState({ pending: 0, approved: 0, rejected: 0 })
-  const [loading, setLoading]     = useState(true)
-  const [selected, setSelected]   = useState<string[]>([])
+  const [students, setStudents] = useState<AuthUser[]>([])
+  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0 })
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<string[]>([])
   const [actionMsg, setActionMsg] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -588,8 +587,8 @@ function RegistrationReview() {
   Main Admin Dashboard
 ───────────────────────────────────────── */
 export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
-  const canvasRef  = useRef<HTMLCanvasElement>(null)
-  const chartRef   = useRef<Chart | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const chartRef = useRef<Chart | null>(null)
   const [view, setView] = useState<AdminView>('overview')
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
   const [showTest, setShowTest] = useState(false)
@@ -664,12 +663,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       type: 'line',
       data: {
         labels: Array.from({ length: 30 }, (_, i) => {
-          const show = [0,3,6,9,12,15,18,21,24,27]
+          const show = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27]
           return show.includes(i) ? `Day ${i + 1}` : ''
         }),
         datasets: [{
           label: 'Test Attempts',
-             data: attemptCounts,
+          data: attemptCounts,
           borderColor: '#1a73e8',
           borderWidth: 2.5,
           fill: true,
@@ -704,7 +703,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             ticks: {
               font: { family: 'Inter', size: 10 },
               color: '#727785',
-              callback: v => Number(v) >= 1000 ? `${Number(v)/1000}k` : String(v),
+              callback: v => Number(v) >= 1000 ? `${Number(v) / 1000}k` : String(v),
             },
           },
         },
@@ -766,189 +765,189 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       ) : (
         <div className={`adb-root${viewProfileId ? ' adb-root--profile' : ''}`}>
 
-      {/* ── Sidebar ─────────────────────────── */}
-      <aside className="adb-sidebar">
-        <div className="adb-brand">
-          <span className="material-symbols-outlined adb-brand-icon"
-            style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
-          <span className="adb-brand-title">CET Admin</span>
-        </div>
-
-        <nav className="adb-nav">
-          {NAV.map(item => (
-            <a key={item.label} href="#"
-              className={`adb-nav-item${view === item.view ? ' adb-nav-item--active' : ''}`}
-              onClick={e => { e.preventDefault(); if (item.view) setView(item.view) }}
-            >
-              <span className="material-symbols-outlined">{item.icon}</span>
-              <span>{item.label}</span>
-            </a>
-          ))}
-        </nav>
-
-        <div className="adb-sidebar-bottom">
-          <div className="adb-admin-row">
-            <img className="adb-admin-avatar"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDWpayorudDpV1PjBCVsrLYUz1_tl6nSQvGAZ8XASMWIW6RVYVgBkWsHzHE9qtkE1B055qgcgwyYHZYHYXQYQDXBBlvXnZpQA67ft2ftscqBUExT7zmtmtKw8Sd3gsu8T0xpM69hVIwoRXpBSsBmPtVLQOO_UC2KNSavm28KJyv9lHaWPS-CfwzW6mlU2ihGpurQh7NbKA6chXikCijY-TtmEiXmj5tr-Zn034nC1B4OPPLHSowXaj5f2cItjlmFEIdu2SMscAZKVo"
-              alt="Admin X" />
-            <div>
-              <p className="adb-admin-name">Admin X</p>
-              <p className="adb-admin-role">Exam Controller</p>
+          {/* ── Sidebar ─────────────────────────── */}
+          <aside className="adb-sidebar">
+            <div className="adb-brand">
+              <span className="material-symbols-outlined adb-brand-icon"
+                style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
+              <span className="adb-brand-title">CET Admin</span>
             </div>
-          </div>
-          <a href="#" className="adb-logout-link"
-            onClick={async e => {
-              e.preventDefault()
-              try {
-                await authAPI.logout()
-              } catch (error) {
-                console.warn('Logout failed, clearing local session anyway', error)
-              }
-              session.clear()
-              onNavigate?.('signin')
-            }}>
-            <span className="material-symbols-outlined">logout</span>
-            <span>Logout</span>
-          </a>
-        </div>
-      </aside>
 
-      {/* ── Main ────────────────────────────── */}
-      <main className="adb-main">
-        <header className="adb-topbar">
-          <div className="adb-topbar-left">
-            <h2 className="adb-topbar-brand">CET Prep Pro</h2>
-            <div className="adb-topbar-sep" />
-            <span className="adb-topbar-sub">{topbarTitle}</span>
-          </div>
-          <div className="adb-topbar-right">
-            <div className="adb-search">
-              <input className="adb-search-input" placeholder="Search data…" type="text" />
-              <span className="material-symbols-outlined adb-search-icon">search</span>
-            </div>
-            <button className="adb-icon-btn"><span className="material-symbols-outlined">notifications</span></button>
-            <button className="adb-icon-btn"><span className="material-symbols-outlined">help</span></button>
-          </div>
-        </header>
-
-        <div className="adb-content">
-          {view === 'overview' && (
-            <>
-              {/* Welcome */}
-              <div className="adb-welcome">
-                <div>
-                  <h1 className="adb-page-title">Dashboard Overview</h1>
-                  <p className="adb-page-sub">Performance metrics and platform health for the last 30 days.</p>
-                </div>
-                <button
-                  type="button"
-                  className="adb-new-btn"
-                  onClick={() => {
-                    const next = !showTest
-                    console.log('Start New Test clicked', { showTest: next })
-                    setShowTest(next)
-                  }}
+            <nav className="adb-nav">
+              {NAV.map(item => (
+                <a key={item.label} href="#"
+                  className={`adb-nav-item${view === item.view ? ' adb-nav-item--active' : ''}`}
+                  onClick={e => { e.preventDefault(); if (item.view) setView(item.view) }}
                 >
-                  <span className="material-symbols-outlined">add</span>Start New Test
-                </button>
-              </div>
+                  <span className="material-symbols-outlined">{item.icon}</span>
+                  <span>{item.label}</span>
+                </a>
+              ))}
+            </nav>
 
-              {/* Stats */}
-              <div className="adb-stats">
-                {[
-                  { icon: 'group',         cls: 'adb-si-blue',   badge: 'Live',     bcls: 'adb-badge-green', label: 'TOTAL STUDENTS',  val: students.length.toLocaleString() },
-                  { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active',   bcls: 'adb-badge-green', label: 'ACTIVE EXAMS',    val: mockTests.filter(test => test.status === 'active').length.toLocaleString() },
-                  { icon: 'database',      cls: 'adb-si-teal',   badge: 'Live',     bcls: 'adb-badge-blue',  label: 'QUESTION COUNT',  val: questions.length.toLocaleString() },
-                ].map(s => (
-                  <div key={s.label} className="adb-stat-card">
-                    <div className="adb-stat-top">
-                      <div className={`adb-stat-icon ${s.cls}`}>
-                        <span className="material-symbols-outlined">{s.icon}</span>
-                      </div>
-                      <span className={`adb-badge ${s.bcls}`}>{s.badge}</span>
-                    </div>
-                    <p className="adb-stat-label">{s.label}</p>
-                    <p className="adb-stat-val">{s.val}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Chart + Activity */}
-              <div className="adb-mid">
-                <div className="adb-card adb-chart-card">
-                  <div className="adb-chart-hdr">
-                    <h4 className="adb-card-title">Daily Test Attempts</h4>
-                    <div className="adb-chart-tabs">
-                      <button className="adb-tab adb-tab--on">Last 30 Days</button>
-                      <button className="adb-tab">Yearly</button>
-                    </div>
-                  </div>
-                  <div className="adb-chart-area"><canvas ref={canvasRef} /></div>
-                </div>
-                <div className="adb-card adb-act-card">
-                  <div className="adb-act-hdr"><h4 className="adb-card-title">Recent Activity</h4></div>
-                  <div className="adb-act-list">
-                    {activities.length ? activities.map((a, i) => (
-                      <div key={i} className="adb-act-row">
-                        <div className={`adb-act-dot ${a.cls}`}>
-                          <span className="material-symbols-outlined">{a.icon}</span>
-                        </div>
-                        <div className="adb-act-body">
-                          <p className="adb-act-title">{a.title}</p>
-                          <p className="adb-act-sub">{a.sub}</p>
-                          <span className="adb-act-time">{a.time}</span>
-                        </div>
-                      </div>
-                    )) : <p className="adb-act-empty">No recent activity in the last 24 hours.</p>}
-                  </div>
-                  <div className="adb-act-footer">
-                    <button className="adb-view-all">View All Activities</button>
-                  </div>
+            <div className="adb-sidebar-bottom">
+              <div className="adb-admin-row">
+                <img className="adb-admin-avatar"
+                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDWpayorudDpV1PjBCVsrLYUz1_tl6nSQvGAZ8XASMWIW6RVYVgBkWsHzHE9qtkE1B055qgcgwyYHZYHYXQYQDXBBlvXnZpQA67ft2ftscqBUExT7zmtmtKw8Sd3gsu8T0xpM69hVIwoRXpBSsBmPtVLQOO_UC2KNSavm28KJyv9lHaWPS-CfwzW6mlU2ihGpurQh7NbKA6chXikCijY-TtmEiXmj5tr-Zn034nC1B4OPPLHSowXaj5f2cItjlmFEIdu2SMscAZKVo"
+                  alt="Admin X" />
+                <div>
+                  <p className="adb-admin-name">Admin X</p>
+                  <p className="adb-admin-role">Exam Controller</p>
                 </div>
               </div>
+              <a href="#" className="adb-logout-link"
+                onClick={async e => {
+                  e.preventDefault()
+                  try {
+                    await authAPI.logout()
+                  } catch (error) {
+                    console.warn('Logout failed, clearing local session anyway', error)
+                  }
+                  session.clear()
+                  onNavigate?.('signin')
+                }}>
+                <span className="material-symbols-outlined">logout</span>
+                <span>Logout</span>
+              </a>
+            </div>
+          </aside>
 
-              {/* Bottom */}
-              <div className="adb-bottom">
-                <div className="adb-card adb-quick-card">
-                  <h4 className="adb-card-title">Quick Actions</h4>
-                  <div className="adb-quick-grid">
-                    {QUICK.map(q => (
-                      <button key={q.label} className="adb-quick-btn" onClick={() => handleQuickAction(q.label)}>
-                        <span className="material-symbols-outlined adb-quick-icon">{q.icon}</span>
-                        <span className="adb-quick-label">{q.label}</span>
-                      </button>
+          {/* ── Main ────────────────────────────── */}
+          <main className="adb-main">
+            <header className="adb-topbar">
+              <div className="adb-topbar-left">
+                <h2 className="adb-topbar-brand">CET Prep Pro</h2>
+                <div className="adb-topbar-sep" />
+                <span className="adb-topbar-sub">{topbarTitle}</span>
+              </div>
+              <div className="adb-topbar-right">
+                <div className="adb-search">
+                  <input className="adb-search-input" placeholder="Search data…" type="text" />
+                  <span className="material-symbols-outlined adb-search-icon">search</span>
+                </div>
+                <button className="adb-icon-btn"><span className="material-symbols-outlined">notifications</span></button>
+                <button className="adb-icon-btn"><span className="material-symbols-outlined">help</span></button>
+              </div>
+            </header>
+
+            <div className="adb-content">
+              {view === 'overview' && (
+                <>
+                  {/* Welcome */}
+                  <div className="adb-welcome">
+                    <div>
+                      <h1 className="adb-page-title">Dashboard Overview</h1>
+                      <p className="adb-page-sub">Performance metrics and platform health for the last 30 days.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="adb-new-btn"
+                      onClick={() => {
+                        const next = !showTest
+                        console.log('Start New Test clicked', { showTest: next })
+                        setShowTest(next)
+                      }}
+                    >
+                      <span className="material-symbols-outlined">add</span>Start New Test
+                    </button>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="adb-stats">
+                    {[
+                      { icon: 'group', cls: 'adb-si-blue', badge: 'Live', bcls: 'adb-badge-green', label: 'TOTAL STUDENTS', val: students.length.toLocaleString() },
+                      { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active', bcls: 'adb-badge-green', label: 'ACTIVE EXAMS', val: mockTests.filter(test => test.status === 'active').length.toLocaleString() },
+                      { icon: 'database', cls: 'adb-si-teal', badge: 'Live', bcls: 'adb-badge-blue', label: 'QUESTION COUNT', val: questions.length.toLocaleString() },
+                    ].map(s => (
+                      <div key={s.label} className="adb-stat-card">
+                        <div className="adb-stat-top">
+                          <div className={`adb-stat-icon ${s.cls}`}>
+                            <span className="material-symbols-outlined">{s.icon}</span>
+                          </div>
+                          <span className={`adb-badge ${s.bcls}`}>{s.badge}</span>
+                        </div>
+                        <p className="adb-stat-label">{s.label}</p>
+                        <p className="adb-stat-val">{s.val}</p>
+                      </div>
                     ))}
                   </div>
-                </div>
-                <div className="adb-card adb-exam-card">
-                  <div className="adb-exam-blob" />
-                  <h4 className="adb-card-title">Ongoing: MHT-CET Phase 1</h4>
-                  <div className="adb-live"><span className="adb-live-dot" /><span>LIVE MONITORING</span></div>
-                  <div className="adb-progress-row"><span>Progress (Completion)</span><span>74%</span></div>
-                  <div className="adb-progress-track"><div className="adb-progress-fill" style={{ width: '74%' }} /></div>
-                  <div className="adb-exam-meta">
-                    <div><p className="adb-meta-label">Active Connections</p><p className="adb-meta-val">12,402</p></div>
-                    <div><p className="adb-meta-label">Errors Reported</p><p className="adb-meta-val adb-meta-val--red">0</p></div>
-                  </div>
-                  <button className="adb-control-btn">
-                    <span className="material-symbols-outlined">monitoring</span>Enter Control Room
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
 
-          {view === 'registrations' && <RegistrationReview />}
-          {view === 'students' && (
-            viewProfileId
-              ? <StudentProfile studentId={viewProfileId} onBack={() => setViewProfileId(null)} />
-              : <RegisteredStudents onViewProfile={setViewProfileId} />
-          )}
-          {view === 'questions' && <QuestionBank />}
-          {view === 'mocktests' && <AdminMockTests />}
+                  {/* Chart + Activity */}
+                  <div className="adb-mid">
+                    <div className="adb-card adb-chart-card">
+                      <div className="adb-chart-hdr">
+                        <h4 className="adb-card-title">Daily Test Attempts</h4>
+                        <div className="adb-chart-tabs">
+                          <button className="adb-tab adb-tab--on">Last 30 Days</button>
+                          <button className="adb-tab">Yearly</button>
+                        </div>
+                      </div>
+                      <div className="adb-chart-area"><canvas ref={canvasRef} /></div>
+                    </div>
+                    <div className="adb-card adb-act-card">
+                      <div className="adb-act-hdr"><h4 className="adb-card-title">Recent Activity</h4></div>
+                      <div className="adb-act-list">
+                        {activities.length ? activities.map((a, i) => (
+                          <div key={i} className="adb-act-row">
+                            <div className={`adb-act-dot ${a.cls}`}>
+                              <span className="material-symbols-outlined">{a.icon}</span>
+                            </div>
+                            <div className="adb-act-body">
+                              <p className="adb-act-title">{a.title}</p>
+                              <p className="adb-act-sub">{a.sub}</p>
+                              <span className="adb-act-time">{a.time}</span>
+                            </div>
+                          </div>
+                        )) : <p className="adb-act-empty">No recent activity in the last 24 hours.</p>}
+                      </div>
+                      <div className="adb-act-footer">
+                        <button className="adb-view-all">View All Activities</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom */}
+                  <div className="adb-bottom">
+                    <div className="adb-card adb-quick-card">
+                      <h4 className="adb-card-title">Quick Actions</h4>
+                      <div className="adb-quick-grid">
+                        {QUICK.map(q => (
+                          <button key={q.label} className="adb-quick-btn" onClick={() => handleQuickAction(q.label)}>
+                            <span className="material-symbols-outlined adb-quick-icon">{q.icon}</span>
+                            <span className="adb-quick-label">{q.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="adb-card adb-exam-card">
+                      <div className="adb-exam-blob" />
+                      <h4 className="adb-card-title">Ongoing: MHT-CET Phase 1</h4>
+                      <div className="adb-live"><span className="adb-live-dot" /><span>LIVE MONITORING</span></div>
+                      <div className="adb-progress-row"><span>Progress (Completion)</span><span>74%</span></div>
+                      <div className="adb-progress-track"><div className="adb-progress-fill" style={{ width: '74%' }} /></div>
+                      <div className="adb-exam-meta">
+                        <div><p className="adb-meta-label">Active Connections</p><p className="adb-meta-val">12,402</p></div>
+                        <div><p className="adb-meta-label">Errors Reported</p><p className="adb-meta-val adb-meta-val--red">0</p></div>
+                      </div>
+                      <button className="adb-control-btn">
+                        <span className="material-symbols-outlined">monitoring</span>Enter Control Room
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {view === 'registrations' && <RegistrationReview />}
+              {view === 'students' && (
+                viewProfileId
+                  ? <StudentProfile studentId={viewProfileId} onBack={() => setViewProfileId(null)} />
+                  : <RegisteredStudents onViewProfile={setViewProfileId} />
+              )}
+              {view === 'questions' && <QuestionBank />}
+              {view === 'mocktests' && <AdminMockTests />}
+            </div>
+          </main>
         </div>
-      </main>
-    </div>
       )}
     </>
   )

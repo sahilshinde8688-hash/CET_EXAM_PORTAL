@@ -28,7 +28,13 @@ const applySecurityHeaders = () => {
         ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
-        connectSrc: ["'self'", "https://api.example.com"], // Add your API domains
+        connectSrc: [
+          "'self'",
+          "https://cet-portal-3vas.onrender.com",
+          "https://*.vercel.app",
+          "https://*.supabase.co",
+          "https://api.example.com",
+        ],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         objectSrc: ["'none'"],
         mediaSrc: ["'self'"],
@@ -118,6 +124,8 @@ const configureCors = (options = {}) => {
         process.env.FRONTEND_URL,
         process.env.CLIENT_URL,
         ...(process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()),
+        'https://cet-portal-bice.vercel.app',
+        'https://cet-portal-3vas.onrender.com',
         'http://localhost:5173',
         'http://localhost:5174',
         'http://localhost:3000',
@@ -126,7 +134,12 @@ const configureCors = (options = {}) => {
         'http://127.0.0.1:3000',
       ].filter(Boolean)
 
-      if (allowedOrigins.includes(origin)) {
+      const allowedOriginPatterns = [
+        /^https:\/\/.*\.vercel\.app$/i,
+        /^https:\/\/.*\.onrender\.com$/i,
+      ]
+
+      if (allowedOrigins.includes(origin) || allowedOriginPatterns.some((pattern) => pattern.test(origin))) {
         return callback(null, true)
       }
 
@@ -149,6 +162,8 @@ const configureCors = (options = {}) => {
     exposedHeaders: [
       'Set-Cookie',
       'Authorization',
+      'X-CSRF-Token',
+      'X-XSRF-Token',
     ],
     maxAge: 86400, // 24 hours - preflight cache
     preflightContinue: false,

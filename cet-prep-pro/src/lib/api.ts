@@ -1,18 +1,59 @@
 import { supabase } from './supabaseClient'
 
-const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
-const API_URL = (configuredApiUrl || 'http://localhost:5000').replace(/\/$/, '')
+const getApiUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') {
+      const envUrl = import.meta.env.VITE_API_URL?.trim()
+      if (envUrl && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+        return envUrl.replace(/\/$/, '')
+      }
+      return 'http://localhost:5000'
+    }
+  }
+  const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
+  const fallbackApiUrl = 'https://cet-portal-3vas.onrender.com'
+  return (configuredApiUrl || fallbackApiUrl).replace(/\/$/, '')
+}
+
+const API_URL = getApiUrl()
 const BASE = `${API_URL}/api`
 
 
+let memoryCsrfToken: string | null = null
+
+const setCsrfToken = (token: string | null) => {
+  if (!token) return
+  memoryCsrfToken = token
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem('csrfToken', token)
+    } catch {}
+  }
+}
+
 /**
- * Get CSRF token from cookies
+ * Get CSRF token from memory, localStorage, or cookies
  * Needed for state-changing requests (POST, PUT, PATCH, DELETE)
  */
 const getCsrfToken = (): string | null => {
-  if (typeof document === 'undefined') return null
-  const match = document.cookie.match(/(?:^|; )csrfToken=([^;]*)/)
-  return match ? decodeURIComponent(match[1]) : null
+  if (memoryCsrfToken) return memoryCsrfToken
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const stored = window.localStorage.getItem('csrfToken')
+    if (stored) {
+      memoryCsrfToken = stored
+      return stored
+    }
+  }
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|; )csrfToken=([^;]*)/)
+    if (match) {
+      const val = decodeURIComponent(match[1])
+      memoryCsrfToken = val
+      return val
+    }
+  }
+  return null
 }
 
 const ensureCsrfToken = async (): Promise<string | null> => {
@@ -20,7 +61,17 @@ const ensureCsrfToken = async (): Promise<string | null> => {
   if (existingToken) return existingToken
 
   try {
-    await fetch(`${BASE}/`, { credentials: 'include' })
+    const res = await fetch(`${BASE}/auth/csrf`, { credentials: 'include' })
+    const headerToken = res.headers.get('X-CSRF-Token')
+    if (headerToken) {
+      setCsrfToken(headerToken)
+      return headerToken
+    }
+    const data = await res.json().catch(() => ({}))
+    if (data.csrfToken) {
+      setCsrfToken(data.csrfToken)
+      return data.csrfToken
+    }
   } catch {}
   return getCsrfToken()
 }
@@ -42,6 +93,9 @@ export class TokenRefreshedError extends Error {
 }
 
 async function handle(res: Response, refreshOnUnauthorized = true) {
+  const resCsrf = res.headers.get('X-CSRF-Token')
+  if (resCsrf) setCsrfToken(resCsrf)
+
   // If unauthorized, try to refresh the token once
   if (res.status === 401 && refreshOnUnauthorized && !isRefreshing) {
     isRefreshing = true
@@ -123,7 +177,7 @@ export interface AuthUser {
 
 /* ── Auth ── */
 export async function signin(email: string, password: string) {
-  const csrfToken = getCsrfToken()
+  const csrfToken = await ensureCsrfToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -196,12 +250,41 @@ export const authAPI = {
         body: JSON.stringify({ email: cleanId, password, rememberMe }),
       }).finally(() => clearTimeout(timeoutId))
 
-      if (res.ok) {
+      const headerResCsrf = res.headers.get('X-CSRF-Token')
+      if (headerResCsrf) setCsrfToken(headerResCsrf)
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}))
+        if (body.message?.toLowerCase().includes('csrf')) {
+          memoryCsrfToken = null
+          if (typeof window !== 'undefined' && window.localStorage) {
+            try { window.localStorage.removeItem('csrfToken') } catch {}
+          }
+          const freshToken = await ensureCsrfToken()
+          if (freshToken) {
+            headers['X-CSRF-Token'] = freshToken
+            const retryRes = await fetch(`${BASE}/auth/login`, {
+              method: 'POST',
+              credentials: 'include',
+              headers,
+              body: JSON.stringify({ email: cleanId, password, rememberMe }),
+            })
+            const retryCsrf = retryRes.headers.get('X-CSRF-Token')
+            if (retryCsrf) setCsrfToken(retryCsrf)
+            if (retryRes.ok) {
+              const retryData = await retryRes.json()
+              if (retryData && (retryData._id || retryData.id || retryData.email || retryData.role)) return retryData
+            }
+          }
+        }
+        backendError = new Error(body.message || `Login failed with status ${res.status}.`)
+      } else if (res.ok) {
         const data = await res.json()
         if (data && (data._id || data.id || data.email || data.role)) return data
+      } else {
+        const body = await res.json().catch(() => ({}))
+        backendError = new Error(body.message || `Login failed with status ${res.status}.`)
       }
-      const body = await res.json().catch(() => ({}))
-      backendError = new Error(body.message || `Login failed with status ${res.status}.`)
     } catch (error) {
       backendError = error instanceof Error ? error : new Error('Unable to reach the login server.')
     }
