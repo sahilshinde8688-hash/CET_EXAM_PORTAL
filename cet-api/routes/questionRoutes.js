@@ -1,29 +1,51 @@
 const express = require('express')
 const multer = require('multer')
 const XLSX = require('xlsx')
+const path = require('path')
 const db = require('../services/dbService')
 const router = express.Router()
 const { apiLimiter, uploadLimiter } = require('../middleware/rateLimit')
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
+const { protect, adminOnly, optionalAuth } = require('../middleware/auth')
+const { validateCsrfToken } = require('../middleware/csrf')
 
-router.get('/', apiLimiter, async (req, res) => {
+// Strict Multer setup for question spreadsheets
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    const allowedExts = ['.xlsx', '.xls', '.csv']
+    if (!allowedExts.includes(ext)) {
+      return cb(new Error('Only .xlsx, .xls, and .csv files are allowed for question import.'))
+    }
+    cb(null, true)
+  },
+})
+
+// GET /api/questions
+// Withholds answer keys and solutions from students and anonymous users
+router.get('/', optionalAuth, apiLimiter, async (req, res) => {
   const { subject, topic, difficulty, isActive } = req.query
   const filter = {}
   if (subject) filter.subject = subject
   if (topic) filter.topic = topic
   if (difficulty) filter.difficulty = difficulty
   if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true'
+
+  const isAdmin = req.user?.role === 'admin'
+
   try {
-    const questions = await db.getQuestions(filter)
+    const questions = await db.getQuestions(filter, { isAdmin })
     res.json(questions)
   } catch (e) {
-    res.status(500).json({ message: 'Failed to load questions' })
+    res.status(500).json({ success: false, message: 'Failed to load questions' })
   }
 })
 
+// GET /api/questions/meta/subjects-chapters
 router.get('/meta/subjects-chapters', apiLimiter, async (req, res) => {
   try {
-    const questions = await db.getQuestions({ isActive: true })
+    const questions = await db.getQuestions({ isActive: true }, { isAdmin: false })
 
     const subjectsSet = new Set()
     const chaptersBySubject = {}
@@ -46,45 +68,71 @@ router.get('/meta/subjects-chapters', apiLimiter, async (req, res) => {
 
     res.json({ subjects: Array.from(subjectsSet), chaptersBySubject: result })
   } catch (e) {
-    res.status(500).json({ message: 'Failed to load subjects and chapters' })
+    res.status(500).json({ success: false, message: 'Failed to load subjects and chapters' })
   }
 })
 
-router.post('/', apiLimiter, async (req, res) => {
+// GET /api/questions/:id
+router.get('/:id', optionalAuth, apiLimiter, async (req, res) => {
   try {
+    const isAdmin = req.user?.role === 'admin'
+    const question = await db.getQuestionById(req.params.id, { isAdmin })
+    if (!question) {
+      return res.status(404).json({ success: false, message: 'Question not found' })
+    }
+    res.json(question)
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Failed to load question' })
+  }
+})
+
+// POST /api/questions — ADMIN ONLY
+router.post('/', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  try {
+    const { subject, text, options, correctIndex, marks } = req.body
+    if (!subject || !text) {
+      return res.status(400).json({ success: false, message: 'Subject and question text are required.' })
+    }
+    if (!Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({ success: false, message: 'At least two options are required.' })
+    }
+    const cIdx = Number(correctIndex)
+    if (isNaN(cIdx) || cIdx < 0 || cIdx >= options.length) {
+      return res.status(400).json({ success: false, message: 'Invalid correct answer index.' })
+    }
+
     const question = await db.createQuestion(req.body)
     res.status(201).json(question)
   } catch (e) {
-    res.status(400).json({ message: 'Invalid question data: ' + e.message })
+    res.status(400).json({ success: false, message: 'Invalid question data: ' + e.message })
   }
 })
 
 const uploadHandler = (req, res, next) => {
-  upload.any()(req, res, (err) => {
+  upload.single('file')(req, res, (err) => {
     if (err) {
-      console.error('Multer upload error:', err)
       return res.status(400).json({
+        success: false,
         message: err.message || 'Upload failed',
-        code: err.code,
-        field: err.field,
-        details: err.stack,
       })
     }
     next()
   })
 }
 
-router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
-  const file = req.files && req.files.length ? req.files[0] : undefined
-  if (!file) return res.status(400).json({ message: 'File is required' })
+// POST /api/questions/upload — ADMIN ONLY BULK IMPORT
+router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, uploadHandler, async (req, res) => {
+  const file = req.file
+  if (!file) return res.status(400).json({ success: false, message: 'Spreadsheet file is required.' })
 
   try {
     const workbook = XLSX.read(file.buffer, { type: 'buffer' })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    if (!sheet) return res.status(400).json({ message: 'No sheet found in file' })
+    const sheetName = workbook.SheetNames[0]
+    if (!sheetName) return res.status(400).json({ success: false, message: 'No sheet found in file.' })
 
+    const sheet = workbook.Sheets[sheetName]
     const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
-    if (!rawRows.length) return res.status(400).json({ message: 'No rows found in file' })
+    if (!rawRows.length) return res.status(400).json({ success: false, message: 'No data rows found in file.' })
 
     const normalize = (key) => String(key || '').trim().toLowerCase().replace(/[_\s]+/g, ' ')
     const headerCandidates = rawRows.slice(0, 5)
@@ -256,16 +304,9 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
 
     if (!rowsToSave.length) {
       return res.status(400).json({
+        success: false,
         message: 'No valid questions found in file',
-        details: {
-          headerRow: headerRowIndex + 1,
-          headers,
-          textIndex,
-          optionIndices,
-          correctIndex,
-          errors,
-          sampleRow: rawRows[headerRowIndex + 1] || [],
-        },
+        details: { errors },
       })
     }
 
@@ -275,28 +316,29 @@ router.post('/upload', uploadLimiter, uploadHandler, async (req, res) => {
       created.push(q)
     }
 
-    res.status(201).json({ imported: created.length, total: rowsToSave.length, errors })
+    res.status(201).json({ success: true, imported: created.length, total: rowsToSave.length, errors })
   } catch (e) {
-    console.error(e)
-    res.status(500).json({ message: 'Failed to upload questions', details: e.message || e })
+    res.status(500).json({ success: false, message: 'Failed to upload questions: ' + (e.message || e) })
   }
 })
 
-router.put('/:id', apiLimiter, async (req, res) => {
+// PUT /api/questions/:id — ADMIN ONLY
+router.put('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
     const updated = await db.updateQuestion(req.params.id, req.body)
     res.json(updated)
   } catch (e) {
-    res.status(400).json({ message: 'Invalid question data: ' + e.message })
+    res.status(400).json({ success: false, message: 'Invalid question data: ' + e.message })
   }
 })
 
-router.delete('/:id', apiLimiter, async (req, res) => {
+// DELETE /api/questions/:id — ADMIN ONLY
+router.delete('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
     await db.deleteQuestion(req.params.id)
-    res.json({ message: 'Deleted' })
+    res.json({ success: true, message: 'Deleted' })
   } catch (e) {
-    res.status(400).json({ message: 'Delete failed' })
+    res.status(400).json({ success: false, message: 'Delete failed' })
   }
 })
 

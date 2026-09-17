@@ -38,7 +38,7 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
   const accessToken = signAccessToken(userId, sessionId)
   const refreshTokenValue = signRefreshToken(userId, sessionId)
   const refreshTokenHash = hashToken(refreshTokenValue)
-  const refreshExpiry = new Date(Date.now() + ((rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000)).toISOString()
+  const refreshExpiry = new Date(Date.now() + (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000).toISOString()
 
   let session = { session_id: sessionId }
   try {
@@ -89,7 +89,7 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
     console.warn('LoginHistory log notice:', err.message)
   }
 
-  setAuthCookies(res, accessToken, refreshTokenValue, crypto.randomUUID())
+  setAuthCookies(res, accessToken, refreshTokenValue, req.csrfToken)
 
   return {
     ...getUserPayload(user),
@@ -103,34 +103,34 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
 const refreshUserSession = async (req, res) => {
   const refreshToken = req.cookies?.refreshToken
   if (!refreshToken) {
-    return res.status(401).json({ message: 'No refresh token found.' })
+    return res.status(401).json({ success: false, message: 'No refresh token found.' })
   }
 
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET)
     if (decoded.type !== 'refresh') {
-      return res.status(401).json({ message: 'Invalid token type.' })
+      return res.status(401).json({ success: false, message: 'Invalid token type.' })
     }
 
     const tokenHash = hashToken(refreshToken)
     const storedToken = await db.findRefreshTokenByHash(tokenHash)
 
     if (!storedToken || storedToken.revoked_at || new Date(storedToken.expires_at) <= new Date()) {
-      return res.status(401).json({ message: 'Refresh token expired or revoked.' })
+      return res.status(401).json({ success: false, message: 'Refresh token expired or revoked.' })
     }
 
     const user = await db.findUserById(storedToken.user_id)
     if (!user) {
-      return res.status(401).json({ message: 'User not found.' })
+      return res.status(401).json({ success: false, message: 'User not found.' })
     }
 
     const session = await db.findSessionById(storedToken.session_id)
     if (!session || session.revoked_at || new Date(session.expires_at) <= new Date()) {
-      return res.status(401).json({ message: 'Session not active.' })
+      return res.status(401).json({ success: false, message: 'Session not active.' })
     }
 
     const accessToken = signAccessToken(user.id, storedToken.session_id)
-    setAuthCookies(res, accessToken, refreshToken, crypto.randomUUID())
+    setAuthCookies(res, accessToken, refreshToken, req.csrfToken)
 
     await db.createLoginHistory({
       userId: user.id,
@@ -140,9 +140,9 @@ const refreshUserSession = async (req, res) => {
       userAgent: req.headers['user-agent'],
     })
 
-    return res.json({ user: getUserPayload(user), sessionId: storedToken.session_id })
+    return res.json({ success: true, user: getUserPayload(user), sessionId: storedToken.session_id })
   } catch (err) {
-    return res.status(401).json({ message: 'Refresh token invalid or expired.' })
+    return res.status(401).json({ success: false, message: 'Refresh token invalid or expired.' })
   }
 }
 
@@ -151,21 +151,38 @@ router.post('/register', sensitiveHeaders, registerLimiter, async (req, res) => 
   const { name, email, phone, branch, batch } = req.body
   try {
     if (!name || !email || !phone || !branch || !batch) {
-      return res.status(400).json({ message: 'All fields are required' })
+      return res.status(400).json({ success: false, message: 'All fields are required.' })
     }
 
-    const cleanEmail = email.toLowerCase().trim()
-    const cleanPhone = String(phone).trim()
+    const cleanEmail = String(email).toLowerCase().trim()
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, message: 'Invalid email address format.' })
+    }
+
+    const cleanPhone = String(phone).replace(/[^\d+]/g, '').trim()
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+      return res.status(400).json({ success: false, message: 'Invalid phone number.' })
+    }
+
+    const validBranches = ['Byculla', 'Worli', 'Prabhadevi']
+    if (!validBranches.includes(branch)) {
+      return res.status(400).json({ success: false, message: `Invalid branch. Must be one of: ${validBranches.join(', ')}` })
+    }
+
     const numBatch = Number(batch)
+    if (isNaN(numBatch) || numBatch < 2020 || numBatch > 2040) {
+      return res.status(400).json({ success: false, message: 'Invalid batch year.' })
+    }
 
     let createdUser = null
 
     try {
       const exists = await db.findUserByEmail(cleanEmail)
-      if (exists) return res.status(400).json({ message: 'Email already registered' })
+      if (exists) return res.status(400).json({ success: false, message: 'Email already registered.' })
 
       createdUser = await db.createUser({
-        name: name.trim(),
+        name: String(name).trim().slice(0, 100),
         email: cleanEmail,
         phone: cleanPhone,
         branch,
@@ -175,22 +192,26 @@ router.post('/register', sensitiveHeaders, registerLimiter, async (req, res) => 
       })
     } catch (dbErr) {
       if (dbErr.code === '23505' || dbErr.message?.includes('duplicate key')) {
-        return res.status(400).json({ message: 'Email already registered' })
+        return res.status(400).json({ success: false, message: 'Email already registered.' })
       }
-      return res.status(400).json({ message: dbErr.message })
+      return res.status(400).json({ success: false, message: 'Registration failed: ' + dbErr.message })
     }
 
     if (!createdUser?.id) {
-      return res.status(500).json({ message: 'Registration was not saved. Please try again.' })
+      return res.status(500).json({ success: false, message: 'Registration could not be completed.' })
     }
 
+    delete createdUser.password
+    delete createdUser.mhcetPassword
+
     return res.status(201).json({
-      message: 'Registration submitted! Your account is under review. You will receive your MHT-CET credentials via email once approved.',
+      success: true,
+      message: 'Registration submitted! Your account is under review. You will receive your credentials via email once approved.',
       status: 'pending',
-      user: createdUser,
+      user: getUserPayload(createdUser),
     })
   } catch (err) {
-    return res.status(500).json({ message: err.message })
+    return res.status(500).json({ success: false, message: 'Server error during registration.' })
   }
 })
 
@@ -198,25 +219,18 @@ router.post('/register', sensitiveHeaders, registerLimiter, async (req, res) => 
 router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (req, res) => {
   const { email, password, rememberMe } = req.body
 
-  try {
-    let user
-    const input = email?.trim()
+  if (!email || !password) {
+    return res.status(400).json({ success: false, message: 'Email/ID and password are required.' })
+  }
 
-    if (input && input.toLowerCase() === 'admin@1234' && password === 'admin@1234') {
-      user = {
-        id: '00000000-0000-0000-0000-000000000001',
-        _id: '00000000-0000-0000-0000-000000000001',
-        name: 'System Admin',
-        email: 'admin@1234',
-        branch: 'Byculla',
-        batch: 2024,
-        role: 'admin',
-        status: 'approved',
-      }
-    } else if (input && /^MHC-/i.test(input)) {
+  try {
+    let user = null
+    const input = String(email).trim()
+
+    if (/^MHC-/i.test(input)) {
       user = await db.findUserByMhcetId(input.toUpperCase())
     } else {
-      user = await db.findUserByEmail(input)
+      user = await db.findUserByEmail(input.toLowerCase())
     }
 
     if (!user) {
@@ -227,29 +241,24 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
         userAgent: req.headers['user-agent'],
         metadata: { email: input },
       })
-      return res.status(401).json({ message: 'Invalid credentials' })
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' })
     }
 
     if (user.role === 'student' && user.status === 'pending') {
-      return res.status(403).json({ message: 'Your account is pending admin approval. Check your email for credentials once approved.' })
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is pending admin approval. You will receive an email once approved.',
+      })
     }
 
-    if (user.role === 'student' && user.status === 'rejected') {
-      return res.status(403).json({ message: 'Your account has been rejected. Contact support for help.' })
+    if (user.status === 'rejected') {
+      return res.status(403).json({ success: false, message: 'Your account has been deactivated.' })
     }
 
-    const isMhcetLogin = /^MHC-/i.test(input)
+    // Verify password hash with bcrypt
     let isMatch = false
-    if (user.role === 'admin' && (user.id === '00000000-0000-0000-0000-000000000001' || user.email === 'admin@1234')) {
-      isMatch = true
-    } else {
-      if (user.password) {
-        isMatch = await bcrypt.compare(password, user.password)
-      }
-
-      if (!isMatch && (isMhcetLogin || (user.role === 'student' && user.mustResetPassword))) {
-        isMatch = password === user.mhcetPassword
-      }
+    if (user.password) {
+      isMatch = await bcrypt.compare(String(password), user.password)
     }
 
     if (!isMatch) {
@@ -260,7 +269,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
         userAgent: req.headers['user-agent'],
         metadata: { email: input },
       })
-      return res.status(401).json({ message: 'Invalid credentials' })
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' })
     }
 
     const payload = await createAuthSession(user, req, res, Boolean(rememberMe))
@@ -271,7 +280,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
 
     return res.status(200).json(payload)
   } catch (err) {
-    return res.status(500).json({ message: err.message })
+    return res.status(500).json({ success: false, message: 'Internal server error.' })
   }
 })
 
@@ -288,28 +297,32 @@ router.post('/logout', validateCsrfToken, sensitiveHeaders, async (req, res) => 
   }
 
   clearAuthCookies(res)
-  return res.status(200).json({ message: 'Logged out successfully.' })
+  return res.status(200).json({ success: true, message: 'Logged out successfully.' })
 })
 
 router.get('/csrf', (req, res) => {
-  return res.json({ csrfToken: req.csrfToken })
+  return res.json({ success: true, csrfToken: req.csrfToken })
 })
 
 router.get('/me', sensitiveHeaders, async (req, res) => {
-  const accessToken = req.cookies?.accessToken
-  if (!accessToken) {
-    return res.status(401).json({ message: 'Not authenticated.' })
+  let token = req.cookies?.accessToken
+  if (!token && req.headers.authorization?.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1]
+  }
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Not authenticated.' })
   }
 
   try {
-    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await db.findUserById(decoded.id)
     if (!user) {
-      return res.status(401).json({ message: 'User not found.' })
+      return res.status(401).json({ success: false, message: 'User not found.' })
     }
     return res.json(getUserPayload(user))
   } catch {
-    return res.status(401).json({ message: 'Session expired.' })
+    return res.status(401).json({ success: false, message: 'Session expired.' })
   }
 })
 

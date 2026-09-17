@@ -138,13 +138,9 @@ export default function App() {
     return (
       <SignIn
         onSuccess={() => navigate('dashboard')}
-        onAdminLogin={(email, password) => {
-          if (isAdminCredentials(email, password)) {
-            setAdminLoggedIn(true)
-            navigate('admin')
-          } else {
-            navigate('dashboard')
-          }
+        onAdminLogin={() => {
+          setAdminLoggedIn(true)
+          navigate('admin')
         }}
       />
     )

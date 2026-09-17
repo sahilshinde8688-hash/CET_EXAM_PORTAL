@@ -1,14 +1,10 @@
+import { session } from './lib/api'
+
 export const ADMIN_STORAGE_KEY = 'cetprep-admin-auth'
 
 export interface AdminAuthState {
   email: string
-  password: string
   lastLogin: string
-}
-
-export const DEFAULT_ADMIN_CREDENTIALS = {
-  email: 'admin@1234',
-  password: 'admin@1234',
 }
 
 export function getStoredAdminCredentials(): AdminAuthState | null {
@@ -32,16 +28,7 @@ export function clearAdminCredentials() {
   window.localStorage.removeItem(ADMIN_STORAGE_KEY)
 }
 
-export function isAdminCredentials(email: string, password: string) {
-  const stored = getStoredAdminCredentials()
-  const normalizedEmail = email.trim().toLowerCase()
-
-  if (stored) {
-    return stored.email.toLowerCase() === normalizedEmail && stored.password === password
-  }
-
-  return (
-    normalizedEmail === DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase() &&
-    password === DEFAULT_ADMIN_CREDENTIALS.password
-  )
+export function isAdminCredentials(): boolean {
+  const user = session.get()
+  return user?.role === 'admin'
 }

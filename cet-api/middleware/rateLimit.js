@@ -1,15 +1,5 @@
-/**
- * Rate Limiting Middleware
- * 
- * Protects against brute-force attacks, credential stuffing, and DoS attacks.
- * Uses in-memory store with sliding window algorithm.
- * 
- * For production with multiple servers, use Redis store.
- */
-
 const rateLimit = require('express-rate-limit')
 
-// Optional Redis store for production scaling
 let RedisStore = null
 let redisClient = null
 
@@ -21,36 +11,38 @@ if (process.env.REDIS_URL) {
     redisClient = createClient({
       url: process.env.REDIS_URL,
     })
-    redisClient.connect().catch(console.error)
+    redisClient.connect().catch((err) => {
+      console.warn('⚠️ Redis rate limit connection error:', err.message)
+    })
   } catch (err) {
-    console.warn('Redis not configured, using in-memory rate limiting (not recommended for production)')
+    console.warn('Redis not configured, using memory rate limiting')
   }
 }
 
-// In-memory store for single-server deployments
-const stores = new Map()
-
-// Redis client already initialized above if available
-
 /**
  * Sliding window rate limiter factory
- * More accurate than fixed window, prevents burst attacks
  */
-const createSlidingWindowLimiter = (windowMs, max) => {
+const createLimiter = ({ windowMs, max, message, keyGenerator }) => {
   return rateLimit({
-    store: redisClient && RedisStore
-      ? new RedisStore({
-          sendCommand: (...command) => redisClient.sendCommand(command),
-        })
-      : undefined,
+    store:
+      redisClient && RedisStore
+        ? new RedisStore({
+            sendCommand: (...command) => redisClient.sendCommand(command),
+          })
+        : undefined,
     windowMs,
     max,
     standardHeaders: true,
     legacyHeaders: false,
-    // Custom handler when limit exceeded
+    keyGenerator:
+      keyGenerator ||
+      ((req) => {
+        return req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown'
+      }),
     handler: (req, res) => {
       res.status(429).json({
-        message: 'Too many requests. Please try again later.',
+        success: false,
+        message: message || 'Too many requests. Please try again later.',
         retryAfter: Math.ceil(windowMs / 1000),
       })
     },
@@ -60,76 +52,63 @@ const createSlidingWindowLimiter = (windowMs, max) => {
 // ── Specific Rate Limiters ──────────────────────────────────────────
 
 /**
- * Login rate limiter
- * Strict limit to prevent credential stuffing and brute-force attacks
+ * Login rate limiter: 5 attempts per 15 mins in prod, 50 in dev
  */
-const loginLimiter = createSlidingWindowLimiter(
-  15 * 60 * 1000, // 15 minutes
-  process.env.NODE_ENV === 'production' ? 5 : 50 // 5 attempts per 15 mins in prod, 50 in dev
-)
-loginLimiter.keyGenerator = (req) => `login:${req.ip}`
+const loginLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 5 : 50,
+  message: 'Too many login attempts. Please try again after 15 minutes.',
+  keyGenerator: (req) => {
+    const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : ''
+    const ip = req.ip || req.socket.remoteAddress || ''
+    return `login:${ip}:${email}`
+  },
+})
 
 /**
- * Registration rate limiter
- * Prevent spam registrations
+ * Registration rate limiter: 3 attempts per hour in prod, 50 in dev
  */
-const registerLimiter = createSlidingWindowLimiter(
-  60 * 60 * 1000, // 1 hour
-  process.env.NODE_ENV === 'production' ? 3 : 50 // 3 attempts per hour in prod, 50 in dev
-)
-registerLimiter.keyGenerator = (req) => `register:${req.ip}`
+const registerLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 5 : 50,
+  message: 'Too many registration attempts. Please try again in an hour.',
+})
 
 /**
  * Password reset rate limiter
- * Prevent abuse of password reset functionality
  */
-const passwordResetLimiter = createSlidingWindowLimiter(
-  60 * 60 * 1000, // 1 hour
-  3 // 3 attempts per hour
-)
-passwordResetLimiter.keyGenerator = (req) => `password-reset:${req.ip}`
+const passwordResetLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 5 : 50,
+  message: 'Too many password reset attempts. Please try again in an hour.',
+})
 
 /**
- * Token refresh rate limiter
- * Prevent abuse of refresh endpoint
+ * Token refresh rate limiter: 30 attempts per 5 minutes
  */
-const refreshLimiter = createSlidingWindowLimiter(
-  5 * 60 * 1000, // 5 minutes
-  10 // 10 attempts per 5 minutes
-)
-refreshLimiter.keyGenerator = (req) => `refresh:${req.ip}`
+const refreshLimiter = createLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  message: 'Too many token refresh attempts. Please slow down.',
+})
 
 /**
- * General API rate limiter
- * Applied to all authenticated API requests
+ * General API rate limiter: 200 requests per 15 minutes
  */
-const apiLimiter = createSlidingWindowLimiter(
-  15 * 60 * 1000, // 15 minutes
-  100 // 100 requests per 15 minutes
-)
-apiLimiter.keyGenerator = (req) => `api:${req.user?._id || req.ip}`
+const apiLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: 'API rate limit exceeded. Please slow down.',
+})
 
 /**
- * File upload rate limiter
- * Prevent abuse of file upload endpoints
+ * File upload rate limiter: 20 uploads per hour in prod, 100 in dev
  */
-const uploadLimiter = createSlidingWindowLimiter(
-  60 * 60 * 1000, // 1 hour
-  10 // 10 uploads per hour
-)
-uploadLimiter.keyGenerator = (req) => `upload:${req.user?._id || req.ip}`
-
-// ── Generic Rate Limiter (for custom use) ────────────────────────────
-
-/**
- * Create a custom rate limiter
- * @param {string} name - Name/prefix for the limiter
- * @param {number} windowMs - Time window in milliseconds
- * @param {number} max - Maximum requests in window
- */
-const createRateLimiter = (name, windowMs, max) => {
-  return createSlidingWindowLimiter(windowMs, max)
-}
+const uploadLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 20 : 100,
+  message: 'Upload limit exceeded. Please try again later.',
+})
 
 module.exports = {
   loginLimiter,
@@ -138,5 +117,5 @@ module.exports = {
   refreshLimiter,
   apiLimiter,
   uploadLimiter,
-  createRateLimiter,
+  createLimiter,
 }

@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs')
 const supabase = require('../config/supabase')
 
 // Map SQL camelCase conversion helpers
@@ -9,13 +10,12 @@ const userToCamel = (row) => {
     name: row.name,
     email: row.email,
     phone: row.phone,
-    password: row.password,
+    password: row.password, // internal only, stripped before client responses
     branch: row.branch,
     batch: row.batch,
     role: row.role,
     status: row.status,
     mhcetId: row.mhcet_id,
-    mhcetPassword: row.mhcet_password,
     photo: row.photo,
     approvedAt: row.approved_at,
     rejectedAt: row.rejected_at,
@@ -47,6 +47,12 @@ const questionToCamel = (row) => {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+const sanitizeQuestion = (q) => {
+  if (!q) return null
+  const { correctIndex, solution, ...safeQuestion } = q
+  return safeQuestion
 }
 
 const mockTestToCamel = (row) => {
@@ -100,18 +106,6 @@ const approvedMemoryStore = new Map()
 
 const findUserById = async (id) => {
   if (!id) return null
-  if (id === '00000000-0000-0000-0000-000000000001' || id === 'admin') {
-    return {
-      _id: '00000000-0000-0000-0000-000000000001',
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'System Admin',
-      email: 'admin@1234',
-      branch: 'Byculla',
-      batch: 2024,
-      role: 'admin',
-      status: 'approved',
-    }
-  }
 
   try {
     const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle()
@@ -131,19 +125,6 @@ const findUserById = async (id) => {
 const findUserByEmail = async (email) => {
   if (!email) return null
   const cleanEmail = email.toLowerCase().trim()
-
-  if (cleanEmail === 'admin@1234') {
-    return {
-      _id: '00000000-0000-0000-0000-000000000001',
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'System Admin',
-      email: 'admin@1234',
-      branch: 'Byculla',
-      batch: 2024,
-      role: 'admin',
-      status: 'approved',
-    }
-  }
 
   try {
     const { data, error } = await supabase.from('users').select('*').eq('email', cleanEmail).maybeSingle()
@@ -180,13 +161,12 @@ const createUser = async (userData) => {
     name: userData.name,
     email: cleanEmail,
     phone: userData.phone || null,
-    password: userData.password,
+    password: userData.password || null, // expects pre-hashed password if present
     branch: userData.branch,
     batch: Number(userData.batch),
     role: userData.role || 'student',
     status: userData.status || 'pending',
     mhcet_id: userData.mhcetId || null,
-    mhcet_password: userData.mhcetPassword || null,
     photo: userData.photo || null,
     must_reset_password: userData.mustResetPassword || false,
   }
@@ -194,7 +174,7 @@ const createUser = async (userData) => {
   try {
     const { data, error } = await supabase.from('users').insert(insertPayload).select().single()
     if (error) throw error
-    if (!error && data) {
+    if (data) {
       const created = userToCamel(data)
       if (created.status === 'approved') approvedMemoryStore.set(cleanEmail, created)
       else pendingMemoryStore.set(cleanEmail, created)
@@ -202,49 +182,33 @@ const createUser = async (userData) => {
     }
     throw new Error('Supabase did not return the created user')
   } catch (err) {
-    console.warn('Supabase createUser notice:', err.message)
     throw err
   }
 }
 
 const updateUser = async (id, updates) => {
-  // 1. Locate existing user data from Memory or Supabase
-  let existingUser = null
-  for (const u of pendingMemoryStore.values()) {
-    if (u.id === id || u._id === id || u.email === id) { existingUser = u; break }
-  }
-  if (!existingUser) {
-    for (const u of approvedMemoryStore.values()) {
-      if (u.id === id || u._id === id || u.email === id) { existingUser = u; break }
-    }
-  }
-  if (!existingUser) {
-    try {
-      const { data } = await supabase.from('users').select('*').or(`id.eq.${id},email.eq.${id}`).maybeSingle()
-      if (data) existingUser = userToCamel(data)
-    } catch {}
-  }
+  // 1. Locate existing user data
+  let existingUser = await findUserById(id)
 
   const cleanEmail = (updates.email || existingUser?.email || '').toLowerCase().trim()
 
-  // 2. Build merged user object
   const updatedUserObj = {
     ...existingUser,
     ...updates,
     id: existingUser?.id || id,
     _id: existingUser?.id || id,
     email: cleanEmail,
-    name: updates.name !== undefined ? updates.name : (existingUser?.name || ''),
-    phone: updates.phone !== undefined ? updates.phone : (existingUser?.phone || null),
-    branch: updates.branch !== undefined ? updates.branch : (existingUser?.branch || 'Byculla'),
-    batch: updates.batch !== undefined ? Number(updates.batch) : (existingUser?.batch || 2024),
-    role: updates.role !== undefined ? updates.role : (existingUser?.role || 'student'),
-    status: updates.status !== undefined ? updates.status : (existingUser?.status || 'approved'),
-    mhcetId: updates.mhcetId !== undefined ? updates.mhcetId : (existingUser?.mhcetId || null),
-    mhcetPassword: updates.mhcetPassword !== undefined ? updates.mhcetPassword : (existingUser?.mhcetPassword || null),
-    photo: updates.photo !== undefined ? updates.photo : (existingUser?.photo || null),
-    mustResetPassword: updates.mustResetPassword !== undefined ? updates.mustResetPassword : (existingUser?.mustResetPassword ?? true),
-    approvedAt: updates.approvedAt !== undefined ? updates.approvedAt : (existingUser?.approvedAt || new Date().toISOString()),
+    name: updates.name !== undefined ? updates.name : existingUser?.name || '',
+    phone: updates.phone !== undefined ? updates.phone : existingUser?.phone || null,
+    branch: updates.branch !== undefined ? updates.branch : existingUser?.branch || 'Byculla',
+    batch: updates.batch !== undefined ? Number(updates.batch) : existingUser?.batch || 2024,
+    role: updates.role !== undefined ? updates.role : existingUser?.role || 'student',
+    status: updates.status !== undefined ? updates.status : existingUser?.status || 'approved',
+    mhcetId: updates.mhcetId !== undefined ? updates.mhcetId : existingUser?.mhcetId || null,
+    photo: updates.photo !== undefined ? updates.photo : existingUser?.photo || null,
+    mustResetPassword:
+      updates.mustResetPassword !== undefined ? updates.mustResetPassword : existingUser?.mustResetPassword ?? false,
+    approvedAt: updates.approvedAt !== undefined ? updates.approvedAt : existingUser?.approvedAt || null,
   }
 
   // Remove from pending memory store if approving
@@ -255,7 +219,6 @@ const updateUser = async (id, updates) => {
     if (v.id === id || v._id === id) pendingMemoryStore.delete(k)
   }
 
-  // Add to approved memory store
   if (updatedUserObj.status === 'approved') {
     approvedMemoryStore.set(cleanEmail, updatedUserObj)
     if (updatedUserObj.mhcetId) {
@@ -263,81 +226,44 @@ const updateUser = async (id, updates) => {
     }
   }
 
-  // 3. Persist into Supabase DB 'users' table
+  // Persist into Supabase DB 'users' table
   try {
-    let dbUserRow = null
-    if (cleanEmail) {
-      const { data } = await supabase.from('users').select('*').eq('email', cleanEmail).maybeSingle()
-      dbUserRow = data
+    const updatePayload = {
+      name: updatedUserObj.name,
+      email: cleanEmail,
+      phone: updatedUserObj.phone || null,
+      branch: updatedUserObj.branch,
+      batch: Number(updatedUserObj.batch),
+      role: updatedUserObj.role,
+      status: updatedUserObj.status,
+      mhcet_id: updatedUserObj.mhcetId || null,
+      photo: updatedUserObj.photo || null,
+      approved_at: updatedUserObj.approvedAt || null,
+      must_reset_password: Boolean(updatedUserObj.mustResetPassword),
+      updated_at: new Date().toISOString(),
+    }
+    if (updates.password) {
+      updatePayload.password = updates.password // Must be hashed before calling updateUser
     }
 
-    if (dbUserRow) {
-      // UPDATE existing Supabase user row
-      const updatePayload = {
-        name: updatedUserObj.name,
-        email: cleanEmail,
-        phone: updatedUserObj.phone || null,
-        branch: updatedUserObj.branch,
-        batch: Number(updatedUserObj.batch),
-        role: updatedUserObj.role,
-        status: updatedUserObj.status,
-        mhcet_id: updatedUserObj.mhcetId || null,
-        mhcet_password: updatedUserObj.mhcetPassword || null,
-        photo: updatedUserObj.photo || null,
-        approved_at: updatedUserObj.approvedAt || null,
-        must_reset_password: Boolean(updatedUserObj.mustResetPassword),
-        updated_at: new Date().toISOString(),
-      }
-      if (updates.password) updatePayload.password = updates.password
+    const { data: updatedDbData, error: updateErr } = await supabase
+      .from('users')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .maybeSingle()
 
-      const { data: updatedDbData, error: updateErr } = await supabase
-        .from('users')
-        .update(updatePayload)
-        .eq('id', dbUserRow.id)
-        .select()
-        .single()
-
-      if (!updateErr && updatedDbData) {
-        const camel = userToCamel(updatedDbData)
-        approvedMemoryStore.set(cleanEmail, camel)
-        return camel
-      } else if (updateErr) {
-        throw updateErr
-      }
-    } else {
-      // INSERT new user row into Supabase 'users' table upon approval
-      const insertPayload = {
-        name: updatedUserObj.name,
-        email: cleanEmail,
-        phone: updatedUserObj.phone || null,
-        password: updatedUserObj.password || null,
-        branch: updatedUserObj.branch,
-        batch: Number(updatedUserObj.batch),
-        role: updatedUserObj.role || 'student',
-        status: updatedUserObj.status || 'approved',
-        mhcet_id: updatedUserObj.mhcetId || null,
-        mhcet_password: updatedUserObj.mhcetPassword || null,
-        photo: updatedUserObj.photo || null,
-        approved_at: updatedUserObj.approvedAt || new Date().toISOString(),
-        must_reset_password: Boolean(updatedUserObj.mustResetPassword),
-      }
-
-      const { data: insertedDbData, error: insertErr } = await supabase
-        .from('users')
-        .insert(insertPayload)
-        .select()
-        .single()
-
-      if (!insertErr && insertedDbData) {
-        const camel = userToCamel(insertedDbData)
-        approvedMemoryStore.set(cleanEmail, camel)
-        return camel
-      } else if (insertErr) {
-        throw insertErr
-      }
+    if (!updateErr && updatedDbData) {
+      const camel = userToCamel(updatedDbData)
+      approvedMemoryStore.set(cleanEmail, camel)
+      return camel
+    } else if (updateErr) {
+      throw updateErr
     }
+
+    return updatedUserObj
   } catch (err) {
-    console.warn('Supabase DB sync exception:', err.message)
+    console.warn('Supabase DB sync exception in updateUser:', err.message)
     throw err
   }
 }
@@ -358,13 +284,7 @@ const deleteUser = async (id) => {
   }
 
   try {
-    let query = supabase.from('users').delete()
-    if (userEmail) {
-      query = query.eq('email', userEmail)
-    } else {
-      query = query.eq('id', id)
-    }
-    const { data } = await query.select().maybeSingle()
+    const { data } = await supabase.from('users').delete().eq('id', id).select().maybeSingle()
     if (data) return userToCamel(data)
   } catch {}
 
@@ -386,12 +306,10 @@ const getAllUsers = async (filters = {}) => {
 
   const map = new Map()
 
-  // DB users
   dbUsers.forEach((u) => {
     if (u && u.email) map.set(u.email.toLowerCase(), u)
   })
 
-  // Approved memory users
   approvedMemoryStore.forEach((u) => {
     if (!filters.status || u.status === filters.status) {
       if (!filters.role || u.role === filters.role) {
@@ -402,7 +320,6 @@ const getAllUsers = async (filters = {}) => {
     }
   })
 
-  // Pending memory users
   pendingMemoryStore.forEach((u) => {
     if (!filters.status || u.status === filters.status) {
       if (!filters.role || u.role === filters.role) {
@@ -414,6 +331,41 @@ const getAllUsers = async (filters = {}) => {
   })
 
   return Array.from(map.values())
+}
+
+// ---------------- ADMIN BOOTSTRAP ----------------
+const bootstrapAdminAccount = async (adminEmail, adminPassword) => {
+  if (!adminEmail || !adminPassword) return
+
+  const cleanEmail = adminEmail.toLowerCase().trim()
+  try {
+    const existing = await findUserByEmail(cleanEmail)
+    const hashedPassword = await bcrypt.hash(adminPassword, 12)
+
+    if (!existing) {
+      console.log(`[BOOTSTRAP] Initializing admin account for ${cleanEmail}...`)
+      await createUser({
+        name: 'System Administrator',
+        email: cleanEmail,
+        password: hashedPassword,
+        branch: 'Byculla',
+        batch: 2024,
+        role: 'admin',
+        status: 'approved',
+      })
+      console.log(`[BOOTSTRAP] ✅ Admin account created successfully.`)
+    } else if (existing.role !== 'admin' || !existing.password) {
+      console.log(`[BOOTSTRAP] Updating existing account to admin privileges for ${cleanEmail}...`)
+      await updateUser(existing.id, {
+        role: 'admin',
+        status: 'approved',
+        password: hashedPassword,
+      })
+      console.log(`[BOOTSTRAP] ✅ Admin account updated successfully.`)
+    }
+  } catch (err) {
+    console.error(`[BOOTSTRAP] ❌ Failed to bootstrap admin account:`, err.message)
+  }
 }
 
 // ---------------- SESSION OPERATIONS ----------------
@@ -459,7 +411,11 @@ const deleteUserSessions = async (userId) => {
 }
 
 const getUserSessions = async (userId) => {
-  const { data, error } = await supabase.from('sessions').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('login_at', { ascending: false })
   if (error) throw error
   return data || []
 }
@@ -495,7 +451,10 @@ const updateRefreshToken = async (id, updates) => {
 }
 
 const revokeUserRefreshTokens = async (userId) => {
-  const { data, error } = await supabase.from('refresh_tokens').update({ revoked_at: new Date().toISOString() }).eq('user_id', userId)
+  const { data, error } = await supabase
+    .from('refresh_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('user_id', userId)
   if (error) throw error
   return data
 }
@@ -520,7 +479,7 @@ const createLoginHistory = async (historyData) => {
 }
 
 // ---------------- QUESTION OPERATIONS ----------------
-const getQuestions = async (filters = {}) => {
+const getQuestions = async (filters = {}, { isAdmin = false } = {}) => {
   let query = supabase.from('questions').select('*').order('created_at', { ascending: false })
   if (filters.subject) query = query.eq('subject', filters.subject)
   if (filters.topic) query = query.eq('topic', filters.topic)
@@ -529,20 +488,25 @@ const getQuestions = async (filters = {}) => {
 
   const { data, error } = await query
   if (error) throw error
-  return (data || []).map(questionToCamel)
+  const rawList = (data || []).map(questionToCamel)
+  if (isAdmin) {
+    return rawList
+  }
+  return rawList.map(sanitizeQuestion)
 }
 
-const getQuestionById = async (id) => {
+const getQuestionById = async (id, { isAdmin = false } = {}) => {
   const { data, error } = await supabase.from('questions').select('*').eq('id', id).single()
   if (error || !data) return null
-  return questionToCamel(data)
+  const q = questionToCamel(data)
+  return isAdmin ? q : sanitizeQuestion(q)
 }
 
 const createQuestion = async (qData) => {
   const payload = {
     subject: qData.subject,
     chapter: qData.chapter || '',
-    topic: qData.topic,
+    topic: qData.topic || qData.chapter || 'General',
     sub_topic: qData.subTopic || '',
     text: qData.text,
     image_url: qData.imageUrl || '',
@@ -650,7 +614,7 @@ const deleteMockTest = async (id) => {
   return mockTestToCamel(data)
 }
 
-// ---------------- TEST RESULT OPERATIONS ----------------
+// ---------------- TEST RESULT OPERATIONS & SERVER SCORING ----------------
 const createTestResult = async (resultData) => {
   const payload = {
     user_id: resultData.userId,
@@ -672,8 +636,86 @@ const createTestResult = async (resultData) => {
   return testResultToCamel(data)
 }
 
+/**
+ * Authoritative server-side test scoring
+ * Calculates official score and breakdown from verified questions and submitted answers
+ */
+const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, duration = 0 }) => {
+  // Fetch active questions with answer keys internally
+  const allQuestions = await getQuestions({ isActive: true }, { isAdmin: true })
+
+  let correct = 0
+  let incorrect = 0
+  let score = 0
+  let totalMarks = 0
+  const subjectMap = new Map()
+
+  for (const q of allQuestions) {
+    const qId = String(q.id || q._id)
+    const marks = Number(q.marks) || 2
+    const negativeMarks = Number(q.negativeMarks) || 0
+    const subject = q.subject || 'General'
+
+    totalMarks += marks
+
+    if (!subjectMap.has(subject)) {
+      subjectMap.set(subject, { correct: 0, total: 0, marks: 0, maxMarks: 0 })
+    }
+    const subjData = subjectMap.get(subject)
+    subjData.total += 1
+    subjData.maxMarks += marks
+
+    if (answers[qId] !== undefined && answers[qId] !== null) {
+      const selectedOption = Number(answers[qId])
+      if (selectedOption === Number(q.correctIndex)) {
+        correct += 1
+        score += marks
+        subjData.correct += 1
+        subjData.marks += marks
+      } else {
+        incorrect += 1
+        score = Math.max(0, score - negativeMarks)
+        subjData.marks = Math.max(0, subjData.marks - negativeMarks)
+      }
+    }
+  }
+
+  const answeredCount = correct + incorrect
+  const unanswered = Math.max(0, allQuestions.length - answeredCount)
+  const percentile = totalMarks > 0 ? Math.round(((score / totalMarks) * 100) * 10) / 10 : 0
+
+  const subjectWiseScores = Array.from(subjectMap.entries()).map(([subject, data]) => ({
+    subject,
+    score: data.marks,
+    maxScore: data.maxMarks,
+    percentage: data.maxMarks > 0 ? Math.round((data.marks / data.maxMarks) * 100) : 0,
+  }))
+
+  const payload = {
+    userId,
+    testName: testName || 'MHT-CET Mock Test',
+    subject: 'Mock Test',
+    score: Math.max(0, score),
+    totalMarks,
+    percentile,
+    duration: Number(duration) || 0,
+    correct,
+    incorrect,
+    unanswered,
+    totalQuestions: allQuestions.length,
+    subjectWiseScores,
+    answers,
+  }
+
+  return await createTestResult(payload)
+}
+
 const getTestResultsByUserId = async (userId) => {
-  const { data, error } = await supabase.from('test_results').select('*').eq('user_id', userId).order('attempted_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('test_results')
+    .select('*')
+    .eq('user_id', userId)
+    .order('attempted_at', { ascending: false })
   if (error) throw error
   return (data || []).map(testResultToCamel)
 }
@@ -693,6 +735,7 @@ module.exports = {
   updateUser,
   deleteUser,
   getAllUsers,
+  bootstrapAdminAccount,
 
   // Session
   createSession,
@@ -717,6 +760,7 @@ module.exports = {
   createQuestion,
   updateQuestion,
   deleteQuestion,
+  sanitizeQuestion,
 
   // Mock Test
   getMockTests,
@@ -727,6 +771,7 @@ module.exports = {
 
   // Test Result
   createTestResult,
+  calculateAndCreateTestResult,
   getTestResultsByUserId,
   getTestResultById,
 }

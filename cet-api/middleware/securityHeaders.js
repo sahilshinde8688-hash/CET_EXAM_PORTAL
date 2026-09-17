@@ -1,14 +1,3 @@
-/**
- * Security Headers Middleware
- * 
- * Sets HTTP security headers to protect against common attacks:
- * - XSS (Cross-Site Scripting)
- * - Clickjacking
- * - MIME sniffing
- * - Information disclosure
- * - etc.
- */
-
 const helmet = require('helmet')
 
 /**
@@ -16,79 +5,60 @@ const helmet = require('helmet')
  * Uses helmet.js with custom configurations
  */
 const applySecurityHeaders = () => {
+  const isProd = process.env.NODE_ENV === 'production'
+
   return helmet({
-    // Content Security Policy - prevents XSS by controlling resource loading
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
-          "'unsafe-inline'", // Needed for some React setups, remove in production if possible
-          "'unsafe-eval'", // Needed for some dev tools, remove in production
+          "'unsafe-inline'", // Needed for inline scripts in React/Vite
         ],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
         connectSrc: [
           "'self'",
-          "https://cet-portal-3vas.onrender.com",
-          "https://*.vercel.app",
-          "https://*.supabase.co",
-          "https://api.example.com",
-        ],
-        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+          process.env.FRONTEND_URL,
+          process.env.CLIENT_URL,
+          ...(process.env.CORS_ORIGINS || '').split(',').map((o) => o.trim()),
+          'https://*.supabase.co',
+          'https://res.cloudinary.com',
+        ].filter(Boolean),
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
         objectSrc: ["'none'"],
-        mediaSrc: ["'self'"],
+        mediaSrc: ["'self'", 'https:', 'blob:'],
         frameSrc: ["'none'"],
         formAction: ["'self'"],
         baseUri: ["'self'"],
         manifestSrc: ["'self'"],
       },
-      reportOnly: process.env.NODE_ENV === 'development', // Report only in dev
+      reportOnly: false,
     },
 
-    // Cross-Origin Embedder Policy - prevents cross-origin reads
-    crossOriginEmbedderPolicy: true,
+    crossOriginEmbedderPolicy: false, // Avoid breaking external CDN fonts / images
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
 
-    // Cross-Origin Opener Policy - protects against Spectre attacks
-    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
-
-    // Cross-Origin Resource Policy - controls cross-origin resource access
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-
-    // Referrer Policy - controls Referer header
     referrerPolicy: {
-      policy: ["strict-origin-when-cross-origin"],
+      policy: ['strict-origin-when-cross-origin'],
     },
 
-    // Strict Transport Security - forces HTTPS
-    hsts: {
-      maxAge: 31536000, // 1 year
-      includeSubDomains: true,
-      preload: true,
-    },
+    hsts: isProd
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false,
 
-    // X-Frame-Options - prevents clickjacking
-    frameguard: { action: "deny" },
-
-    // X-Content-Type-Options - prevents MIME sniffing
+    frameguard: { action: 'deny' },
     noSniff: true,
-
-    // X-XSS-Protection - enables XSS filter in older browsers
     xssFilter: true,
-
-    // X-DNS-Prefetch-Control - controls DNS prefetching
     dnsPrefetchControl: { allow: false },
-
-    // X-Permitted-Cross-Domain-Policies - controls cross-domain requests
-    permittedCrossDomainPolicies: { permittedPolicies: "none" },
-
-    // X-Download-Options - prevents IE from opening downloads
+    permittedCrossDomainPolicies: { permittedPolicies: 'none' },
     ieNoOpen: true,
-
-    // Cache-Control for sensitive routes
-    ...(process.env.NODE_ENV === 'production' && {
-      hidePoweredBy: true, // Hide X-Powered-By header
-    }),
+    hidePoweredBy: true,
   })
 }
 
@@ -96,59 +66,65 @@ const applySecurityHeaders = () => {
  * Additional security headers for sensitive endpoints
  */
 const sensitiveHeaders = (req, res, next) => {
-  // Prevent caching of sensitive responses
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   res.setHeader('Pragma', 'no-cache')
   res.setHeader('Expires', '0')
   res.setHeader('Surrogate-Control', 'no-store')
-
-  // Additional security headers
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'DENY')
-  res.setHeader('X-XSS-Protection', '1; mode=block')
-
   next()
 }
 
 /**
  * CORS configuration helper
- * Validates and sanitizes CORS origins
+ * Enforces strict origin allowlist in production
  */
 const configureCors = (options = {}) => {
+  const isProd = process.env.NODE_ENV === 'production'
+
+  const devOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:3000',
+  ]
+
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.CLIENT_URL,
+    ...(process.env.CORS_ORIGINS || '').split(',').map((o) => o.trim()),
+  ].filter(Boolean)
+
+  const allowedOrigins = isProd
+    ? Array.from(new Set(configuredOrigins))
+    : Array.from(new Set([...configuredOrigins, ...devOrigins]))
+
   const defaultOptions = {
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, etc.)
+      // Allow requests with no origin (e.g. server-to-server or curl in dev)
       if (!origin) return callback(null, true)
 
-      const allowedOrigins = [
-        process.env.FRONTEND_URL,
-        process.env.CLIENT_URL,
-        ...(process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()),
-        'https://cet-portal-bice.vercel.app',
-        'https://cet-portal-3vas.onrender.com',
-        'http://localhost:5173',
-        'http://localhost:5174',
-        'http://localhost:3000',
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:5174',
-        'http://127.0.0.1:3000',
-      ].filter(Boolean)
+      // Normalize origin by removing trailing slash
+      const cleanOrigin = origin.replace(/\/$/, '')
 
-      const allowedOriginPatterns = [
-        /^https:\/\/.*\.vercel\.app$/i,
-        /^https:\/\/.*\.onrender\.com$/i,
-      ]
+      const isAllowed = allowedOrigins.some((allowed) => {
+        return allowed && allowed.replace(/\/$/, '').toLowerCase() === cleanOrigin.toLowerCase()
+      })
 
-      if (allowedOrigins.includes(origin) || allowedOriginPatterns.some((pattern) => pattern.test(origin))) {
+      if (isAllowed) {
         return callback(null, true)
       }
 
-      // In development, be more permissive
-      if (process.env.NODE_ENV === 'development') {
-        return callback(null, true)
+      if (!isProd) {
+        // In local development, permit localhost ports
+        if (/^http:\/\/localhost(:\d+)?$/.test(cleanOrigin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(cleanOrigin)) {
+          return callback(null, true)
+        }
       }
 
-      return callback(new Error('Not allowed by CORS'), false)
+      return callback(new Error(`CORS policy rejection: Origin ${origin} not permitted`), false)
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -165,7 +141,7 @@ const configureCors = (options = {}) => {
       'X-CSRF-Token',
       'X-XSRF-Token',
     ],
-    maxAge: 86400, // 24 hours - preflight cache
+    maxAge: 86400, // 24 hours
     preflightContinue: false,
     optionsSuccessStatus: 204,
   }

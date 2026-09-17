@@ -3,45 +3,66 @@ const router = express.Router()
 const db = require('../services/dbService')
 const { apiLimiter } = require('../middleware/rateLimit')
 const { protect, adminOnly } = require('../middleware/auth')
+const { validateCsrfToken } = require('../middleware/csrf')
 
 // GET all mock tests
 router.get('/', apiLimiter, async (req, res) => {
   try {
-    const tests = await db.getMockTests()
+    const tests = await db.getMockTests(req.query)
     res.json(tests)
   } catch (err) {
-    res.status(500).json({ message: 'Failed to load mock tests' })
+    res.status(500).json({ success: false, message: 'Failed to load mock tests' })
   }
 })
 
-// CREATE mock test
-router.post('/', apiLimiter, async (req, res) => {
+// GET single mock test
+router.get('/:id', apiLimiter, async (req, res) => {
   try {
-    const test = await db.createMockTest(req.body)
+    const test = await db.getMockTestById(req.params.id)
+    if (!test) {
+      return res.status(404).json({ success: false, message: 'Mock test not found' })
+    }
+    res.json(test)
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to load mock test' })
+  }
+})
+
+// CREATE mock test — ADMIN ONLY
+router.post('/', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  try {
+    const { title, subject, questions, duration, difficulty } = req.body
+    if (!title || !subject || !questions || !duration || !difficulty) {
+      return res.status(400).json({ success: false, message: 'All fields are required.' })
+    }
+
+    const test = await db.createMockTest({
+      ...req.body,
+      createdBy: req.user.name || req.user.email,
+    })
     res.status(201).json(test)
   } catch (err) {
-    console.error('Mock test creation error:', err)
-    res.status(400).json({ message: 'Failed to create test', details: err.message })
+    res.status(400).json({ success: false, message: 'Failed to create test: ' + err.message })
   }
 })
 
-// UPDATE mock test
-router.put('/:id', apiLimiter, async (req, res) => {
+// UPDATE mock test — ADMIN ONLY
+router.put('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
     const updated = await db.updateMockTest(req.params.id, req.body)
     res.json(updated)
   } catch (err) {
-    res.status(400).json({ message: 'Failed to update test' })
+    res.status(400).json({ success: false, message: 'Failed to update test' })
   }
 })
 
-// DELETE mock test
-router.delete('/:id', protect, adminOnly, apiLimiter, async (req, res) => {
+// DELETE mock test — ADMIN ONLY
+router.delete('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
     await db.deleteMockTest(req.params.id)
-    res.json({ message: 'Deleted' })
+    res.json({ success: true, message: 'Deleted' })
   } catch (err) {
-    res.status(400).json({ message: 'Delete failed' })
+    res.status(400).json({ success: false, message: 'Delete failed' })
   }
 })
 
