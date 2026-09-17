@@ -217,22 +217,7 @@ export const authAPI = {
   login: async (email: string, password: string, rememberMe = false) => {
     const cleanId = email.trim().toLowerCase()
 
-    // 1. Direct Admin Credentials Check
-    if ((cleanId === 'admin@1234' || cleanId === 'admin') && (password === 'admin@1234' || password === 'admin')) {
-      const adminUser: AuthUser = {
-        _id: '00000000-0000-0000-0000-000000000001',
-        id: '00000000-0000-0000-0000-000000000001',
-        name: 'System Admin',
-        email: 'admin@1234',
-        branch: 'Byculla',
-        role: 'admin',
-        status: 'approved',
-        batch: 2024,
-      }
-      return adminUser
-    }
-
-    // 2. Try Node Backend API
+    // 1. Try the real backend session first so protected API calls get valid cookies.
     let backendError: Error | null = null
     try {
       const csrfToken = await ensureCsrfToken()
@@ -289,8 +274,23 @@ export const authAPI = {
       backendError = error instanceof Error ? error : new Error('Unable to reach the login server.')
     }
 
-    if (import.meta.env.PROD || configuredApiUrl) {
+    if (import.meta.env.PROD || import.meta.env.VITE_API_URL) {
       throw backendError || new Error('Unable to reach the login server.')
+    }
+
+    // 2. Direct Admin Credentials Check only as a local fallback when backend auth is unavailable.
+    if ((cleanId === 'admin@1234' || cleanId === 'admin') && (password === 'admin@1234' || password === 'admin')) {
+      const adminUser: AuthUser = {
+        _id: '00000000-0000-0000-0000-000000000001',
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'System Admin',
+        email: 'admin@1234',
+        branch: 'Byculla',
+        role: 'admin',
+        status: 'approved',
+        batch: 2024,
+      }
+      return adminUser
     }
 
     // 3. Fallback to Supabase Database
@@ -1083,7 +1083,7 @@ export interface Question {
 }
 
 export const questionsAPI = {
-  async getAll(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean }) {
+  async getAll(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean }) {
     const qs = new URLSearchParams()
     Object.entries(filters || {}).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
     const url = qs.toString() ? `${BASE}/questions?${qs.toString()}` : `${BASE}/questions`
@@ -1097,21 +1097,30 @@ export const questionsAPI = {
     return data as { subjects: string[]; chaptersBySubject: Record<string, string[]> }
   },
   async create(payload: Omit<Question, '_id' | 'createdAt'>) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
     const res = await fetch(`${BASE}/questions`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     })
     const data = await handle(res).then(() => res.json())
     return data as Question
   },
   async uploadQuestionImage(file: File) {
+    const csrfToken = await ensureCsrfToken()
     const form = new FormData()
     form.append('image', file)
+    const headers: Record<string, string> = {}
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
     const res = await fetch(`${BASE}/upload/question`, {
       method: 'POST',
       credentials: 'include',
+      headers,
       body: form,
     })
     const data = await handle(res).then(() => res.json())
@@ -1141,11 +1150,16 @@ export const questionsAPI = {
     return data
   },
   async upload(file: File) {
+    const csrfToken = await ensureCsrfToken()
     const form = new FormData()
     form.append('file', file)
+    const headers: Record<string, string> = {}
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
     const res = await fetch(`${BASE}/questions/upload`, {
       method: 'POST',
       credentials: 'include',
+      headers,
       body: form,
     })
     const data = await handle(res).then(() => res.json())

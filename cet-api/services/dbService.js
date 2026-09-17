@@ -21,6 +21,7 @@ const userToCamel = (row) => {
     rejectedAt: row.rejected_at,
     rejectionReason: row.rejection_reason,
     mustResetPassword: row.must_reset_password,
+    mhcetPassword: row.mhcet_password,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -51,8 +52,13 @@ const questionToCamel = (row) => {
 
 const sanitizeQuestion = (q) => {
   if (!q) return null
-  const { correctIndex, solution, ...safeQuestion } = q
-  return safeQuestion
+  const { solution, ...safeQuestion } = q
+  return {
+    ...safeQuestion,
+    correctIndex: Number(q.correctIndex ?? 0),
+    marks: Number(q.marks ?? 2),
+    negativeMarks: Number(q.negativeMarks ?? 0.5),
+  }
 }
 
 const mockTestToCamel = (row) => {
@@ -167,6 +173,7 @@ const createUser = async (userData) => {
     role: userData.role || 'student',
     status: userData.status || 'pending',
     mhcet_id: userData.mhcetId || null,
+    mhcet_password: userData.mhcetPassword || null,
     photo: userData.photo || null,
     must_reset_password: userData.mustResetPassword || false,
   }
@@ -205,6 +212,7 @@ const updateUser = async (id, updates) => {
     role: updates.role !== undefined ? updates.role : existingUser?.role || 'student',
     status: updates.status !== undefined ? updates.status : existingUser?.status || 'approved',
     mhcetId: updates.mhcetId !== undefined ? updates.mhcetId : existingUser?.mhcetId || null,
+    mhcetPassword: updates.mhcetPassword !== undefined ? updates.mhcetPassword : existingUser?.mhcetPassword || null,
     photo: updates.photo !== undefined ? updates.photo : existingUser?.photo || null,
     mustResetPassword:
       updates.mustResetPassword !== undefined ? updates.mustResetPassword : existingUser?.mustResetPassword ?? false,
@@ -237,6 +245,7 @@ const updateUser = async (id, updates) => {
       role: updatedUserObj.role,
       status: updatedUserObj.status,
       mhcet_id: updatedUserObj.mhcetId || null,
+      mhcet_password: updatedUserObj.mhcetPassword || null,
       photo: updatedUserObj.photo || null,
       approved_at: updatedUserObj.approvedAt || null,
       must_reset_password: Boolean(updatedUserObj.mustResetPassword),

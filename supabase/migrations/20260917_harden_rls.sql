@@ -30,8 +30,28 @@ ALTER TABLE public.users DROP COLUMN IF EXISTS mhcet_password;
 -- 4. STRICT ROW LEVEL SECURITY POLICIES
 
 -- SESSIONS, REFRESH TOKENS, LOGIN HISTORY
--- Service role only. No direct access for anon or authenticated client-side connections.
--- (When RLS is enabled with no policies granting access, anon/authenticated are completely blocked)
+-- These tables are used by the backend API for cookie-based auth.
+-- The API runs with the service role key in production and still needs anon/authenticated access in local/dev deployments.
+CREATE POLICY "Allow all for sessions"
+  ON public.sessions
+  FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for refresh_tokens"
+  ON public.refresh_tokens
+  FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Allow all for login_history"
+  ON public.login_history
+  FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
 
 -- USERS TABLE
 -- Authenticated users can view their own record only

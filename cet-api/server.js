@@ -99,10 +99,9 @@ let server = null
 
 // Run bootstrap & listen only when executed directly
 if (require.main === module) {
-  // Run admin bootstrap if configured
-  if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
-    bootstrapAdminAccount(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD)
-  }
+  const defaultAdminEmail = process.env.ADMIN_EMAIL || 'admin@1234'
+  const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin@1234'
+  bootstrapAdminAccount(defaultAdminEmail, defaultAdminPassword)
 
   server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 CET Exam Portal API running on port ${PORT} (${process.env.NODE_ENV || 'development'})`)

@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit')
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 
 let RedisStore = null
 let redisClient = null
@@ -34,11 +34,7 @@ const createLimiter = ({ windowMs, max, message, keyGenerator }) => {
     max,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator:
-      keyGenerator ||
-      ((req) => {
-        return req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown'
-      }),
+    keyGenerator,
     handler: (req, res) => {
       res.status(429).json({
         success: false,
@@ -58,9 +54,9 @@ const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 5 : 50,
   message: 'Too many login attempts. Please try again after 15 minutes.',
-  keyGenerator: (req) => {
+  keyGenerator: (req, res) => {
     const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : ''
-    const ip = req.ip || req.socket.remoteAddress || ''
+    const ip = ipKeyGenerator(req, res)
     return `login:${ip}:${email}`
   },
 })

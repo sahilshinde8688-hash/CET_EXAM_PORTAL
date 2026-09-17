@@ -86,7 +86,6 @@ router.get('/', protect, adminOnly, apiLimiter, async (req, res) => {
     const sanitizedUsers = users.map((u) => {
       const userObj = { ...u, _id: u.id }
       delete userObj.password
-      delete userObj.mhcetPassword
       return userObj
     })
     res.json(sanitizedUsers)
@@ -156,12 +155,14 @@ router.post('/:id/approve', protect, adminOnly, validateCsrfToken, apiLimiter, a
       status: 'approved',
       mhcetId,
       password: hashedPassword,
+      mhcetPassword: mhcetPwd,
       mustResetPassword: true,
       approvedAt: new Date().toISOString(),
     })
 
-    delete updatedUser.password
-    delete updatedUser.mhcetPassword
+    const sanitizedUser = { ...updatedUser }
+    delete sanitizedUser.password
+    // Do not delete mhcetPassword so the admin UI can receive and display it
 
     let emailWarning = ''
     try {
@@ -186,7 +187,7 @@ router.post('/:id/approve', protect, adminOnly, validateCsrfToken, apiLimiter, a
       success: true,
       message: `Student approved. MHT-CET ID: ${mhcetId}${emailWarning}`,
       mhcetId,
-      user: updatedUser,
+      user: sanitizedUser,
     })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
@@ -205,8 +206,9 @@ router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, ap
     const newTempPassword = generatePassword()
     const hashedPassword = await bcrypt.hash(newTempPassword, 10)
 
-    await db.updateUser(user.id, {
+    const updatedUser = await db.updateUser(user.id, {
       password: hashedPassword,
+      mhcetPassword: newTempPassword,
       mustResetPassword: true,
     })
 

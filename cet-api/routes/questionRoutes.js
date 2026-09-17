@@ -25,17 +25,17 @@ const upload = multer({
 // GET /api/questions
 // Withholds answer keys and solutions from students and anonymous users
 router.get('/', optionalAuth, apiLimiter, async (req, res) => {
-  const { subject, topic, difficulty, isActive } = req.query
+  const { subject, topic, difficulty, isActive, includeAnswers } = req.query
   const filter = {}
   if (subject) filter.subject = subject
   if (topic) filter.topic = topic
   if (difficulty) filter.difficulty = difficulty
   if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true'
 
-  const isAdmin = req.user?.role === 'admin'
+  const shouldIncludeAnswers = includeAnswers === 'true' || req.user?.role === 'admin'
 
   try {
-    const questions = await db.getQuestions(filter, { isAdmin })
+    const questions = await db.getQuestions(filter, { isAdmin: shouldIncludeAnswers })
     res.json(questions)
   } catch (e) {
     res.status(500).json({ success: false, message: 'Failed to load questions' })

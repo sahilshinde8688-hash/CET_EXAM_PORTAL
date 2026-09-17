@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import lottie from 'lottie-web'
-import successAnimation from '../../public/success.json'
+import successAnimation from '../assets/success.json'
 
 interface ExamSuccessProps {
   onClose: () => void

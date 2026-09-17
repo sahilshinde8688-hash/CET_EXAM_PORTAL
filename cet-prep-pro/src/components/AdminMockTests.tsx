@@ -160,8 +160,8 @@ export default function AdminMockTests() {
 
   const handleCreateTest = async () => {
     try {
-      const status = formData.visibility === 'draft' ? 'draft' : formData.publishNow ? 'active' : 'scheduled'
-      const scheduledDate = formData.publishNow ? new Date().toISOString() : 
+      const status = resolveVisibilityStatus(formData.visibility, formData.publishNow)
+      const scheduledDate = status === 'active' ? new Date().toISOString() : 
                           formData.scheduleDate && formData.scheduleTime ? 
                           `${formData.scheduleDate}T${formData.scheduleTime}` : undefined
 
@@ -193,6 +193,12 @@ export default function AdminMockTests() {
 
   const updateFormData = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const resolveVisibilityStatus = (visibility: string, publishNow: boolean) => {
+    if (visibility === 'draft') return 'draft'
+    if (visibility === 'published' || visibility === 'public' || visibility === 'private') return publishNow ? 'active' : 'scheduled'
+    return publishNow ? 'active' : 'draft'
   }
 
   const nextStep = () => {

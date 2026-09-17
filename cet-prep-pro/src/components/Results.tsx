@@ -8,6 +8,11 @@ interface ResultsProps {
   onNavigate?: (page: Page) => void
 }
 
+const toSafeNumber = (value: number | string | null | undefined, fallback = 0): number => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
 const getPercentileColor = (percentile: number): string => {
   if (percentile >= 99) return 'green'
   if (percentile >= 90) return 'blue'
@@ -51,33 +56,39 @@ export default function Results({ onNavigate }: ResultsProps) {
   }, [])
 
   const testsCount = testHistory.length
-  const avgScore = testsCount > 0 ? Math.round(testHistory.reduce((acc, t) => acc + t.score, 0) / testsCount).toString() : '0'
-  const highestScore = testsCount > 0 ? Math.round(Math.max(...testHistory.map(t => t.score))).toString() : '0'
-  const avgPercentile = testsCount > 0 ? (testHistory.reduce((acc, t) => acc + t.percentile, 0) / testsCount).toFixed(1) : '0.0'
+  const avgScore = testsCount > 0
+    ? Math.round(testHistory.reduce((acc, t) => acc + toSafeNumber(t.score), 0) / testsCount).toString()
+    : '0'
+  const highestScore = testsCount > 0
+    ? Math.round(Math.max(...testHistory.map(t => toSafeNumber(t.score)))).toString()
+    : '0'
+  const avgPercentile = testsCount > 0
+    ? (testHistory.reduce((acc, t) => acc + toSafeNumber(t.percentile), 0) / testsCount).toFixed(1)
+    : '0.0'
 
   const getSubjectMastery = (subject: string) => {
     let totalPercent = 0
     let testCount = 0
-    
+
     testHistory.forEach(t => {
+      const safeScore = toSafeNumber(t.score)
+      const safeTotalMarks = toSafeNumber(t.totalMarks, 100)
+
       if (t.subjectWiseScores && t.subjectWiseScores.length > 0) {
-        // Use detailed subject-wise scores if available
-        const subjScore = t.subjectWiseScores.find(s => s.subject.toLowerCase().includes(subject.toLowerCase()))
+        const subjScore = t.subjectWiseScores.find(s => (s.subject || '').toLowerCase().includes(subject.toLowerCase()))
         if (subjScore) {
-          totalPercent += subjScore.percentage
+          totalPercent += toSafeNumber(subjScore.percentage)
           testCount++
         }
       } else if (t.subject?.toLowerCase().includes(subject.toLowerCase())) {
-        // Fallback for older subject-specific tests
-        totalPercent += (t.score / (t.totalMarks || 100)) * 100
+        totalPercent += safeTotalMarks > 0 ? (safeScore / safeTotalMarks) * 100 : 0
         testCount++
       } else if (t.subject?.toLowerCase() === 'mock test' || t.testName?.toLowerCase().includes('mock')) {
-        // Fallback for older mock tests
-        totalPercent += (t.score / (t.totalMarks || 100)) * 100
+        totalPercent += safeTotalMarks > 0 ? (safeScore / safeTotalMarks) * 100 : 0
         testCount++
       }
     })
-    
+
     if (testCount === 0) return 0
     return Math.round(totalPercent / testCount)
   }
@@ -86,7 +97,11 @@ export default function Results({ onNavigate }: ResultsProps) {
   const phyPct = getSubjectMastery('physic')
   const chemPct = getSubjectMastery('chemist')
 
-  const trendScores = testHistory.slice(0, 10).reverse().map(t => (t.score / (t.totalMarks || 100)) * 100)
+  const trendScores = testHistory.slice(0, 10).reverse().map(t => {
+    const safeScore = toSafeNumber(t.score)
+    const safeTotalMarks = toSafeNumber(t.totalMarks, 100)
+    return safeTotalMarks > 0 ? (safeScore / safeTotalMarks) * 100 : 0
+  })
   const displayScoreBars = trendScores.length > 0 ? trendScores : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
   if (loading) {
@@ -285,8 +300,11 @@ export default function Results({ onNavigate }: ResultsProps) {
                         const date = new Date(row.attemptedAt)
                         const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                         const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                        const percentileColor = getPercentileColor(row.percentile)
-                        
+                        const safeScore = toSafeNumber(row.score)
+                        const safeTotalMarks = toSafeNumber(row.totalMarks, 100)
+                        const safePercentile = toSafeNumber(row.percentile)
+                        const percentileColor = getPercentileColor(safePercentile)
+
                         return (
                           <tr 
                             key={row._id || i} 
@@ -303,12 +321,12 @@ export default function Results({ onNavigate }: ResultsProps) {
                               <p className="rs-td-sub">{timeStr}</p>
                             </td>
                             <td className="rs-td">
-                              <span className="rs-score">{row.score.toFixed(0)}</span>
-                              <span className="rs-score-total">/{row.totalMarks.toFixed(0)}</span>
+                              <span className="rs-score">{safeScore.toFixed(0)}</span>
+                              <span className="rs-score-total">/{safeTotalMarks.toFixed(0)}</span>
                             </td>
                             <td className="rs-td">
                               <span className={`rs-percentile-badge rs-percentile-badge--${percentileColor}`}>
-                                {row.percentile.toFixed(1)}th
+                                {safePercentile.toFixed(1)}th
                               </span>
                             </td>
                             <td className="rs-td">

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import lottie from 'lottie-web'
-import animationData from '../../public/abstract-isometric-loader.json'
+import animationData from '../assets/abstract-isometric-loader.json'
 
 type LoaderProps = { message?: string }
 

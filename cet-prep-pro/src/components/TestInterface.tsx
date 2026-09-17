@@ -41,6 +41,24 @@ const clearQuestionOrder = () => {
   localStorage.removeItem(QUESTION_ORDER_KEY)
 }
 
+const normalizeQuestion = (question: Partial<Question> & { [key: string]: any }): Question => ({
+  _id: String(question._id || ''),
+  subject: question.subject || 'General',
+  chapter: question.chapter,
+  subTopic: question.subTopic,
+  topic: question.topic || 'General',
+  text: question.text || '',
+  imageUrl: question.imageUrl,
+  options: Array.isArray(question.options) ? question.options : [],
+  solution: question.solution,
+  correctIndex: Number(question.correctIndex ?? 0),
+  marks: Number(question.marks ?? 2),
+  negativeMarks: Number(question.negativeMarks ?? 0.5),
+  difficulty: (question.difficulty as Question['difficulty']) || 'Easy',
+  isActive: question.isActive !== false,
+  createdAt: question.createdAt,
+})
+
 const saveQuestionOrder = (questions: Question[]) => {
   localStorage.setItem(QUESTION_ORDER_KEY, JSON.stringify(questions.map(question => question._id)))
 }
@@ -261,13 +279,14 @@ export default function TestInterface({
     try {
       const q = questions[index]
       if (!q) return 'unattempted'
-      const selected = answers[q._id]
-      if (selected === undefined) {
+      const selected = Number(answers[q._id])
+      const correctIndex = Number(q.correctIndex ?? 0)
+      if (answers[q._id] === undefined) {
         // Check if marked for review
         if (marked[q._id]) return 'review'
         return 'unattempted'
       }
-      if (selected === q.correctIndex) return 'correct'
+      if (selected === correctIndex) return 'correct'
       return 'incorrect'
     } catch (err) {
       console.error('Error in getQuestionResultState:', err)
@@ -286,15 +305,19 @@ export default function TestInterface({
     let maxScore = 0
 
     questions.forEach(question => {
-      maxScore += question.marks
-      const selected = answers[question._id]
-      if (selected === undefined) return
-      if (selected === question.correctIndex) {
+      const normalizedMarks = Number(question.marks ?? 0)
+      const normalizedNegativeMarks = Number(question.negativeMarks ?? 0)
+      const normalizedCorrectIndex = Number(question.correctIndex ?? 0)
+      maxScore += normalizedMarks
+      const selectedRaw = answers[question._id]
+      if (selectedRaw === undefined) return
+      const selected = Number(selectedRaw)
+      if (selected === normalizedCorrectIndex) {
         correct += 1
-        score += question.marks
+        score += normalizedMarks
       } else {
         incorrect += 1
-        score -= question.negativeMarks
+        score -= normalizedNegativeMarks
       }
     })
 
@@ -334,15 +357,18 @@ export default function TestInterface({
     const subjectWiseMap = new Map<string, { correct: number, total: number, marks: number, maxMarks: number }>()
     questions.forEach(q => {
       const subjectName = q.subject || 'General'
-      const selected = answers[q._id]
+      const selected = Number(answers[q._id])
+      const correctIndex = Number(q.correctIndex ?? 0)
+      const marks = Number(q.marks ?? 0)
+      const negativeMarks = Number(q.negativeMarks ?? 0)
       const existing = subjectWiseMap.get(subjectName) || { correct: 0, total: 0, marks: 0, maxMarks: 0 }
       existing.total += 1
-      existing.maxMarks += q.marks
-      if (selected === q.correctIndex) {
+      existing.maxMarks += marks
+      if (answers[q._id] !== undefined && selected === correctIndex) {
         existing.correct += 1
-        existing.marks += q.marks
-      } else if (selected !== undefined) {
-        existing.marks = Math.max(0, existing.marks - q.negativeMarks)
+        existing.marks += marks
+      } else if (answers[q._id] !== undefined) {
+        existing.marks = Math.max(0, existing.marks - negativeMarks)
       }
       subjectWiseMap.set(subjectName, existing)
     })
@@ -416,23 +442,24 @@ export default function TestInterface({
     const load = async () => {
       try {
         console.log('Loading questions from API...')
-        const data = await questionsAPI.getAll({ isActive: true })
+        const data = await questionsAPI.getAll({ isActive: true, includeAnswers: true })
         console.log('Questions loaded from API:', data.length)
         
         // If API returns questions, use them
         if (data.length > 0) {
+          const normalizedQuestions = data.map(normalizeQuestion)
           if (reviewMode) {
-            setQuestions(data)
+            setQuestions(normalizedQuestions)
           } else {
             const savedQuestionIds = loadQuestionOrder()
-            const questionsById = new Map(data.map(question => [question._id, question]))
+            const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
             const orderedQuestions = savedQuestionIds
               .map(questionId => questionsById.get(questionId))
               .filter((question): question is Question => Boolean(question))
-            const newQuestions = data.filter(question => !savedQuestionIds.includes(question._id))
+            const newQuestions = normalizedQuestions.filter(question => !savedQuestionIds.includes(question._id))
             const nextQuestions = savedQuestionIds.length > 0
               ? [...orderedQuestions, ...newQuestions]
-              : shuffleQuestionsBySubject(data)
+              : shuffleQuestionsBySubject(normalizedQuestions)
 
             setQuestions(nextQuestions)
             saveQuestionOrder(nextQuestions)
@@ -533,17 +560,20 @@ export default function TestInterface({
     
     questions.forEach(q => {
       const subjectName = q.subject?.trim() || 'General'
-      const selected = answers[q._id]
+      const selected = Number(answers[q._id])
+      const correctIndex = Number(q.correctIndex ?? 0)
+      const marks = Number(q.marks ?? 0)
+      const negativeMarks = Number(q.negativeMarks ?? 0)
       const existing = subjectWiseMap.get(subjectName) || { correct: 0, total: 0, marks: 0, maxMarks: 0 }
       
       existing.total += 1
-      existing.maxMarks += q.marks
+      existing.maxMarks += marks
       
-      if (selected === q.correctIndex) {
+      if (answers[q._id] !== undefined && selected === correctIndex) {
         existing.correct += 1
-        existing.marks += q.marks
-      } else if (selected !== undefined) {
-        existing.marks = Math.max(0, existing.marks - q.negativeMarks)
+        existing.marks += marks
+      } else if (answers[q._id] !== undefined) {
+        existing.marks = Math.max(0, existing.marks - negativeMarks)
       }
       
       subjectWiseMap.set(subjectName, existing)
@@ -936,8 +966,10 @@ export default function TestInterface({
 
                 <div className="test-options">
                   {currentQuestion.options.map((opt, i) => {
-                    const isSelected = answers[currentQuestion._id] === i
-                    const isCorrect = i === currentQuestion.correctIndex
+                    const selectedIndex = Number(answers[currentQuestion._id])
+                    const correctIndex = Number(currentQuestion.correctIndex ?? 0)
+                    const isSelected = selectedIndex === i
+                    const isCorrect = i === correctIndex
                     
                     let optionClass = ''
                     if (reviewMode) {
@@ -974,14 +1006,14 @@ export default function TestInterface({
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '32px' }}>
                       <div>
                         <span style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Your Answer</span>
-                        <span style={{ fontSize: '16px', fontWeight: 600, color: answers[currentQuestion._id] === currentQuestion.correctIndex ? '#10b981' : (answers[currentQuestion._id] !== undefined ? '#ef4444' : '#64748b') }}>
-                          {answers[currentQuestion._id] !== undefined ? `Option ${String.fromCharCode(65 + answers[currentQuestion._id])}` : 'Not Attempted'}
+                        <span style={{ fontSize: '16px', fontWeight: 600, color: Number(answers[currentQuestion._id]) === Number(currentQuestion.correctIndex ?? 0) ? '#10b981' : (answers[currentQuestion._id] !== undefined ? '#ef4444' : '#64748b') }}>
+                          {answers[currentQuestion._id] !== undefined ? `Option ${String.fromCharCode(65 + Number(answers[currentQuestion._id]))}` : 'Not Attempted'}
                         </span>
                       </div>
                       <div>
                         <span style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Correct Answer</span>
                         <span style={{ fontSize: '16px', fontWeight: 600, color: '#10b981' }}>
-                          Option {String.fromCharCode(65 + currentQuestion.correctIndex)}
+                          Option {String.fromCharCode(65 + Number(currentQuestion.correctIndex ?? 0))}
                         </span>
                       </div>
                     </div>

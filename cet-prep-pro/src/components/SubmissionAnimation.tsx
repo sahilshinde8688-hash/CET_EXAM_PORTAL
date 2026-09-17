@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import lottie from 'lottie-web'
-import animationData from '../../public/online-exam.json'
+import animationData from '../assets/online-exam.json'
 import '../global-loader.css'
 
 export default function SubmissionAnimation() {
