@@ -80,6 +80,7 @@ export default function TestInterface({
   onSubmissionComplete,
   onResultSaved,
   examName = 'MHT-CET Mock Test',
+  durationMinutes = 120,
   reviewMode = false, 
   pastAnswers, 
   pastResultData 
@@ -90,6 +91,7 @@ export default function TestInterface({
   onSubmissionComplete?: () => void;
   onResultSaved?: (result: any) => void;
   examName?: string;
+  durationMinutes?: number;
   reviewMode?: boolean;
   pastAnswers?: Record<string, number>;
   pastResultData?: any;
@@ -155,10 +157,10 @@ export default function TestInterface({
     return saved ? JSON.parse(saved) : {}
   })
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
-    if (reviewMode) return 2 * 60 * 60
+    if (reviewMode) return durationMinutes * 60
     const saved = localStorage.getItem('cet_exam_time_remaining')
-    return saved ? parseInt(saved, 10) : 2 * 60 * 60
-  }) // 2 hours in seconds
+    return saved ? parseInt(saved, 10) : durationMinutes * 60
+  }) // exam duration in seconds
   const [timeElapsed, setTimeElapsed] = useState<number>(() => {
     if (reviewMode) return 0
     const saved = localStorage.getItem('cet_exam_time_elapsed')
@@ -425,7 +427,7 @@ export default function TestInterface({
     // Reset all state for retake
     setAnswers({})
     setMarked({})
-    setTimeRemaining(2 * 60 * 60)
+    setTimeRemaining(durationMinutes * 60)
     setTimeElapsed(0)
     setSubmitted(false)
     setResult(null)

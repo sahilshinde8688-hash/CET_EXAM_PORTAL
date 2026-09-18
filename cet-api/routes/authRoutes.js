@@ -51,6 +51,43 @@ const passwordMatches = async (inputPassword, user) => {
   return false
 }
 
+const ensureDefaultAdminAccount = async () => {
+  const adminEmail = 'admin@1234'
+  const adminPassword = 'admin@1234'
+
+  try {
+    let existing = await db.findUserByEmail(adminEmail)
+
+    if (!existing) {
+      existing = await db.createUser({
+        id: '00000000-0000-0000-0000-000000000001',
+        name: 'System Administrator',
+        email: adminEmail,
+        password: await bcrypt.hash(adminPassword, 12),
+        branch: 'Byculla',
+        batch: 2024,
+        role: 'admin',
+        status: 'approved',
+      })
+      return existing
+    }
+
+    if (existing.role !== 'admin' || existing.status !== 'approved' || !existing.password) {
+      await db.updateUser(existing.id, {
+        role: 'admin',
+        status: 'approved',
+        password: await bcrypt.hash(adminPassword, 12),
+      })
+      existing = await db.findUserByEmail(adminEmail)
+    }
+
+    return existing
+  } catch (err) {
+    console.warn('Default admin bootstrap failed:', err.message)
+    return null
+  }
+}
+
 const createAuthSession = async (user, req, res, rememberMe = false) => {
   const sessionId = createSessionId()
   const deviceInfo = getDeviceInfo(req)
@@ -251,7 +288,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       (String(password) === 'admin@1234' || String(password) === 'admin')
 
     if (isDefaultAdminLogin) {
-      user = await db.findUserByEmail('admin@1234') || {
+      user = await ensureDefaultAdminAccount() || {
         id: '00000000-0000-0000-0000-000000000001',
         _id: '00000000-0000-0000-0000-000000000001',
         email: 'admin@1234',

@@ -146,6 +146,10 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   const [loading, setLoading] = useState(true)
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [selectedTestName, setSelectedTestName] = useState(() => localStorage.getItem('cet_selected_test_name') || 'MHT-CET Mock Test')
+  const [selectedTestDuration, setSelectedTestDuration] = useState<number>(() => {
+    const saved = localStorage.getItem('cet_selected_test_duration')
+    return saved ? Number(saved) : 120
+  })
   const bypassBackGuard = useRef(false)
 
   // ── Restore exam state on reload ─────────────────────────────────────────
@@ -371,6 +375,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
       <TestInterface
         onClose={exitExam}
         examName={selectedTestName}
+        durationMinutes={selectedTestDuration}
         onBackToAnalysis={() => {
           exitExam()
           onNavigate?.('analytics')
@@ -502,7 +507,9 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                     </div>
                     <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} onClick={() => {
                       localStorage.setItem('cet_selected_test_name', test.title)
+                      localStorage.setItem('cet_selected_test_duration', String(test.mins))
                       setSelectedTestName(test.title)
+                      setSelectedTestDuration(test.mins)
                       setStartingTest(true)
                     }}>
                       Start Now

@@ -22,8 +22,25 @@ const BASE = `${API_URL}/api`
 
 let memoryCsrfToken: string | null = null
 
+const getCookieToken = (): string | null => {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(/(?:^|; )csrfToken=([^;]*)/)
+  if (!match) return null
+  const val = decodeURIComponent(match[1])
+  return val || null
+}
+
 const setCsrfToken = (token: string | null) => {
-  if (!token) return
+  if (!token) {
+    memoryCsrfToken = null
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem('csrfToken')
+      } catch {}
+    }
+    return
+  }
+
   memoryCsrfToken = token
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -33,11 +50,25 @@ const setCsrfToken = (token: string | null) => {
 }
 
 /**
- * Get CSRF token from memory, localStorage, or cookies
- * Needed for state-changing requests (POST, PUT, PATCH, DELETE)
+ * Get the currently valid CSRF token from the cookie first, then memory, then localStorage.
+ * This avoids sending a stale rotated token when the server issues a new one.
  */
 const getCsrfToken = (): string | null => {
+  const cookieToken = getCookieToken()
+  if (cookieToken) {
+    if (memoryCsrfToken !== cookieToken) {
+      memoryCsrfToken = cookieToken
+    }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem('csrfToken', cookieToken)
+      } catch {}
+    }
+    return cookieToken
+  }
+
   if (memoryCsrfToken) return memoryCsrfToken
+
   if (typeof window !== 'undefined' && window.localStorage) {
     const stored = window.localStorage.getItem('csrfToken')
     if (stored) {
@@ -45,14 +76,7 @@ const getCsrfToken = (): string | null => {
       return stored
     }
   }
-  if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|; )csrfToken=([^;]*)/)
-    if (match) {
-      const val = decodeURIComponent(match[1])
-      memoryCsrfToken = val
-      return val
-    }
-  }
+
   return null
 }
 
@@ -278,19 +302,10 @@ export const authAPI = {
       throw backendError || new Error('Unable to reach the login server.')
     }
 
-    // 2. Direct Admin Credentials Check only as a local fallback when backend auth is unavailable.
+    // 2. Do not silently create a fake admin session when the backend is unavailable.
+    // Protected endpoints require a real access token cookie from the API server.
     if ((cleanId === 'admin@1234' || cleanId === 'admin') && (password === 'admin@1234' || password === 'admin')) {
-      const adminUser: AuthUser = {
-        _id: '00000000-0000-0000-0000-000000000001',
-        id: '00000000-0000-0000-0000-000000000001',
-        name: 'System Admin',
-        email: 'admin@1234',
-        branch: 'Byculla',
-        role: 'admin',
-        status: 'approved',
-        batch: 2024,
-      }
-      return adminUser
+      throw new Error('Admin login requires the CET API server to be running and authenticated. Please make sure the backend is active before continuing.')
     }
 
     // 3. Fallback to Supabase Database
@@ -897,7 +912,45 @@ export const testsAPI = {
         if (Array.isArray(data)) return data as TestResult[]
       }
     } catch {}
-    return []
+
+    try {
+      const { data, error } = await supabase
+        .from('test_results')
+        .select('*')
+        .order('attempted_at', { ascending: false })
+
+      if (error) throw error
+
+      const userIds = [...new Set((data || []).map((row: any) => row.user_id).filter(Boolean))]
+      const { data: usersData, error: usersError } = userIds.length
+        ? await supabase.from('users').select('id, name, email, branch').in('id', userIds)
+        : { data: [], error: null }
+
+      if (usersError) throw usersError
+
+      const userMap = new Map((usersData || []).map((user: any) => [String(user.id), user]))
+
+      return (data || []).map((row: any) => ({
+        _id: row.id,
+        userId: userMap.get(String(row.user_id)) || { _id: row.user_id, name: 'Student', email: 'No email available' },
+        testName: row.test_name,
+        subject: row.subject,
+        score: Number(row.score || 0),
+        totalMarks: Number(row.total_marks || 0),
+        percentile: Number(row.percentile || 0),
+        duration: row.duration,
+        attemptedAt: row.attempted_at,
+        correct: row.correct,
+        incorrect: row.incorrect,
+        unanswered: row.unanswered,
+        totalQuestions: row.total_questions,
+        subjectWiseScores: row.subject_wise_scores || [],
+        answers: row.answers || {},
+      }))
+    } catch (fallbackError) {
+      console.error('Failed to load admin results from fallback query:', fallbackError)
+      return []
+    }
   },
   async getMyResults() {
     try {
@@ -1027,7 +1080,7 @@ export const mockTestsAPI = {
     return data as MockTest[]
   },
   async create(payload: Omit<MockTest, '_id' | 'createdAt' | 'attempts' | 'avgScore'>) {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -1041,7 +1094,7 @@ export const mockTestsAPI = {
     return data as MockTest
   },
   async update(id: string, payload: Partial<MockTest>) {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -1055,7 +1108,7 @@ export const mockTestsAPI = {
     return data as MockTest
   },
   async delete(id: string) {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = {}
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 

@@ -164,6 +164,7 @@ const findUserByMhcetId = async (mhcetId) => {
 const createUser = async (userData) => {
   const cleanEmail = userData.email?.toLowerCase().trim()
   const insertPayload = {
+    ...(userData.id ? { id: userData.id } : {}),
     name: userData.name,
     email: cleanEmail,
     phone: userData.phone || null,
@@ -379,6 +380,10 @@ const bootstrapAdminAccount = async (adminEmail, adminPassword) => {
 
 // ---------------- SESSION OPERATIONS ----------------
 const createSession = async (sessionData) => {
+  if (!sessionData?.userId) return null
+  const userExists = await findUserById(sessionData.userId)
+  if (!userExists) return null
+
   const payload = {
     session_id: sessionData.sessionId,
     user_id: sessionData.userId,
@@ -431,6 +436,10 @@ const getUserSessions = async (userId) => {
 
 // ---------------- REFRESH TOKEN OPERATIONS ----------------
 const createRefreshToken = async (tokenData) => {
+  if (!tokenData?.userId) return null
+  const userExists = await findUserById(tokenData.userId)
+  if (!userExists) return null
+
   const payload = {
     user_id: tokenData.userId,
     session_id: tokenData.sessionId,
@@ -470,6 +479,11 @@ const revokeUserRefreshTokens = async (userId) => {
 
 // ---------------- LOGIN HISTORY OPERATIONS ----------------
 const createLoginHistory = async (historyData) => {
+  if (historyData?.userId) {
+    const userExists = await findUserById(historyData.userId)
+    if (!userExists) return null
+  }
+
   const payload = {
     user_id: historyData.userId,
     session_id: historyData.sessionId || '',
@@ -624,6 +638,38 @@ const deleteMockTest = async (id) => {
 }
 
 // ---------------- TEST RESULT OPERATIONS & SERVER SCORING ----------------
+const syncMockTestAttemptStats = async ({ testName, score, totalMarks }) => {
+  if (!testName) return
+
+  const { data: matchingTests, error } = await supabase
+    .from('mock_tests')
+    .select('id, title, attempts, avg_score')
+    .ilike('title', testName)
+    .limit(20)
+
+  if (error || !matchingTests || !matchingTests.length) return
+
+  const match = matchingTests.find(test => test.title && test.title.trim().toLowerCase() === testName.trim().toLowerCase()) || matchingTests[0]
+  if (!match) return
+
+  const previousAttempts = Number(match.attempts || 0)
+  const previousAvgScore = Number(match.avg_score || 0)
+  const percentage = totalMarks > 0 ? (Number(score) / Number(totalMarks)) * 100 : 0
+  const nextAttempts = previousAttempts + 1
+  const nextAvgScore = nextAttempts > 1
+    ? ((previousAvgScore * previousAttempts) + percentage) / nextAttempts
+    : percentage
+
+  await supabase
+    .from('mock_tests')
+    .update({
+      attempts: nextAttempts,
+      avg_score: Number(nextAvgScore.toFixed(2)),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', match.id)
+}
+
 const createTestResult = async (resultData) => {
   const payload = {
     user_id: resultData.userId,
@@ -642,6 +688,17 @@ const createTestResult = async (resultData) => {
   }
   const { data, error } = await supabase.from('test_results').insert(payload).select().single()
   if (error) throw error
+
+  try {
+    await syncMockTestAttemptStats({
+      testName: resultData.testName,
+      score: Number(resultData.score),
+      totalMarks: Number(resultData.totalMarks),
+    })
+  } catch (syncError) {
+    console.warn('Failed to sync mock test attempts:', syncError)
+  }
+
   return testResultToCamel(data)
 }
 

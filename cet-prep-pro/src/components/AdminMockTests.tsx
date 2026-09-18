@@ -4,7 +4,8 @@ import {
   Clock, Users, FileText, CheckCircle, X, Calendar, BarChart3,
   ChevronLeft, ChevronRight, Info, HelpCircle, Lock
 } from 'lucide-react'
-import { mockTestsAPI, MockTest, questionsAPI, testsAPI, type Question, type TestResult } from '../lib/api'
+import { mockTestsAPI, MockTest, questionsAPI, testsAPI, usersAPI, session, type Question, type TestResult } from '../lib/api'
+import { supabase } from '../lib/supabaseClient'
 
 type TabType = 'all' | 'active' | 'scheduled' | 'draft'
 
@@ -75,10 +76,41 @@ export default function AdminMockTests() {
     visibility: 'draft' as 'draft' | 'published' | 'private' | 'public',
   })
 
+  const normalizeAttemptTitle = (value: string) => value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+
   const loadMockTests = async () => {
     try {
-      const data = await mockTestsAPI.getAll()
-      setMockTests(data)
+      const [data, resultData] = await Promise.all([
+        mockTestsAPI.getAll(),
+        testsAPI.getAllAdmin(),
+      ])
+
+      const resultMap = new Map<string, { count: number; totalScore: number }>()
+      resultData.forEach(result => {
+        const title = normalizeAttemptTitle(result.testName || '')
+        if (!title) return
+        const entry = resultMap.get(title) || { count: 0, totalScore: 0 }
+        const percent = result.totalMarks > 0 ? (result.score / result.totalMarks) * 100 : 0
+        entry.count += 1
+        entry.totalScore += percent
+        resultMap.set(title, entry)
+      })
+
+      const hydrated = data.map(test => {
+        const key = normalizeAttemptTitle(test.title || '')
+        const metrics = resultMap.get(key)
+        return {
+          ...test,
+          attempts: metrics ? metrics.count : (test.attempts || 0),
+          avgScore: metrics ? Number((metrics.totalScore / metrics.count).toFixed(1)) : (test.avgScore || 0),
+        }
+      })
+
+      setMockTests(hydrated)
     } catch (error) {
       console.error('Failed to load mock tests:', error)
     } finally {
@@ -99,12 +131,36 @@ export default function AdminMockTests() {
     }
   }
 
+  const getStudentForAttempt = (result: TestResult, userMap: Map<string, any>) => {
+    if (typeof result.userId === 'object' && result.userId) return result.userId
+
+    const rawUserId = typeof result.userId === 'string' ? result.userId : result.userId?._id
+    if (!rawUserId) return { _id: 'unknown', name: 'Student', email: 'No email available' }
+
+    return userMap.get(String(rawUserId)) || { _id: rawUserId, name: 'Student', email: 'No email available' }
+  }
+
   const viewTestAttempts = async (test: MockTest) => {
     setSelectedTest(test)
     setAttemptsLoading(true)
     try {
-      const results = await testsAPI.getAllAdmin()
-      setTestAttempts(results.filter(result => result.testName?.trim().toLowerCase() === test.title.trim().toLowerCase()))
+      const [results, allUsers] = await Promise.all([
+        testsAPI.getAllAdmin(),
+        usersAPI.getAll('approved'),
+      ])
+
+      const targetTitle = normalizeAttemptTitle(test.title)
+      const userMap = new Map((allUsers || []).map(user => [String(user._id), user]))
+
+      const filtered = (results || []).filter(result => {
+        const candidate = normalizeAttemptTitle(result.testName || '')
+        return candidate === targetTitle || result.testName?.trim().toLowerCase() === test.title.trim().toLowerCase()
+      })
+
+      setTestAttempts(filtered.map(result => ({
+        ...result,
+        userId: getStudentForAttempt(result, userMap),
+      })))
     } catch (error) {
       console.error('Failed to load test attempts:', error)
       setTestAttempts([])
@@ -165,6 +221,7 @@ export default function AdminMockTests() {
                           formData.scheduleDate && formData.scheduleTime ? 
                           `${formData.scheduleDate}T${formData.scheduleTime}` : undefined
 
+      const currentAdmin = session.get<{ name?: string }>()
       const payload = {
         title: formData.title,
         subject: formData.subject === 'Mixed' ? formData.category : formData.subject,
@@ -174,7 +231,7 @@ export default function AdminMockTests() {
         questionIds: formData.questionSelection === 'bank' ? formData.selectedQuestions : [],
         status: status as 'active' | 'scheduled' | 'draft',
         scheduledDate,
-        createdBy: 'Admin X',
+        createdBy: currentAdmin?.name || 'System Administrator',
       }
       if (editingTest) {
         await mockTestsAPI.update(editingTest._id, payload)
@@ -320,6 +377,20 @@ export default function AdminMockTests() {
 
   useEffect(() => {
     loadMockTests()
+
+    const channel = supabase
+      .channel('admin_mock_tests_live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'test_results' }, () => {
+        loadMockTests()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mock_tests' }, () => {
+        loadMockTests()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   useEffect(() => {
@@ -960,9 +1031,11 @@ Example:
                   {testAttempts.map(result => {
                     const student = typeof result.userId === 'object' ? result.userId : null
                     const percentage = result.totalMarks ? Math.round(result.score / result.totalMarks * 100) : 0
+                    const displayName = student?.name || 'Student'
+                    const displayEmail = student?.email || 'No email available'
                     return (
                       <div className="amt-attempt-row" key={result._id}>
-                        <div><strong>{student?.name || 'Student'}</strong><span>{student?.email || 'No email available'}</span></div>
+                        <div><strong>{displayName}</strong><span>{displayEmail}</span></div>
                         <div><strong>{Math.round(result.score)}/{Math.round(result.totalMarks)}</strong><span>{percentage}% marks</span></div>
                         <div><strong>{result.percentile?.toFixed(1) || '0.0'}th</strong><span>{new Date(result.attemptedAt).toLocaleDateString('en-IN')}</span></div>
                       </div>

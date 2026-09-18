@@ -8,6 +8,7 @@ import Settings from './components/Settings'
 import AdminPanel from './components/AdminPanel'
 import AdminDashboard from './components/AdminDashboard'
 import { clearAdminCredentials, isAdminCredentials } from './adminAuth'
+import { session } from './lib/api'
 import './dashboard.css'
 import './mocktests.css'
 import './results.css'
@@ -113,6 +114,15 @@ export default function App() {
     const t = setTimeout(() => setBooting(false), 2400)
     return () => clearTimeout(t)
   }, [])
+
+  useEffect(() => {
+    const currentUser = session.get()
+    if (page === 'admin' && (!currentUser || currentUser.role !== 'admin')) {
+      clearAdminCredentials()
+      setAdminLoggedIn(false)
+      setPage('signin')
+    }
+  }, [page])
 
   const navigate = (target: Page) => {
     if (target === page) return

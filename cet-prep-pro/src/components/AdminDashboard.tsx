@@ -22,6 +22,17 @@ interface AdminDashboardProps {
   Dashboard Data
 ───────────────────────────────────────── */
 type DashboardActivity = { icon: string; cls: string; title: string; sub: string; time: string }
+const getAttemptsToday = (results: TestResult[]) => {
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000)
+
+  return results.filter(result => {
+    const attemptedAt = new Date(result.attemptedAt)
+    return attemptedAt >= startOfToday && attemptedAt < endOfToday
+  }).length
+}
+
 const QUICK = [
   { icon: 'assignment_ind', label: 'Manage Faculty' },
   { icon: 'backup', label: 'Upload Data' },
@@ -602,10 +613,38 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSent, setAlertSent] = useState(false)
+  const [currentAdmin, setCurrentAdmin] = useState<AuthUser | null>(() => session.get<AuthUser>())
+
+  useEffect(() => {
+    const syncAdmin = async () => {
+      const savedAdmin = session.get<AuthUser>()
+      if (savedAdmin) {
+        setCurrentAdmin(savedAdmin)
+      }
+
+      try {
+        const me = await authAPI.me()
+        if (me && typeof me === 'object') {
+          session.save(me)
+          setCurrentAdmin(me as AuthUser)
+        }
+      } catch {
+        // Fall back to saved session data if the server is unavailable.
+      }
+    }
+
+    syncAdmin()
+  }, [])
+
+  const attemptsToday = getAttemptsToday(testResults)
+  const adminName = currentAdmin?.name || 'System Administrator'
+  const adminRole = currentAdmin?.role === 'admin' ? 'Admin' : 'Exam Controller'
+  const adminPhoto = currentAdmin?.photo || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDWpayorudDpV1PjBCVsrLYUz1_tl6nSQvGAZ8XASMWIW6RVYVgBkWsHzHE9qtkE1B055qgcgwyYHZYHYXQYQDXBBlvXnZpQA67ft2ftscqBUExT7zmtmtKw8Sd3gsu8T0xpM69hVIwoRXpBSsBmPtVLQOO_UC2KNSavm28KJyv9lHaWPS-CfwzW6mlU2ihGpurQh7NbKA6chXikCijY-TtmEiXmj5tr-Zn034nC1B4OPPLHSowXaj5f2cItjlmFEIdu2SMscAZKVo'
 
   useEffect(() => {
     if (view !== 'overview') return
     let cancelled = false
+
     const loadOverview = async () => {
       try {
         const [studentData, questionData, mockTestData, resultData] = await Promise.all([
@@ -641,11 +680,28 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         console.error('Failed to load admin overview:', error)
       }
     }
+
     loadOverview()
+
+    const channel = supabase
+      .channel('realtime_admin_dashboard')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'test_results' }, () => {
+        loadOverview()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        loadOverview()
+      })
+      .subscribe()
+
     const expiryTimer = window.setInterval(() => {
       setActivities(current => current.filter(activity => activity.time !== 'RECENTLY'))
     }, 60 * 60 * 1000)
-    return () => { cancelled = true; window.clearInterval(expiryTimer) }
+
+    return () => {
+      cancelled = true
+      supabase.removeChannel(channel)
+      window.clearInterval(expiryTimer)
+    }
   }, [view])
 
   useEffect(() => {
@@ -788,11 +844,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             <div className="adb-sidebar-bottom">
               <div className="adb-admin-row">
                 <img className="adb-admin-avatar"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDWpayorudDpV1PjBCVsrLYUz1_tl6nSQvGAZ8XASMWIW6RVYVgBkWsHzHE9qtkE1B055qgcgwyYHZYHYXQYQDXBBlvXnZpQA67ft2ftscqBUExT7zmtmtKw8Sd3gsu8T0xpM69hVIwoRXpBSsBmPtVLQOO_UC2KNSavm28KJyv9lHaWPS-CfwzW6mlU2ihGpurQh7NbKA6chXikCijY-TtmEiXmj5tr-Zn034nC1B4OPPLHSowXaj5f2cItjlmFEIdu2SMscAZKVo"
-                  alt="Admin X" />
+                  src={adminPhoto}
+                  alt={adminName}
+                />
                 <div>
-                  <p className="adb-admin-name">Admin X</p>
-                  <p className="adb-admin-role">Exam Controller</p>
+                  <p className="adb-admin-name">{adminName}</p>
+                  <p className="adb-admin-role">{adminRole}</p>
                 </div>
               </div>
               <a href="#" className="adb-logout-link"
@@ -858,6 +915,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       { icon: 'group', cls: 'adb-si-blue', badge: 'Live', bcls: 'adb-badge-green', label: 'TOTAL STUDENTS', val: students.length.toLocaleString() },
                       { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active', bcls: 'adb-badge-green', label: 'ACTIVE EXAMS', val: mockTests.filter(test => test.status === 'active').length.toLocaleString() },
                       { icon: 'database', cls: 'adb-si-teal', badge: 'Live', bcls: 'adb-badge-blue', label: 'QUESTION COUNT', val: questions.length.toLocaleString() },
+                      { icon: 'today', cls: 'adb-si-green', badge: 'Today', bcls: 'adb-badge-green', label: 'ATTEMPTS TODAY', val: attemptsToday.toLocaleString() },
                     ].map(s => (
                       <div key={s.label} className="adb-stat-card">
                         <div className="adb-stat-top">

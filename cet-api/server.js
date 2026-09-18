@@ -93,9 +93,30 @@ app.use((err, req, res, next) => {
   })
 })
 
-const PORT = process.env.PORT || 5000
-
+const DEFAULT_PORT = Number(process.env.PORT || 5000)
 let server = null
+
+const startServer = (port) => {
+  const currentPort = Number(port)
+
+  server = app.listen(currentPort, '0.0.0.0', () => {
+    console.log(`🚀 CET Exam Portal API running on port ${currentPort} (${process.env.NODE_ENV || 'development'})`)
+  })
+
+  server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE') {
+      const fallbackPort = currentPort + 1
+      console.warn(`[SERVER] Port ${currentPort} is busy. Retrying on ${fallbackPort}...`)
+      server.close(() => {
+        startServer(fallbackPort)
+      })
+      return
+    }
+
+    console.error('[SERVER] Unhandled server error:', err)
+    process.exit(1)
+  })
+}
 
 // Run bootstrap & listen only when executed directly
 if (require.main === module) {
@@ -103,9 +124,7 @@ if (require.main === module) {
   const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin@1234'
   bootstrapAdminAccount(defaultAdminEmail, defaultAdminPassword)
 
-  server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 CET Exam Portal API running on port ${PORT} (${process.env.NODE_ENV || 'development'})`)
-  })
+  startServer(DEFAULT_PORT)
 
   // Graceful shutdown handling
   const shutdown = (signal) => {
