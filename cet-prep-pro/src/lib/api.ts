@@ -803,12 +803,16 @@ export const usersAPI = {
   },
   async resetPassword(newPassword: string) {
     try {
+      const csrfToken = getCsrfToken()
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
       const res = await fetch(`${BASE}/users/reset-password`, {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ newPassword }),
       })
       return await handle(res).then(() => res.json())
@@ -819,7 +823,8 @@ export const usersAPI = {
       const { data, error } = await supabase
         .from('users')
         .update({
-          mhcet_password: newPassword,
+          password: newPassword,
+          mhcet_password: null,
           must_reset_password: false,
           updated_at: new Date().toISOString(),
         })

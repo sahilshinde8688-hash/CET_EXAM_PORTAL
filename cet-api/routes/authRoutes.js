@@ -31,6 +31,26 @@ const getUserPayload = (user) => ({
   photo: user.photo,
 })
 
+const passwordMatches = async (inputPassword, user) => {
+  if (!inputPassword || !user) return false
+
+  const supplied = String(inputPassword).trim()
+
+  if (user.password) {
+    try {
+      if (await bcrypt.compare(supplied, user.password)) return true
+    } catch (err) {
+      // fall through to legacy plain-text comparison below
+    }
+
+    if (String(user.password).trim() === supplied) return true
+  }
+
+  if (user.mhcetPassword && String(user.mhcetPassword).trim() === supplied) return true
+
+  return false
+}
+
 const createAuthSession = async (user, req, res, rememberMe = false) => {
   const sessionId = createSessionId()
   const deviceInfo = getDeviceInfo(req)
@@ -269,16 +289,12 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       return res.status(403).json({ success: false, message: 'Your account has been deactivated.' })
     }
 
-    // Verify password hash with bcrypt
+    // Verify password hash with bcrypt, while supporting legacy plain-text passwords in the database
     let isMatch = false
     if (isDefaultAdminLogin) {
       isMatch = true
-    } else if (user.password) {
-      isMatch = await bcrypt.compare(String(password), user.password)
-    }
-    // If not matched and user must reset password, compare against temporary plain password
-    if (!isMatch && user.mustResetPassword && user.mhcetPassword) {
-      isMatch = String(password) === String(user.mhcetPassword)
+    } else {
+      isMatch = await passwordMatches(password, user)
     }
 
     if (!isMatch) {

@@ -109,6 +109,7 @@ router.post('/reset-password', protect, validateCsrfToken, passwordResetLimiter,
     const hashedPassword = await bcrypt.hash(String(newPassword), 10)
     const updatedUser = await db.updateUser(userId, {
       password: hashedPassword,
+      mhcetPassword: null,
       mustResetPassword: false,
     })
 
