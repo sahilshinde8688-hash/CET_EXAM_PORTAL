@@ -50,7 +50,18 @@ export interface QuestionExplainInput {
   existingSolution?: string
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '')
+const getApiBase = (): string => {
+  const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return (configuredApiUrl || 'http://localhost:5000').replace(/\/$/, '')
+    }
+  }
+  return (configuredApiUrl || 'https://cet-portal-3vas.onrender.com').replace(/\/$/, '')
+}
+
+const API_BASE = getApiBase()
 
 export const getOpenRouterKey = (): string => {
   return import.meta.env.VITE_OPENROUTER_API_KEY || ''
