@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Sidebar, { type Page } from './Sidebar'
 import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
+import { downloadTestHistoryCSV, downloadSingleTestReport } from '../lib/exportUtils'
 import TestInterface from './TestInterface'
 import UserAvatar from './UserAvatar'
 
@@ -24,7 +25,10 @@ export default function Results({ onNavigate }: ResultsProps) {
   const [testHistory, setTestHistory] = useState<TestResult[]>([])
   const [loading, setLoading] = useState(true)
   const [reviewingTest, setReviewingTest] = useState<TestResult | null>(null)
-  const [displayLimit, setDisplayLimit] = useState(3)
+  const [displayLimit, setDisplayLimit] = useState(10)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('All')
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false)
   const user = session.get<AuthUser>()
   const branchLabel = user?.branch ? `${user.branch}${user.batch ? `, Batch ${user.batch}` : ''}` : 'CET preparation'
 
@@ -104,6 +108,19 @@ export default function Results({ onNavigate }: ResultsProps) {
   })
   const displayScoreBars = trendScores.length > 0 ? trendScores : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
+  const displayedTests = useMemo(() => {
+    return testHistory.filter(t => {
+      const q = searchTerm.trim().toLowerCase()
+      const matchesSearch = !q || 
+        (t.testName || '').toLowerCase().includes(q) || 
+        (t.subject || '').toLowerCase().includes(q)
+      const matchesSubject = selectedSubjectFilter === 'All' || 
+        (t.subject || '').toLowerCase().includes(selectedSubjectFilter.toLowerCase()) ||
+        (selectedSubjectFilter === 'Full Mock' && (t.testName || '').toLowerCase().includes('mock'))
+      return matchesSearch && matchesSubject
+    })
+  }, [testHistory, searchTerm, selectedSubjectFilter])
+
   if (loading) {
     return (
       <div className="rs-root">
@@ -154,17 +171,67 @@ export default function Results({ onNavigate }: ResultsProps) {
             <h2 className="rs-topbar-title">Test Results</h2>
             <div className="rs-search-wrap">
               <span className="material-symbols-outlined rs-search-icon">search</span>
-              <input className="rs-search-input" placeholder="Search test name..." type="text" />
+              <input 
+                className="rs-search-input" 
+                placeholder="Search test name or subject..." 
+                type="text" 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm('')} 
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', padding: '0 4px' }}
+                  title="Clear search"
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
+                </button>
+              )}
             </div>
           </div>
           <div className="rs-topbar-right">
-            <button className="rs-filter-btn">
-              <span className="material-symbols-outlined">filter_list</span>
-              <span>Test Type</span>
-            </button>
-            <button className="rs-filter-btn">
-              <span className="material-symbols-outlined">calendar_today</span>
-              <span>Date Range</span>
+            <div style={{ position: 'relative' }}>
+              <button 
+                className="rs-filter-btn" 
+                onClick={() => setShowFilterDropdown(prev => !prev)}
+                style={selectedSubjectFilter !== 'All' ? { background: '#eff6ff', borderColor: '#3b82f6', color: '#1d4ed8', fontWeight: 600 } : {}}
+              >
+                <span className="material-symbols-outlined">filter_list</span>
+                <span>{selectedSubjectFilter === 'All' ? 'Test Type' : selectedSubjectFilter}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>expand_more</span>
+              </button>
+              {showFilterDropdown && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: '6px',
+                  background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px',
+                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '160px',
+                  overflow: 'hidden'
+                }}>
+                  {['All', 'Full Mock', 'Mathematics', 'Physics', 'Chemistry', 'Biology'].map(type => (
+                    <button
+                      key={type}
+                      onClick={() => { setSelectedSubjectFilter(type); setShowFilterDropdown(false) }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px',
+                        border: 'none', background: selectedSubjectFilter === type ? '#eff6ff' : 'transparent',
+                        color: selectedSubjectFilter === type ? '#2563eb' : '#334155',
+                        fontWeight: selectedSubjectFilter === type ? 700 : 500,
+                        cursor: 'pointer', fontSize: '13px'
+                      }}
+                    >
+                      {type === 'All' ? 'All Subjects' : type}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button 
+              className="rs-filter-btn" 
+              title="Download Full Test History (CSV)"
+              onClick={() => downloadTestHistoryCSV(displayedTests, user?.name)}
+            >
+              <span className="material-symbols-outlined">download</span>
+              <span>Export CSV</span>
             </button>
             <div className="rs-divider" />
             <div className="rs-user-chip">
@@ -246,7 +313,7 @@ export default function Results({ onNavigate }: ResultsProps) {
                     </div>
                   ))}
                 </div>
-                <button className="rs-deep-btn">Deep Dive Analysis</button>
+                <button className="rs-deep-btn" onClick={() => onNavigate?.('analytics')}>Deep Dive Analysis</button>
               </div>
 
               {/* Score Trend */}
@@ -278,8 +345,20 @@ export default function Results({ onNavigate }: ResultsProps) {
                     <p className="rs-card-sub">Manage and review all your mock attempts</p>
                   </div>
                   <div className="rs-table-actions">
-                    <button className="rs-icon-action"><span className="material-symbols-outlined">download</span></button>
-                    <button className="rs-icon-action"><span className="material-symbols-outlined">print</span></button>
+                    <button 
+                      className="rs-icon-action" 
+                      title="Download Test History (CSV)"
+                      onClick={() => downloadTestHistoryCSV(displayedTests, user?.name)}
+                    >
+                      <span className="material-symbols-outlined">download</span>
+                    </button>
+                    <button 
+                      className="rs-icon-action" 
+                      title="Print Results Report"
+                      onClick={() => window.print()}
+                    >
+                      <span className="material-symbols-outlined">print</span>
+                    </button>
                   </div>
                 </div>
 
@@ -296,66 +375,85 @@ export default function Results({ onNavigate }: ResultsProps) {
                       </tr>
                     </thead>
                     <tbody>
-                      {testHistory.slice(0, displayLimit).map((row, i) => {
-                        const date = new Date(row.attemptedAt)
-                        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                        const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                        const safeScore = toSafeNumber(row.score)
-                        const safeTotalMarks = toSafeNumber(row.totalMarks, 100)
-                        const safePercentile = toSafeNumber(row.percentile)
-                        const percentileColor = getPercentileColor(safePercentile)
+                      {displayedTests.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+                              search_off
+                            </span>
+                            No test results match your search or filter criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        displayedTests.slice(0, displayLimit).map((row, i) => {
+                          const date = new Date(row.attemptedAt)
+                          const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                          const safeScore = toSafeNumber(row.score)
+                          const safeTotalMarks = toSafeNumber(row.totalMarks, 100)
+                          const safePercentile = toSafeNumber(row.percentile)
+                          const percentileColor = getPercentileColor(safePercentile)
 
-                        return (
-                          <tr 
-                            key={row._id || i} 
-                            className="rs-tbody-row" 
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => setReviewingTest(row)}
-                          >
-                            <td className="rs-td">
-                              <p className="rs-td-name">{row.testName}</p>
-                              <p className="rs-td-sub">{row.subject}</p>
-                            </td>
-                            <td className="rs-td">
-                              <p className="rs-td-date">{dateStr}</p>
-                              <p className="rs-td-sub">{timeStr}</p>
-                            </td>
-                            <td className="rs-td">
-                              <span className="rs-score">{safeScore.toFixed(0)}</span>
-                              <span className="rs-score-total">/{safeTotalMarks.toFixed(0)}</span>
-                            </td>
-                            <td className="rs-td">
-                              <span className={`rs-percentile-badge rs-percentile-badge--${percentileColor}`}>
-                                {safePercentile.toFixed(1)}th
-                              </span>
-                            </td>
-                            <td className="rs-td">
-                              <div className="rs-status">
-                                <span className="rs-status-dot" />
-                                Completed
-                              </div>
-                            </td>
-                            <td className="rs-td rs-td--right" onClick={(e) => e.stopPropagation()}>
-                              <div className="rs-row-actions">
-                                <button className="rs-row-btn rs-row-btn--view" title="View Analysis" onClick={() => setReviewingTest(row)}>
-                                  <span className="material-symbols-outlined">visibility</span>
-                                </button>
-                                <button className="rs-row-btn rs-row-btn--pdf" title="Download PDF">
-                                  <span className="material-symbols-outlined">picture_as_pdf</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                          return (
+                            <tr 
+                              key={row._id || i} 
+                              className="rs-tbody-row" 
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => setReviewingTest(row)}
+                            >
+                              <td className="rs-td">
+                                <p className="rs-td-name">{row.testName}</p>
+                                <p className="rs-td-sub">{row.subject}</p>
+                              </td>
+                              <td className="rs-td">
+                                <p className="rs-td-date">{dateStr}</p>
+                                <p className="rs-td-sub">{timeStr}</p>
+                              </td>
+                              <td className="rs-td">
+                                <span className="rs-score">{safeScore.toFixed(0)}</span>
+                                <span className="rs-score-total">/{safeTotalMarks.toFixed(0)}</span>
+                              </td>
+                              <td className="rs-td">
+                                <span className={`rs-percentile-badge rs-percentile-badge--${percentileColor}`}>
+                                  {safePercentile.toFixed(1)}th
+                                </span>
+                              </td>
+                              <td className="rs-td">
+                                <div className="rs-status">
+                                  <span className="rs-status-dot" />
+                                  Completed
+                                </div>
+                              </td>
+                              <td className="rs-td rs-td--right" onClick={(e) => e.stopPropagation()}>
+                                <div className="rs-row-actions">
+                                  <button className="rs-row-btn rs-row-btn--view" title="View Full Analysis" onClick={() => setReviewingTest(row)}>
+                                    <span className="material-symbols-outlined">visibility</span>
+                                  </button>
+                                  <button 
+                                    className="rs-row-btn rs-row-btn--pdf" 
+                                    title="Download Official Scorecard"
+                                    onClick={() => downloadSingleTestReport({
+                                      ...row,
+                                      candidateName: user?.name,
+                                      rollNumber: user?.mhcetId
+                                    })}
+                                  >
+                                    <span className="material-symbols-outlined">picture_as_pdf</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
 
-                {testHistory.length > displayLimit && (
+                {displayedTests.length > displayLimit && (
                   <div className="rs-load-more">
-                    <button className="rs-load-btn" onClick={() => setDisplayLimit(testHistory.length)}>
-                      <span>Load More Tests</span>
+                    <button className="rs-load-btn" onClick={() => setDisplayLimit(displayedTests.length)}>
+                      <span>Load All Tests ({displayedTests.length})</span>
                       <span className="material-symbols-outlined">expand_more</span>
                     </button>
                   </div>
@@ -369,7 +467,7 @@ export default function Results({ onNavigate }: ResultsProps) {
             <div className="rs-footer-inner">
               <div>
                 <h5 className="rs-footer-brand">MHT-CET Elite</h5>
-                <p className="rs-footer-copy">© 2024 MHT-CET Elite Preparation Portal. All rights reserved.</p>
+                <p className="rs-footer-copy">© 2026 MHT-CET Elite Preparation Portal. All rights reserved.</p>
               </div>
               <div className="rs-footer-links">
                 {['Privacy Policy', 'Terms of Service', 'Contact Support'].map(l => (
@@ -384,20 +482,20 @@ export default function Results({ onNavigate }: ResultsProps) {
 
       {/* Mobile Bottom Nav */}
       <nav className="rs-mobile-nav">
-        <a href="#" className="rs-mob-item" onClick={e => e.preventDefault()}>
+        <a href="#" className="rs-mob-item" onClick={e => { e.preventDefault(); onNavigate?.('dashboard') }}>
           <span className="material-symbols-outlined">dashboard</span><span>Home</span>
         </a>
-        <a href="#" className="rs-mob-item" onClick={e => e.preventDefault()}>
+        <a href="#" className="rs-mob-item" onClick={e => { e.preventDefault(); onNavigate?.('mocktests') }}>
           <span className="material-symbols-outlined">quiz</span><span>Tests</span>
         </a>
         <div className="rs-mob-fab-wrap">
-          <button className="rs-mob-fab"><span className="material-symbols-outlined">add</span></button>
+          <button className="rs-mob-fab" onClick={() => onNavigate?.('mocktests')}><span className="material-symbols-outlined">add</span></button>
         </div>
         <a href="#" className="rs-mob-item rs-mob-item--active" onClick={e => e.preventDefault()}>
           <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>history</span>
           <span>Results</span>
         </a>
-        <a href="#" className="rs-mob-item" onClick={e => e.preventDefault()}>
+        <a href="#" className="rs-mob-item" onClick={e => { e.preventDefault(); onNavigate?.('settings') }}>
           <span className="material-symbols-outlined">person</span><span>Profile</span>
         </a>
       </nav>

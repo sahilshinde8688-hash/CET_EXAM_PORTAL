@@ -3,6 +3,8 @@ import { questionsAPI, usersAPI, testsAPI, session, Question } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
+import FormattedSolution from './FormattedSolution'
+import { generateQuestionExplanation } from '../lib/openrouter'
 import FullscreenWarningModal from './FullscreenWarningModal'
 import SubmissionAnimation from './SubmissionAnimation'
 import { useFullscreenGuard } from '../lib/useFullscreenGuard'
@@ -53,7 +55,7 @@ const normalizeQuestion = (question: Partial<Question> & { [key: string]: any })
   solution: question.solution,
   correctIndex: Number(question.correctIndex ?? 0),
   marks: Number(question.marks ?? 2),
-  negativeMarks: Number(question.negativeMarks ?? 0.5),
+  negativeMarks: Number(question.negativeMarks ?? 0),
   difficulty: (question.difficulty as Question['difficulty']) || 'Easy',
   isActive: question.isActive !== false,
   createdAt: question.createdAt,
@@ -107,7 +109,7 @@ export default function TestInterface({
         options: ['250 J', '500 J', '100 J', '50 J'],
         correctIndex: 0,
         marks: 2,
-        negativeMarks: 0.5,
+        negativeMarks: 0,
         difficulty: 'Easy',
         isActive: true,
       },
@@ -119,7 +121,7 @@ export default function TestInterface({
         options: ['6', '8', '12', '14'],
         correctIndex: 0,
         marks: 2,
-        negativeMarks: 0.5,
+        negativeMarks: 0,
         difficulty: 'Easy',
         isActive: true,
       },
@@ -131,7 +133,7 @@ export default function TestInterface({
         options: ['2x', 'x', 'x²/2', '2'],
         correctIndex: 0,
         marks: 2,
-        negativeMarks: 0.5,
+        negativeMarks: 0,
         difficulty: 'Easy',
         isActive: true,
       },
@@ -223,6 +225,12 @@ export default function TestInterface({
   const [showResultPage, setShowResultPage] = useState(reviewMode)
   const [confirmationId, setConfirmationId] = useState<string>('')
   const [user, setUser] = useState<{ name: string; mhcetId?: string; email: string } | null>(null)
+  const [aiSolutions, setAiSolutions] = useState<Record<string, string>>({})
+  const [loadingAiSolution, setLoadingAiSolution] = useState<Record<string, boolean>>({})
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportType, setReportType] = useState('')
+  const [reportNote, setReportNote] = useState('')
+  const [reportSuccess, setReportSuccess] = useState(false)
 
   // Full-screen guard — active only during the live exam (not review/result/loading)
   const examActive = !reviewMode && !submitted && !loading && !showResultPage && !showSuccessPage
@@ -306,9 +314,11 @@ export default function TestInterface({
     let score = 0
     let maxScore = 0
 
+    const isMhtCet = !examName?.toLowerCase().includes('jee') && !examName?.toLowerCase().includes('neet')
+
     questions.forEach(question => {
       const normalizedMarks = Number(question.marks ?? 0)
-      const normalizedNegativeMarks = Number(question.negativeMarks ?? 0)
+      const normalizedNegativeMarks = isMhtCet ? 0 : Number(question.negativeMarks ?? 0)
       const normalizedCorrectIndex = Number(question.correctIndex ?? 0)
       maxScore += normalizedMarks
       const selectedRaw = answers[question._id]
@@ -356,13 +366,14 @@ export default function TestInterface({
     // Calculate percentile (simple implementation based on score percentage)
     const percentile = resultData.maxScore > 0 ? ((resultData.score / resultData.maxScore) * 100) : 0
     
+    const isMhtCet = !examName?.toLowerCase().includes('jee') && !examName?.toLowerCase().includes('neet')
     const subjectWiseMap = new Map<string, { correct: number, total: number, marks: number, maxMarks: number }>()
     questions.forEach(q => {
       const subjectName = q.subject || 'General'
       const selected = Number(answers[q._id])
       const correctIndex = Number(q.correctIndex ?? 0)
       const marks = Number(q.marks ?? 0)
-      const negativeMarks = Number(q.negativeMarks ?? 0)
+      const negativeMarks = isMhtCet ? 0 : Number(q.negativeMarks ?? 0)
       const existing = subjectWiseMap.get(subjectName) || { correct: 0, total: 0, marks: 0, maxMarks: 0 }
       existing.total += 1
       existing.maxMarks += marks
@@ -560,12 +571,13 @@ export default function TestInterface({
     
     const subjectWiseMap = new Map<string, { correct: number; total: number; marks: number; maxMarks: number }>()
     
+    const isMhtCet = !examName?.toLowerCase().includes('jee') && !examName?.toLowerCase().includes('neet')
     questions.forEach(q => {
       const subjectName = q.subject?.trim() || 'General'
       const selected = Number(answers[q._id])
       const correctIndex = Number(q.correctIndex ?? 0)
       const marks = Number(q.marks ?? 0)
-      const negativeMarks = Number(q.negativeMarks ?? 0)
+      const negativeMarks = isMhtCet ? 0 : Number(q.negativeMarks ?? 0)
       const existing = subjectWiseMap.get(subjectName) || { correct: 0, total: 0, marks: 0, maxMarks: 0 }
       
       existing.total += 1
@@ -820,6 +832,12 @@ export default function TestInterface({
         canRetake={true}
         hasPassed={hasPassed}
         analyticsGrid={analyticsGridContent}
+        questions={questions}
+        answers={answers}
+        onSelectQuestion={(idx) => {
+          setCurrentIndex(idx)
+          setShowResultPage(false)
+        }}
       />
     )
   }
@@ -939,10 +957,10 @@ export default function TestInterface({
                   <span className="test-q-number">{currentIndex + 1}</span>
                   <div>
                     <p className="test-q-topic">{currentQuestion.subject} • {currentQuestion.topic}</p>
-                    <p className="test-q-marks">+{currentQuestion.marks} Marks • -{currentQuestion.negativeMarks} Negative</p>
+                    <p className="test-q-marks">+{currentQuestion.marks} Marks • {Number(currentQuestion.negativeMarks || 0) === 0 ? 'No Negative Marking' : `-${currentQuestion.negativeMarks} Negative`}</p>
                   </div>
                 </div>
-                <button className="test-report-btn">
+                <button className="test-report-btn" onClick={() => { setShowReportModal(true); setReportSuccess(false); setReportType(''); setReportNote('') }}>
                   <span className="material-symbols-outlined">report</span>
                   Report Error
                 </button>
@@ -1001,10 +1019,58 @@ export default function TestInterface({
 
                 {reviewMode && (
                   <div className="test-review-explanation" style={{ marginTop: '32px', padding: '24px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="material-symbols-outlined" style={{ color: '#3b82f6' }}>info</span>
-                      Detailed Solution
-                    </h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="material-symbols-outlined" style={{ color: '#3b82f6' }}>info</span>
+                        Detailed Solution & Review
+                      </h3>
+                      <button
+                        onClick={async () => {
+                          const qKey = currentQuestion._id || currentQuestion.text.slice(0, 30)
+                          const userAns = answers[currentQuestion._id] !== undefined ? Number(answers[currentQuestion._id]) : null
+                          setLoadingAiSolution(prev => ({ ...prev, [qKey]: true }))
+                          try {
+                            const exp = await generateQuestionExplanation({
+                              questionId: currentQuestion._id,
+                              text: currentQuestion.text,
+                              options: currentQuestion.options,
+                              correctIndex: currentQuestion.correctIndex,
+                              userAnswerIndex: userAns,
+                              subject: currentQuestion.subject,
+                              chapter: currentQuestion.chapter,
+                              topic: currentQuestion.topic,
+                              existingSolution: currentQuestion.solution,
+                            })
+                            setAiSolutions(prev => ({ ...prev, [qKey]: exp }))
+                          } catch (e) {
+                            console.error(e)
+                          } finally {
+                            setLoadingAiSolution(prev => ({ ...prev, [qKey]: false }))
+                          }
+                        }}
+                        disabled={loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)]}
+                        style={{
+                          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '7px 14px',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          fontWeight: 600,
+                          cursor: loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)] ? 'wait' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                        }}
+                      >
+                        <span className={`material-symbols-outlined ${loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)] ? 'spin' : ''}`} style={{ fontSize: '16px' }}>
+                          {loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)] ? 'sync' : 'auto_awesome'}
+                        </span>
+                        {loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)] ? 'Generating AI Solution...' : '✨ Explain with AI'}
+                      </button>
+                    </div>
+
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '32px' }}>
                       <div>
                         <span style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Your Answer</span>
@@ -1019,13 +1085,31 @@ export default function TestInterface({
                         </span>
                       </div>
                     </div>
-                    <div style={{ fontSize: '15px', lineHeight: '1.7', color: '#334155', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-                      {currentQuestion.solution ? (
-                        <MathRenderer value={currentQuestion.solution} />
-                      ) : (
-                        <p style={{ color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>No detailed explanation provided for this question.</p>
-                      )}
-                    </div>
+
+                    {/* Author Solution */}
+                    {currentQuestion.solution ? (
+                      <div style={{ fontSize: '15px', lineHeight: '1.7', color: '#334155', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginBottom: '14px' }}>
+                        <b style={{ color: '#1e40af', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Reference Explanation:</b>
+                        <FormattedSolution content={currentQuestion.solution} />
+                      </div>
+                    ) : (
+                      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginBottom: '14px' }}>
+                        <p style={{ color: '#94a3b8', fontStyle: 'italic', margin: 0, fontSize: '14px' }}>
+                          Click "✨ Explain with AI" above to generate a full step-by-step mathematical derivation for this question.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* AI Deep Solution */}
+                    {aiSolutions[currentQuestion._id || currentQuestion.text.slice(0, 30)] && (
+                      <div style={{ background: '#fff', border: '1.5px solid #bfdbfe', borderRadius: '10px', padding: '18px', marginTop: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#1e40af', fontWeight: 700, fontSize: '13.5px', marginBottom: '12px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563eb' }}>auto_awesome</span>
+                          GPT-4o Step-by-Step Mathematical Derivation & Concept Breakdown
+                        </div>
+                        <FormattedSolution content={aiSolutions[currentQuestion._id || currentQuestion.text.slice(0, 30)]} />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1144,6 +1228,105 @@ export default function TestInterface({
         onRequestFullscreen={requestFullscreen}
         onDismissFocusWarning={dismissFocusWarning}
       />
+
+      {/* ── Report Error Modal ─────────────────────────────────── */}
+      {showReportModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+        }} onClick={() => setShowReportModal(false)}>
+          <div style={{
+            background: '#fff', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%',
+            boxShadow: '0 24px 48px -12px rgba(0,0,0,0.25)', animation: 'slideUp 0.2s ease-out',
+          }} onClick={e => e.stopPropagation()}>
+            {reportSuccess ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#16a34a', marginBottom: '12px' }}>check_circle</span>
+                <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#0f172a' }}>Report Submitted!</h3>
+                <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>
+                  Thank you for reporting. Our team will review Q{currentIndex + 1} and correct it if needed.
+                </p>
+                <button onClick={() => setShowReportModal(false)} style={{
+                  padding: '10px 24px', borderRadius: '8px', background: '#2563eb', color: '#fff',
+                  border: 'none', fontWeight: 600, fontSize: '14px', cursor: 'pointer'
+                }}>Close</button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a', fontWeight: 700 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '22px', verticalAlign: 'middle', marginRight: '8px', color: '#dc2626' }}>report</span>
+                    Report Issue — Q{currentIndex + 1}
+                  </h3>
+                  <button onClick={() => setShowReportModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13.5px' }}>
+                  Select the type of issue you found with this question:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                  {[
+                    { value: 'incorrect_answer', label: 'Incorrect answer key', icon: '❌' },
+                    { value: 'math_error', label: 'Math/formula formatting error', icon: '📐' },
+                    { value: 'typo', label: 'Typo or unclear wording', icon: '✏️' },
+                    { value: 'duplicate', label: 'Duplicate / repeated question', icon: '📋' },
+                    { value: 'other', label: 'Other issue', icon: '💬' },
+                  ].map(opt => (
+                    <label key={opt.value} style={{
+                      display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
+                      borderRadius: '8px', cursor: 'pointer', fontSize: '14px',
+                      border: reportType === opt.value ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                      background: reportType === opt.value ? '#eff6ff' : '#f8fafc',
+                      fontWeight: reportType === opt.value ? 600 : 400,
+                      transition: 'all 0.1s ease',
+                    }}>
+                      <input type="radio" name="reportType" value={opt.value}
+                        checked={reportType === opt.value}
+                        onChange={e => setReportType(e.target.value)}
+                        style={{ display: 'none' }}
+                      />
+                      <span style={{ fontSize: '16px' }}>{opt.icon}</span>
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <textarea
+                  placeholder="Optional: Add more details about the issue..."
+                  value={reportNote}
+                  onChange={e => setReportNote(e.target.value)}
+                  rows={2}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                    fontSize: '13.5px', resize: 'vertical', fontFamily: 'inherit', marginBottom: '16px',
+                    outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setShowReportModal(false)} style={{
+                    padding: '9px 18px', borderRadius: '8px', background: '#f1f5f9', color: '#475569',
+                    border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer'
+                  }}>Cancel</button>
+                  <button
+                    disabled={!reportType}
+                    onClick={() => {
+                      console.log('Error Report:', { questionId: currentQuestion?._id, questionIndex: currentIndex + 1, type: reportType, note: reportNote })
+                      setReportSuccess(true)
+                    }}
+                    style={{
+                      padding: '9px 18px', borderRadius: '8px',
+                      background: reportType ? '#2563eb' : '#94a3b8', color: '#fff',
+                      border: 'none', fontWeight: 600, fontSize: '13.5px',
+                      cursor: reportType ? 'pointer' : 'not-allowed', opacity: reportType ? 1 : 0.7,
+                    }}
+                  >Submit Report</button>
+                </div>
+              </>
+            )}
+          </div>
+          <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+        </div>
+      )}
     </div>
   )
 }

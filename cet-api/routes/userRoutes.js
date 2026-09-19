@@ -267,6 +267,203 @@ router.post('/:id/reject', protect, adminOnly, validateCsrfToken, apiLimiter, as
   }
 })
 
+// POST /api/users/bulk-approve — ADMIN ONLY: approve multiple students
+router.post('/bulk-approve', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  try {
+    const { ids } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No student IDs provided' })
+    }
+
+    const results = []
+    for (const id of ids) {
+      try {
+        const user = await db.findUserById(id)
+        if (!user || user.status === 'approved') continue
+
+        const mhcetId = await generateMhcetId()
+        const mhcetPwd = generatePassword()
+        const hashedPassword = await bcrypt.hash(mhcetPwd, 10)
+
+        const updatedUser = await db.updateUser(user.id, {
+          status: 'approved',
+          mhcetId,
+          password: hashedPassword,
+          mhcetPassword: mhcetPwd,
+          mustResetPassword: true,
+          approvedAt: new Date().toISOString(),
+        })
+
+        const sanitized = { ...updatedUser }
+        delete sanitized.password
+
+        try {
+          await axios.post(
+            `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-approval`,
+            {
+              name: user.name,
+              email: user.email,
+              branch: user.branch || 'N/A',
+              mhcetId,
+              password: mhcetPwd,
+            },
+            { timeout: 3000 }
+          )
+        } catch {}
+
+        results.push(sanitized)
+      } catch (innerErr) {
+        console.error(`Error approving user ${id}:`, innerErr.message)
+      }
+    }
+
+    res.json({
+      success: true,
+      count: results.length,
+      message: `Successfully approved ${results.length} student(s).`,
+      users: results,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// POST /api/users/bulk-reject — ADMIN ONLY: reject multiple students
+router.post('/bulk-reject', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  try {
+    const { ids, reason } = req.body
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No student IDs provided' })
+    }
+
+    let count = 0
+    for (const id of ids) {
+      try {
+        const user = await db.findUserById(id)
+        if (!user) continue
+
+        try {
+          await axios.post(
+            `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-rejection`,
+            {
+              name: user.name,
+              email: user.email,
+              reason: reason || 'Application did not meet requirements',
+            },
+            { timeout: 3000 }
+          )
+        } catch {}
+
+        await db.deleteUser(id)
+        count++
+      } catch (innerErr) {
+        console.error(`Error rejecting user ${id}:`, innerErr.message)
+      }
+    }
+
+    res.json({
+      success: true,
+      count,
+      message: `Successfully rejected ${count} applicant(s).`,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET /api/users/export — ADMIN ONLY: Export students to Excel (.xlsx) batch-wise
+router.get('/export', protect, adminOnly, async (req, res) => {
+  try {
+    const XLSX = require('xlsx')
+    const { batch, status } = req.query
+    const filter = { role: 'student' }
+    if (status && status !== 'All') filter.status = status
+    if (batch && batch !== 'All') filter.batch = Number(batch)
+
+    const students = await db.getAllUsers(filter)
+
+    const formatRow = (s) => ({
+      'Name of the student': s.name || '',
+      'Email ID': s.email || '',
+      'Student Unique No.': s.mhcetId || s.id || 'Pending',
+      'Username': s.mhcetId || s.email || '',
+      'Password': s.mhcetPassword || (s.status === 'pending' ? 'Pending Approval' : '••••••••'),
+      'Batch': s.batch ? `Batch ${s.batch}` : 'N/A',
+      'Branch': s.branch || 'N/A',
+      'Phone Number': s.phone || 'N/A',
+      'Status': s.status ? (s.status.charAt(0).toUpperCase() + s.status.slice(1)) : 'Pending',
+      'Registered Date': s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN') : 'N/A',
+    })
+
+    const wb = XLSX.utils.book_new()
+    const rows = students.map(formatRow)
+    const wsAll = XLSX.utils.json_to_sheet(rows)
+
+    const colWidths = [
+      { wch: 25 }, // Name
+      { wch: 28 }, // Email
+      { wch: 20 }, // Student Unique No.
+      { wch: 20 }, // Username
+      { wch: 18 }, // Password
+      { wch: 14 }, // Batch
+      { wch: 16 }, // Branch
+      { wch: 16 }, // Phone
+      { wch: 14 }, // Status
+      { wch: 16 }, // Date
+    ]
+    wsAll['!cols'] = colWidths
+    XLSX.utils.book_append_sheet(wb, wsAll, 'All Students')
+
+    // Add separate tabs for each batch
+    const distinctBatches = [...new Set(students.map((s) => s.batch).filter(Boolean))].sort()
+    distinctBatches.forEach((b) => {
+      const batchStudents = students.filter((s) => s.batch === b)
+      if (batchStudents.length > 0) {
+        const wsBatch = XLSX.utils.json_to_sheet(batchStudents.map(formatRow))
+        wsBatch['!cols'] = colWidths
+        XLSX.utils.book_append_sheet(wb, wsBatch, `Batch ${b}`)
+      }
+    })
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+    const filename = `Students_Export_${batch ? `Batch_${batch}` : 'All_Batches'}_${new Date().toISOString().slice(0, 10)}.xlsx`
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.send(buffer)
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// PUT /api/users/:id — ADMIN ONLY: update any student details
+router.put('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  try {
+    const { name, email, phone, branch, batch, status } = req.body
+    const user = await db.findUserById(req.params.id)
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+    const updates = {}
+    if (name) updates.name = String(name).trim().slice(0, 100)
+    if (email) updates.email = String(email).trim().toLowerCase()
+    if (phone) updates.phone = String(phone).trim()
+    if (branch) updates.branch = branch
+    if (batch) updates.batch = Number(batch)
+    if (status) updates.status = status
+
+    const updatedUser = await db.updateUser(req.params.id, updates)
+    delete updatedUser.password
+
+    res.json({
+      success: true,
+      message: 'Student updated successfully',
+      user: updatedUser,
+    })
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message })
+  }
+})
+
 // DELETE /api/users/:id — ADMIN ONLY: delete student
 router.delete('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {

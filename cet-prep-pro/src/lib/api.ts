@@ -737,6 +737,106 @@ export const usersAPI = {
 
     return { message: 'Student rejected.' }
   },
+  async bulkApprove(ids: string[]) {
+    const csrfToken = getCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+    try {
+      const res = await fetch(`${BASE}/users/bulk-approve`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ ids }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) return data
+      }
+    } catch {}
+
+    // Fallback: approve sequentially
+    let approvedCount = 0
+    for (const id of ids) {
+      try {
+        await this.approve(id)
+        approvedCount++
+      } catch (err) {
+        console.error(`Failed to approve ${id}:`, err)
+      }
+    }
+    return { success: true, count: approvedCount, message: `Approved ${approvedCount} student(s).` }
+  },
+  async bulkReject(ids: string[], reason?: string) {
+    const csrfToken = getCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+    try {
+      const res = await fetch(`${BASE}/users/bulk-reject`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ ids, reason }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) return data
+      }
+    } catch {}
+
+    // Fallback: reject sequentially
+    let rejectedCount = 0
+    for (const id of ids) {
+      try {
+        await this.reject(id)
+        rejectedCount++
+      } catch (err) {
+        console.error(`Failed to reject ${id}:`, err)
+      }
+    }
+    return { success: true, count: rejectedCount, message: `Rejected ${rejectedCount} applicant(s).` }
+  },
+  async updateStudent(id: string, updates: Partial<AuthUser>) {
+    const csrfToken = getCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+    try {
+      const res = await fetch(`${BASE}/users/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify(updates),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) return data.user
+      }
+    } catch {}
+
+    // Update in Supabase
+    try {
+      const dbUpdates: any = {}
+      if (updates.name) dbUpdates.name = updates.name
+      if (updates.email) dbUpdates.email = updates.email
+      if (updates.phone) dbUpdates.phone = updates.phone
+      if (updates.branch) dbUpdates.branch = updates.branch
+      if (updates.batch) dbUpdates.batch = updates.batch
+      if (updates.status) dbUpdates.status = updates.status
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    } catch (err) {
+      throw new Error('Unable to update student details.')
+    }
+  },
   async delete(id: string) {
     const { data: existingUser } = await supabase
       .from('users')

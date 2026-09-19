@@ -23,6 +23,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [testHistory, setTestHistory] = useState<TestResult[]>(() => testsAPI.getCachedDashboardResults() || [])
   const [dashboardLoading, setDashboardLoading] = useState(() => !testsAPI.getCachedDashboardResults())
   const [dashboardError, setDashboardError] = useState(false)
+  const [showNotifs, setShowNotifs] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  const [unreadNotifs, setUnreadNotifs] = useState(3)
+  const [shareToast, setShareToast] = useState(false)
   const user = session.get<AuthUser>()
 
   useEffect(() => {
@@ -140,13 +144,45 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           </div>
           <div className="db-topbar-right">
-            <button className="db-icon-btn db-notif-btn">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="db-notif-dot" />
-            </button>
-            <button className="db-icon-btn">
-              <span className="material-symbols-outlined">help</span>
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="db-icon-btn db-notif-btn" onClick={() => { setShowNotifs(!showNotifs); setShowHelp(false) }}>
+                <span className="material-symbols-outlined">notifications</span>
+                {unreadNotifs > 0 && <span className="db-notif-dot" />}
+              </button>
+              {showNotifs && (
+                <div className="db-popover" style={{ position: 'absolute', top: '48px', right: 0, width: '320px', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', zIndex: 100, border: '1px solid #e2e8f0', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Notifications</h4>
+                    {unreadNotifs > 0 && <button style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }} onClick={() => setUnreadNotifs(0)}>Mark all read</button>}
+                  </div>
+                  {unreadNotifs > 0 ? (
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      <div style={{ fontSize: '13px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}><strong>System Update:</strong> MHT-CET 2026 pattern updated.</div>
+                      <div style={{ fontSize: '13px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}><strong>New Test:</strong> Full Length Mock 4 is now available!</div>
+                      <div style={{ fontSize: '13px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}><strong>Reminder:</strong> Finish your pending Physics section.</div>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px 0' }}>You're all caught up!</p>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div style={{ position: 'relative' }}>
+              <button className="db-icon-btn" onClick={() => { setShowHelp(!showHelp); setShowNotifs(false) }}>
+                <span className="material-symbols-outlined">help</span>
+              </button>
+              {showHelp && (
+                <div className="db-popover" style={{ position: 'absolute', top: '48px', right: 0, width: '280px', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', zIndex: 100, border: '1px solid #e2e8f0', padding: '16px' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 600 }}>Need Help?</h4>
+                  <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '13px', color: '#334155', display: 'grid', gap: '8px' }}>
+                    <li><a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>Take a Tour</a></li>
+                    <li><a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>MHT-CET Guidelines</a></li>
+                    <li><a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>Contact Support</a></li>
+                  </ul>
+                </div>
+              )}
+            </div>
             <div className="db-user-chip">
               <div className="db-user-info">
                 <p className="db-user-name">{user?.name || 'Student'}</p>
@@ -236,9 +272,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                   <p className="db-resume-sub">{inProgressTest.message || 'Section remaining. Resume to complete your test.'}</p>
                   <div className="db-resume-actions">
                     <button className="db-resume-btn" onClick={() => setShowTest(true)}>Resume Now</button>
-                    <button className="db-share-btn">
+                    <button className="db-share-btn" onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      setShareToast(true);
+                      setTimeout(() => setShareToast(false), 2000);
+                    }}>
                       <span className="material-symbols-outlined">share</span>
                     </button>
+                    {shareToast && <span style={{ position: 'absolute', bottom: '-28px', right: 0, background: '#1e293b', color: '#fff', fontSize: '11px', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Link Copied!</span>}
                   </div>
                 </div>
                 <div className="db-resume-icon-wrap">
@@ -339,7 +380,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                         <p className={`db-result-score${t.highlight ? ' db-result-score--blue' : ''}`}>{t.score}</p>
                         <p className={`db-result-percentile${t.highlight ? ' db-result-percentile--green' : ''}`}>{t.percentile}</p>
                       </div>
-                      <button className="db-result-chevron">
+                      <button className="db-result-chevron" onClick={() => onNavigate?.('results')}>
                         <span className="material-symbols-outlined">chevron_right</span>
                       </button>
                     </div>
@@ -357,14 +398,18 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       {/* ── Mobile Bottom Nav ────────────────────── */}
       <nav className="db-mobile-nav-bar">
         {[
-          { icon: 'dashboard', label: 'Home' },
-          { icon: 'quiz', label: 'Tests' },
-          { icon: 'insights', label: 'Stats' },
-          { icon: 'person', label: 'Profile' },
+          { icon: 'dashboard', label: 'Home', page: 'dashboard' },
+          { icon: 'quiz', label: 'Tests', page: 'mocktests' },
+          { icon: 'insights', label: 'Stats', page: 'analytics' },
+          { icon: 'person', label: 'Profile', page: 'settings' },
         ].map(item => (
           <a key={item.label} href="#"
             className={`db-mobile-nav-item${activeNav === item.label ? ' db-mobile-nav-item--active' : ''}`}
-            onClick={e => { e.preventDefault(); setActiveNav(item.label) }}
+            onClick={e => { 
+              e.preventDefault(); 
+              setActiveNav(item.label);
+              if (item.page && onNavigate) onNavigate(item.page as any)
+            }}
           >
             <span className="material-symbols-outlined">{item.icon}</span>
             <span>{item.label}</span>

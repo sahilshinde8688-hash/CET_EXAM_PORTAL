@@ -1906,3 +1906,101 @@
 .rs2-photo-upload-btn--loading { background: #727785; cursor: not-allowed; }
 .rs2-photo-upload-btn .material-symbols-outlined { font-size: 12px !important; }
 .rs2-photo-input { display: none; }
+
+/* ── Export Button & Batch Styling ─────────────── */
+.rr-bulk-btn--export {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+.rr-bulk-btn--export:hover {
+  background: #115e59 !important;
+  border-color: #115e59 !important;
+}
+
+/* ── Modal & Dialog Styling ──────────────────── */
+.rr-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.rr-modal-card {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%; max-width: 540px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  overflow: hidden;
+  animation: rrModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes rrModalFadeIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rr-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.rr-modal-title {
+  font-size: 18px; font-weight: 700; color: #0f172a; margin: 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.rr-modal-close-btn {
+  background: transparent; border: none; cursor: pointer;
+  color: #64748b; border-radius: 8px; padding: 4px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.rr-modal-close-btn:hover { background: #f1f5f9; color: #0f172a; }
+.rr-modal-body {
+  padding: 24px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.rr-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex; justify-content: flex-end; gap: 12px;
+}
+.rr-detail-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px; margin-top: 16px;
+}
+.rr-detail-item label {
+  display: block; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; color: #64748b; margin-bottom: 4px;
+}
+.rr-detail-item span {
+  font-size: 14px; font-weight: 600; color: #1e293b;
+}
+
+/* ── Notifications Popover ───────────────────── */
+.adb-notif-dropdown {
+  position: absolute; top: 60px; right: 80px;
+  width: 360px; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  z-index: 1000; overflow: hidden;
+}
+.adb-notif-header {
+  padding: 14px 16px; border-bottom: 1px solid #e2e8f0;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.adb-notif-header h4 { margin: 0; font-size: 14px; font-weight: 700; }
+.adb-notif-list { max-height: 320px; overflow-y: auto; }
+.adb-notif-item {
+  padding: 12px 16px; border-bottom: 1px solid #f1f5f9;
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 12px;
+}
+.adb-notif-item:hover { background: #f8fafc; }
+.adb-notif-clear-btn {
+  background: none; border: none; color: #2563eb;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+

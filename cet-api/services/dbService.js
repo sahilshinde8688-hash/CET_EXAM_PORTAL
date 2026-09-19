@@ -41,8 +41,8 @@ const questionToCamel = (row) => {
     options: row.options || [],
     correctIndex: row.correct_index,
     solution: row.solution,
-    marks: row.marks ? Number(row.marks) : 2,
-    negativeMarks: row.negative_marks ? Number(row.negative_marks) : 0.5,
+    marks: row.marks !== null && row.marks !== undefined ? Number(row.marks) : 2,
+    negativeMarks: row.negative_marks !== null && row.negative_marks !== undefined ? Number(row.negative_marks) : 0,
     difficulty: row.difficulty,
     isActive: row.is_active,
     createdAt: row.created_at,
@@ -57,7 +57,7 @@ const sanitizeQuestion = (q) => {
     ...safeQuestion,
     correctIndex: Number(q.correctIndex ?? 0),
     marks: Number(q.marks ?? 2),
-    negativeMarks: Number(q.negativeMarks ?? 0.5),
+    negativeMarks: Number(q.negativeMarks ?? 0),
   }
 }
 
@@ -740,8 +740,10 @@ const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, du
         subjData.marks += marks
       } else {
         incorrect += 1
-        score = Math.max(0, score - negativeMarks)
-        subjData.marks = Math.max(0, subjData.marks - negativeMarks)
+        const isCetExam = !testName?.toLowerCase().includes('jee') && !testName?.toLowerCase().includes('neet')
+        const deduction = isCetExam ? 0 : negativeMarks
+        score = Math.max(0, score - deduction)
+        subjData.marks = Math.max(0, subjData.marks - deduction)
       }
     }
   }

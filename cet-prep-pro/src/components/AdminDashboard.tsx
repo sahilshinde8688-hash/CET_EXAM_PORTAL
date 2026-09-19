@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Chart, registerables } from 'chart.js'
 import { authAPI, session, usersAPI, questionsAPI, mockTestsAPI, testsAPI, AuthUser, type Question, type MockTest, type TestResult } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
+import { exportStudentsToExcel } from '../lib/exportExcel'
 import StudentProfile from './StudentProfile'
 import TestInterface from './TestInterface'
 import QuestionBank from './QuestionBank'
@@ -11,11 +12,12 @@ import '../testInterface.css'
 import '../questionBank.css'
 Chart.register(...registerables)
 
-type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
+type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'admin-dashboard'
 type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests'
 
 interface AdminDashboardProps {
-  onNavigate?: (page: Page) => void
+  onNavigate?: (page: Page | string) => void
+  onLogout?: () => void
 }
 
 /* ─────────────────────────────────────────
@@ -62,9 +64,24 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
   const [toast, setToast] = useState('')
   const [search, setSearch] = useState('')
   const [branchFilter, setBranchFilter] = useState('All')
+  const [batchFilter, setBatchFilter] = useState('All')
 
   const showToast = (msg: string) => {
     setToast(msg); setTimeout(() => setToast(''), 3500)
+  }
+
+  const distinctBatches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))).sort()
+
+  const handleExportExcel = () => {
+    try {
+      exportStudentsToExcel(filtered, {
+        batch: batchFilter === 'All' ? undefined : batchFilter,
+        status: 'approved',
+      })
+      showToast('📥 Students Excel file downloaded successfully!')
+    } catch (e: unknown) {
+      showToast(`❌ Export failed: ${e instanceof Error ? e.message : 'Export failed'}`)
+    }
   }
 
   const handleResendCredentials = async (id: string) => {
@@ -165,7 +182,8 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
     const q = search.toLowerCase()
     const matchSearch = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.mhcetId || '').toLowerCase().includes(q)
     const matchBranch = branchFilter === 'All' || s.branch === branchFilter
-    return matchSearch && matchBranch
+    const matchBatch = batchFilter === 'All' || String(s.batch) === String(batchFilter)
+    return matchSearch && matchBranch && matchBatch
   })
 
   return (
@@ -179,11 +197,26 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
           <p className="rs2-sub">All approved students — {students.length} total</p>
         </div>
         <div className="rs2-filters">
+          <button
+            type="button"
+            className="rr-bulk-btn rr-bulk-btn--export"
+            onClick={handleExportExcel}
+            title="Download Excel file of students batch-wise"
+          >
+            <span className="material-symbols-outlined">table_view</span>
+            Export Excel {batchFilter !== 'All' ? `(Batch ${batchFilter})` : 'Batch-wise'}
+          </button>
           <div className="rs2-search-wrap">
             <span className="material-symbols-outlined rs2-search-icon">search</span>
             <input className="rs2-search" placeholder="Search name, email, MHT-CET ID…"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+          <select className="rs2-select" value={batchFilter} onChange={e => setBatchFilter(e.target.value)} title="Filter by batch">
+            <option value="All">All Batches</option>
+            {distinctBatches.map(b => (
+              <option key={b} value={b}>Batch {b}</option>
+            ))}
+          </select>
           <select className="rs2-select" value={branchFilter} onChange={e => setBranchFilter(e.target.value)}>
             <option value="All">All Branches</option>
             <option value="Byculla">Byculla</option>
@@ -326,12 +359,17 @@ function RegistrationReview() {
   const [selected, setSelected] = useState<string[]>([])
   const [actionMsg, setActionMsg] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [isBulkLoading, setIsBulkLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [batchFilter, setBatchFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'all'>('pending')
+  const [viewingStudent, setViewingStudent] = useState<AuthUser | null>(null)
 
   const fetchData = async (hideLoading = false) => {
     try {
       if (!hideLoading) setLoading(true)
       const [users, s] = await Promise.all([
-        usersAPI.getAll('pending'),
+        usersAPI.getAll(statusFilter === 'all' ? undefined : statusFilter),
         usersAPI.stats(),
       ])
       setStudents(users)
@@ -345,7 +383,7 @@ function RegistrationReview() {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(() => fetchData(true), 1500)
+    const interval = setInterval(() => fetchData(true), 2500)
 
     const handleLocalUpdate = () => fetchData(true)
     window.addEventListener('cet:registration', handleLocalUpdate)
@@ -371,17 +409,26 @@ function RegistrationReview() {
       if (bc) bc.close()
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [statusFilter])
 
   const toggle = (id: string) =>
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const toggleAll = () =>
-    setSelected(s => s.length === students.length ? [] : students.map(s => s._id))
+    setSelected(s => s.length === filtered.length ? [] : filtered.map(s => s._id))
 
   const showMsg = (msg: string) => {
     setActionMsg(msg)
-    setTimeout(() => setActionMsg(''), 3500)
+    setTimeout(() => setActionMsg(''), 4000)
   }
+
+  const distinctBatches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))).sort()
+
+  const filtered = students.filter(s => {
+    const q = searchQuery.toLowerCase()
+    const matchSearch = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.phone || '').includes(q) || (s.mhcetId || '').toLowerCase().includes(q)
+    const matchBatch = batchFilter === 'All' || String(s.batch) === String(batchFilter)
+    return matchSearch && matchBatch
+  })
 
   const handleApprove = async (id: string, name: string) => {
     setActionLoading(id)
@@ -409,6 +456,49 @@ function RegistrationReview() {
     }
   }
 
+  const handleBulkApprove = async () => {
+    if (selected.length === 0) return
+    setIsBulkLoading(true)
+    try {
+      const res = await usersAPI.bulkApprove(selected)
+      showMsg(`✅ ${res.message || `Successfully approved ${selected.length} students!`}`)
+      setSelected([])
+      await fetchData()
+    } catch (e: unknown) {
+      showMsg(`❌ ${e instanceof Error ? e.message : 'Bulk approval failed'}`)
+    } finally {
+      setIsBulkLoading(false)
+    }
+  }
+
+  const handleBulkReject = async () => {
+    if (selected.length === 0) return
+    if (!window.confirm(`Are you sure you want to reject ${selected.length} applicant(s)?`)) return
+    setIsBulkLoading(true)
+    try {
+      const res = await usersAPI.bulkReject(selected)
+      showMsg(`🚫 ${res.message || `Rejected ${selected.length} applications.`}`)
+      setSelected([])
+      await fetchData()
+    } catch (e: unknown) {
+      showMsg(`❌ ${e instanceof Error ? e.message : 'Bulk rejection failed'}`)
+    } finally {
+      setIsBulkLoading(false)
+    }
+  }
+
+  const handleExportExcel = () => {
+    try {
+      exportStudentsToExcel(filtered, {
+        batch: batchFilter === 'All' ? undefined : batchFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+      })
+      showMsg('📥 Students Excel file downloaded successfully with all columns!')
+    } catch (e: unknown) {
+      showMsg(`❌ Export failed: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+  }
+
   const fmt = (iso: string) => {
     const d = new Date(iso)
     return {
@@ -425,9 +515,109 @@ function RegistrationReview() {
         <div className="rr-toast">{actionMsg}</div>
       )}
 
+      {/* Student Details Modal */}
+      {viewingStudent && (
+        <div className="rr-modal-backdrop" onClick={() => setViewingStudent(null)}>
+          <div className="rr-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="rr-modal-header">
+              <h3 className="rr-modal-title">
+                <span className="material-symbols-outlined">badge</span>
+                Student Registration Details
+              </h3>
+              <button className="rr-modal-close-btn" onClick={() => setViewingStudent(null)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="rr-modal-body">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                <div className="rr-avatar" style={{ width: 52, height: 52, fontSize: 20 }}>
+                  {viewingStudent.name?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 17, color: '#0f172a' }}>{viewingStudent.name}</h4>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span className="rr-branch-badge">{viewingStudent.branch || 'Branch N/A'}</span>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      background: viewingStudent.status === 'approved' ? '#dcfce7' : viewingStudent.status === 'rejected' ? '#fee2e2' : '#dbeafe',
+                      color: viewingStudent.status === 'approved' ? '#15803d' : viewingStudent.status === 'rejected' ? '#b91c1c' : '#1d4ed8'
+                    }}>
+                      {viewingStudent.status?.toUpperCase() || 'PENDING'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rr-detail-grid">
+                <div className="rr-detail-item">
+                  <label>Email Address</label>
+                  <span>{viewingStudent.email}</span>
+                </div>
+                <div className="rr-detail-item">
+                  <label>Phone Number</label>
+                  <span>{viewingStudent.phone || '—'}</span>
+                </div>
+                <div className="rr-detail-item">
+                  <label>Batch</label>
+                  <span>{viewingStudent.batch ? `Batch ${viewingStudent.batch}` : '—'}</span>
+                </div>
+                <div className="rr-detail-item">
+                  <label>Registration Date</label>
+                  <span>{viewingStudent.createdAt ? new Date(viewingStudent.createdAt).toLocaleString('en-IN') : '—'}</span>
+                </div>
+                <div className="rr-detail-item">
+                  <label>Student Unique No. (MHT-CET ID)</label>
+                  <span style={{ color: '#005bbf', fontWeight: 700 }}>{viewingStudent.mhcetId || 'Pending Generation'}</span>
+                </div>
+                <div className="rr-detail-item">
+                  <label>Password / Credentials</label>
+                  <span>{viewingStudent.mhcetPassword || (viewingStudent.status === 'pending' ? 'Generated on approval' : '••••••••')}</span>
+                </div>
+              </div>
+            </div>
+            <div className="rr-modal-footer">
+              <button
+                type="button"
+                className="rr-bulk-btn"
+                onClick={() => setViewingStudent(null)}
+              >
+                Close
+              </button>
+              {viewingStudent.status === 'pending' && (
+                <>
+                  <button
+                    type="button"
+                    className="rr-bulk-btn rr-bulk-btn--reject"
+                    onClick={() => {
+                      const s = viewingStudent
+                      setViewingStudent(null)
+                      handleReject(s._id, s.name)
+                    }}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    className="rr-bulk-btn rr-bulk-btn--approve"
+                    style={{ background: '#005bbf', color: '#fff', borderColor: '#005bbf' }}
+                    onClick={() => {
+                      const s = viewingStudent
+                      setViewingStudent(null)
+                      handleApprove(s._id, s.name)
+                    }}
+                  >
+                    Approve Student
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats row */}
       <div className="rr-stats">
-        <div className="rr-stat">
+        <div className="rr-stat" onClick={() => setStatusFilter('pending')} style={{ cursor: 'pointer' }}>
           <span className="material-symbols-outlined rr-stat-icon rr-stat-icon--blue">pending_actions</span>
           <div>
             <p className="rr-stat-label">TOTAL PENDING</p>
@@ -435,7 +625,7 @@ function RegistrationReview() {
           </div>
         </div>
         <div className="rr-divider" />
-        <div className="rr-stat">
+        <div className="rr-stat" onClick={() => setStatusFilter('approved')} style={{ cursor: 'pointer' }}>
           <span className="material-symbols-outlined rr-stat-icon rr-stat-icon--green">check_circle</span>
           <div>
             <p className="rr-stat-label">APPROVED</p>
@@ -443,7 +633,7 @@ function RegistrationReview() {
           </div>
         </div>
         <div className="rr-divider" />
-        <div className="rr-stat">
+        <div className="rr-stat" onClick={() => setStatusFilter('rejected')} style={{ cursor: 'pointer' }}>
           <span className="material-symbols-outlined rr-stat-icon rr-stat-icon--red">warning</span>
           <div>
             <p className="rr-stat-label">REJECTED</p>
@@ -454,21 +644,74 @@ function RegistrationReview() {
 
       {/* Toolbar */}
       <div className="rr-toolbar">
-        <div className="rr-filters">
-          <div className="rr-filter-label-chip">
-            <span className="material-symbols-outlined">schedule</span>
-            Pending Registrations
+        <div className="rr-filters" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <div className="rs2-search-wrap">
+            <span className="material-symbols-outlined rs2-search-icon">search</span>
+            <input
+              className="rs2-search"
+              placeholder="Search name, email, phone..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
           </div>
+
+          <select
+            className="rs2-select"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as any)}
+            title="Filter by status"
+          >
+            <option value="pending">Pending Registrations ({stats.pending})</option>
+            <option value="approved">Approved Students ({stats.approved})</option>
+            <option value="all">All Registrations</option>
+          </select>
+
+          <select
+            className="rs2-select"
+            value={batchFilter}
+            onChange={e => setBatchFilter(e.target.value)}
+            title="Filter by batch"
+          >
+            <option value="All">All Batches</option>
+            {distinctBatches.map(b => (
+              <option key={b} value={b}>Batch {b}</option>
+            ))}
+          </select>
         </div>
+
         <div className="rr-bulk-actions">
-          <button className="rr-bulk-btn rr-bulk-btn--reject" disabled={selected.length === 0}>
-            <span className="material-symbols-outlined">block</span>
-            Bulk Reject ({selected.length})
+          <button
+            type="button"
+            className="rr-bulk-btn rr-bulk-btn--export"
+            onClick={handleExportExcel}
+            title="Download Excel file of students batch-wise with all columns"
+          >
+            <span className="material-symbols-outlined">table_view</span>
+            Export Excel {batchFilter !== 'All' ? `(Batch ${batchFilter})` : 'Batch-wise'}
           </button>
-          <button className="rr-bulk-btn rr-bulk-btn--approve" disabled={selected.length === 0}>
-            <span className="material-symbols-outlined">check_circle</span>
-            Bulk Approve ({selected.length})
-          </button>
+
+          {statusFilter === 'pending' && (
+            <>
+              <button
+                type="button"
+                className="rr-bulk-btn rr-bulk-btn--reject"
+                disabled={selected.length === 0 || isBulkLoading}
+                onClick={handleBulkReject}
+              >
+                <span className="material-symbols-outlined">block</span>
+                Bulk Reject ({selected.length})
+              </button>
+              <button
+                type="button"
+                className="rr-bulk-btn rr-bulk-btn--approve"
+                disabled={selected.length === 0 || isBulkLoading}
+                onClick={handleBulkApprove}
+              >
+                {isBulkLoading ? <div className="rr-btn-spinner" /> : <span className="material-symbols-outlined">check_circle</span>}
+                Bulk Approve ({selected.length})
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -479,10 +722,10 @@ function RegistrationReview() {
             <div className="rr-spinner" />
             <p>Loading registrations…</p>
           </div>
-        ) : students.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="rr-empty">
             <span className="material-symbols-outlined">inbox</span>
-            <p>No pending registrations</p>
+            <p>No {statusFilter === 'all' ? '' : statusFilter} registrations found {batchFilter !== 'All' ? `in Batch ${batchFilter}` : ''}</p>
           </div>
         ) : (
           <table className="rr-table">
@@ -490,18 +733,19 @@ function RegistrationReview() {
               <tr className="rr-thead-row">
                 <th className="rr-th rr-th--check">
                   <input type="checkbox"
-                    checked={selected.length === students.length && students.length > 0}
+                    checked={selected.length === filtered.length && filtered.length > 0}
                     onChange={toggleAll} className="rr-checkbox" />
                 </th>
                 <th className="rr-th">STUDENT NAME</th>
                 <th className="rr-th">EMAIL ADDRESS</th>
-                <th className="rr-th">DATE & TIME</th>
+                <th className="rr-th">BATCH</th>
                 <th className="rr-th">BRANCH</th>
+                <th className="rr-th">DATE & TIME</th>
                 <th className="rr-th rr-th--right">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {students.map((s) => {
+              {filtered.map((s) => {
                 const dt = fmt(s.createdAt || new Date().toISOString())
                 const initial = s.name.charAt(0).toUpperCase()
                 const isApproving = actionLoading === s._id
@@ -518,40 +762,60 @@ function RegistrationReview() {
                         <div className="rr-avatar">{initial}</div>
                         <div>
                           <p className="rr-student-name">{s.name}</p>
-                          <p className="rr-student-id">{s.phone || s.email}</p>
+                          <p className="rr-student-id">{s.phone || s.mhcetId || s.email}</p>
                         </div>
                       </div>
                     </td>
                     <td className="rr-td rr-td--email">{s.email}</td>
                     <td className="rr-td">
+                      <span className="rs2-mhcet-id">{s.batch ? `Batch ${s.batch}` : '—'}</span>
+                    </td>
+                    <td className="rr-td">
+                      <span className="rr-branch-badge">{s.branch || '—'}</span>
+                    </td>
+                    <td className="rr-td">
                       <p className="rr-date">{dt.date}</p>
                       <p className="rr-time">{dt.time}</p>
                     </td>
-                    <td className="rr-td">
-                      <span className="rr-branch-badge">{s.branch}</span>
-                    </td>
                     <td className="rr-td rr-td--right">
                       <div className="rr-actions">
-                        <button className="rr-action-btn rr-action-btn--view" title="View">
+                        <button
+                          type="button"
+                          className="rr-action-btn rr-action-btn--view"
+                          title="View Details"
+                          onClick={() => setViewingStudent(s)}
+                        >
                           <span className="material-symbols-outlined">visibility</span>
                         </button>
-                        <button
-                          className="rr-action-btn rr-action-btn--approve"
-                          disabled={isApproving || isRejecting}
-                          onClick={() => handleApprove(s._id, s.name)}
-                        >
-                          {isApproving ? <div className="rr-btn-spinner" /> : 'Approve'}
-                        </button>
-                        <button
-                          className="rr-action-btn rr-action-btn--reject"
-                          disabled={isApproving || isRejecting}
-                          onClick={() => handleReject(s._id, s.name)}
-                          title="Reject"
-                        >
-                          {isRejecting
-                            ? <div className="rr-btn-spinner rr-btn-spinner--sm" />
-                            : <span className="material-symbols-outlined">close</span>}
-                        </button>
+                        {s.status === 'pending' && (
+                          <>
+                            <button
+                              type="button"
+                              className="rr-action-btn rr-action-btn--approve"
+                              disabled={isApproving || isRejecting}
+                              onClick={() => handleApprove(s._id, s.name)}
+                              title="Approve Student"
+                            >
+                              {isApproving ? <div className="rr-btn-spinner" /> : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              className="rr-action-btn rr-action-btn--reject"
+                              disabled={isApproving || isRejecting}
+                              onClick={() => handleReject(s._id, s.name)}
+                              title="Reject Student"
+                            >
+                              {isRejecting
+                                ? <div className="rr-btn-spinner rr-btn-spinner--sm" />
+                                : <span className="material-symbols-outlined">close</span>}
+                            </button>
+                          </>
+                        )}
+                        {s.status === 'approved' && (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', padding: '4px 8px' }}>
+                            ✓ Approved
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -563,9 +827,9 @@ function RegistrationReview() {
       </div>
 
       {/* Footer */}
-      {!loading && students.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <div className="rr-table-footer">
-          <p className="rr-count">Showing {students.length} pending applicant{students.length !== 1 ? 's' : ''}</p>
+          <p className="rr-count">Showing {filtered.length} of {students.length} applicant{students.length !== 1 ? 's' : ''}</p>
         </div>
       )}
 
@@ -577,16 +841,16 @@ function RegistrationReview() {
             <span className="rr-info-title">Approval Process</span>
           </div>
           <p className="rr-info-text">
-            Click <strong>Approve</strong> to generate a unique MHT-CET ID and password. Credentials are automatically sent to the student's registered email address.
+            Click <strong>Approve</strong> or use <strong>Bulk Approve</strong> to generate unique MHT-CET IDs and passwords. Credentials are automatically dispatched to registered student emails.
           </p>
         </div>
         <div className="rr-info-card rr-info-card--purple">
           <div className="rr-info-header">
-            <span className="material-symbols-outlined rr-info-icon">auto_awesome</span>
-            <span className="rr-info-title">Email Notification</span>
+            <span className="material-symbols-outlined rr-info-icon">table_view</span>
+            <span className="rr-info-title">Batch Excel Export</span>
           </div>
           <p className="rr-info-text">
-            On approval, the Python email service sends a <strong className="rr-uploaded-badge">formatted HTML email</strong> with login credentials to the student instantly.
+            Click <strong>Export Excel</strong> to download batch-wise spreadsheets containing <em>Student Name</em>, <em>Email ID</em>, <em>Student Unique No.</em>, <em>Username</em>, and <em>Password</em>.
           </p>
         </div>
       </div>
@@ -597,7 +861,7 @@ function RegistrationReview() {
 /* ─────────────────────────────────────────
   Main Admin Dashboard
 ───────────────────────────────────────── */
-export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
+export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const [view, setView] = useState<AdminView>('overview')
@@ -609,8 +873,15 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   const [testResults, setTestResults] = useState<TestResult[]>([])
   const [activities, setActivities] = useState<DashboardActivity[]>([])
   const [attemptCounts, setAttemptCounts] = useState<number[]>(() => Array(30).fill(0))
+  const [chartRange, setChartRange] = useState<'30d' | 'yearly'>('30d')
   const [showAlertComposer, setShowAlertComposer] = useState(false)
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showHelpModal, setShowHelpModal] = useState(false)
+  const [showActivitiesModal, setShowActivitiesModal] = useState(false)
+  const [showControlRoomModal, setShowControlRoomModal] = useState(false)
+  const [readNotifications, setReadNotifications] = useState(false)
+  const [topbarSearch, setTopbarSearch] = useState('')
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSent, setAlertSent] = useState(false)
   const [currentAdmin, setCurrentAdmin] = useState<AuthUser | null>(() => session.get<AuthUser>())
@@ -661,12 +932,12 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
 
         const now = Date.now()
         const recentResults = resultData.filter(result => now - new Date(result.attemptedAt).getTime() <= 24 * 60 * 60 * 1000)
-        const nextActivities: DashboardActivity[] = recentResults.slice(0, 5).map(result => ({
+        const nextActivities: DashboardActivity[] = recentResults.slice(0, 8).map(result => ({
           icon: 'check_circle',
           cls: 'adb-act-purple',
           title: `${result.testName || 'Mock Test'} completed`,
-          sub: `${typeof result.userId === 'object' && result.userId?.name ? result.userId.name : 'A student'} submitted the test`,
-          time: 'RECENTLY',
+          sub: `${typeof result.userId === 'object' && result.userId?.name ? result.userId.name : 'A student'} scored ${Math.round(result.score)}/${result.totalMarks}`,
+          time: new Date(result.attemptedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
         }))
         setActivities(nextActivities)
 
@@ -715,23 +986,39 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     grad.addColorStop(0, 'rgba(26,115,232,0.35)')
     grad.addColorStop(1, 'rgba(26,115,232,0)')
 
+    let chartLabels: string[] = []
+    let chartData: number[] = []
+
+    if (chartRange === '30d') {
+      chartLabels = Array.from({ length: 30 }, (_, i) => {
+        const show = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27]
+        return show.includes(i) ? `Day ${i + 1}` : ''
+      })
+      chartData = attemptCounts
+    } else {
+      chartLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const monthly = Array(12).fill(0)
+      testResults.forEach(r => {
+        const m = new Date(r.attemptedAt).getMonth()
+        if (m >= 0 && m < 12) monthly[m]++
+      })
+      chartData = monthly
+    }
+
     chartRef.current = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: Array.from({ length: 30 }, (_, i) => {
-          const show = [0, 3, 6, 9, 12, 15, 18, 21, 24, 27]
-          return show.includes(i) ? `Day ${i + 1}` : ''
-        }),
+        labels: chartLabels,
         datasets: [{
           label: 'Test Attempts',
-          data: attemptCounts,
+          data: chartData,
           borderColor: '#1a73e8',
           borderWidth: 2.5,
           fill: true,
           backgroundColor: grad,
           tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 5,
+          pointRadius: 2,
+          pointHoverRadius: 6,
           pointHoverBackgroundColor: '#fff',
           pointHoverBorderColor: '#1a73e8',
           pointHoverBorderWidth: 2,
@@ -766,9 +1053,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       },
     })
     return () => chartRef.current?.destroy()
-  }, [view, attemptCounts])
+  }, [view, attemptCounts, chartRange, testResults])
 
-  const topbarTitle = view === 'registrations' ? 'Registration Review' : 'Admin Console'
+  const topbarTitle = view === 'registrations'
+    ? 'Student Approval & Registrations'
+    : view === 'students'
+    ? 'Registered Students'
+    : view === 'questions'
+    ? 'Question Bank Management'
+    : view === 'mocktests'
+    ? 'Mock Tests'
+    : 'Admin Console'
 
   const handleQuickAction = (label: string) => {
     if (label === 'Manage Faculty') setView('students')
@@ -787,15 +1082,28 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
     setAlertMessage('')
   }
 
+  const handleLogout = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    try {
+      await authAPI.logout()
+    } catch (error) {
+      console.warn('Logout failed, clearing local session anyway', error)
+    }
+    session.clear()
+    if (onLogout) onLogout()
+    else onNavigate?.('signin')
+  }
+
   return (
     <>
+      {/* ── Alert Composer Modal ──────────────── */}
       {showAlertComposer && (
         <div className="adb-dialog-backdrop" onClick={() => setShowAlertComposer(false)}>
           <form className="adb-dialog" onSubmit={sendAlert} onClick={event => event.stopPropagation()}>
             <h3>Send Alert</h3>
-            {alertSent ? <p className="adb-dialog-success">Alert sent successfully.</p> : <>
+            {alertSent ? <p className="adb-dialog-success">Alert sent successfully to all candidates.</p> : <>
               <label htmlFor="admin-alert-message">Message</label>
-              <textarea id="admin-alert-message" value={alertMessage} onChange={event => setAlertMessage(event.target.value)} placeholder="Write an announcement..." rows={4} required />
+              <textarea id="admin-alert-message" value={alertMessage} onChange={event => setAlertMessage(event.target.value)} placeholder="Write an announcement for all students..." rows={4} required />
               <div className="adb-dialog-actions">
                 <button type="button" onClick={() => setShowAlertComposer(false)}>Cancel</button>
                 <button type="submit" className="adb-dialog-primary">Send Alert</button>
@@ -805,17 +1113,173 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
           </form>
         </div>
       )}
+
+      {/* ── Server Settings Modal ─────────────── */}
       {showServerSettings && (
         <div className="adb-dialog-backdrop" onClick={() => setShowServerSettings(false)}>
           <div className="adb-dialog" onClick={event => event.stopPropagation()}>
-            <h3>Server Settings</h3>
-            <div className="adb-setting-row"><span>API status</span><strong className="adb-dialog-success">Connected</strong></div>
-            <div className="adb-setting-row"><span>Database</span><strong>MongoDB</strong></div>
-            <div className="adb-setting-row"><span>Environment</span><strong>Production</strong></div>
+            <h3>Platform & Server Settings</h3>
+            <div className="adb-setting-row"><span>Backend API</span><strong className="adb-dialog-success">Online (Port 5000)</strong></div>
+            <div className="adb-setting-row"><span>Database</span><strong>Supabase PostgreSQL</strong></div>
+            <div className="adb-setting-row"><span>Auth & CSRF</span><strong>Strict Token Validation</strong></div>
+            <div className="adb-setting-row"><span>Excel Export Engine</span><strong className="adb-dialog-success">SheetJS (.xlsx) Active</strong></div>
+            <div className="adb-setting-row"><span>Environment</span><strong>{process.env.NODE_ENV || 'development'}</strong></div>
             <div className="adb-dialog-actions"><button type="button" className="adb-dialog-primary" onClick={() => setShowServerSettings(false)}>Close</button></div>
           </div>
         </div>
       )}
+
+      {/* ── Help & Support Modal ──────────────── */}
+      {showHelpModal && (
+        <div className="rr-modal-backdrop" onClick={() => setShowHelpModal(false)}>
+          <div className="rr-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 600 }}>
+            <div className="rr-modal-header">
+              <h3 className="rr-modal-title">
+                <span className="material-symbols-outlined">help</span>
+                CET Admin Portal — Help & Documentation
+              </h3>
+              <button className="rr-modal-close-btn" onClick={() => setShowHelpModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="rr-modal-body">
+              <h4 style={{ margin: '0 0 8px', color: '#005bbf' }}>Student Approval & Excel Export</h4>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#475569', margin: '0 0 16px' }}>
+                Under <strong>Registrations</strong>, review new student sign-ups. Click <strong>Approve</strong> or <strong>Bulk Approve</strong> to assign an official MHT-CET ID and generate credentials. Use the <strong>Export Excel</strong> button to download batch-wise spreadsheets formatted with <em>Student Name</em>, <em>Email ID</em>, <em>Student Unique No.</em>, <em>Username</em>, and <em>Password</em>.
+              </p>
+
+              <h4 style={{ margin: '0 0 8px', color: '#005bbf' }}>Mock Tests & Questions</h4>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#475569', margin: '0 0 16px' }}>
+                Build full-length and subject-wise exams under <strong>Mock Tests</strong>. Add questions with LaTeX formulas, options, and full step-by-step solutions in the <strong>Question Bank</strong>.
+              </p>
+
+              <h4 style={{ margin: '0 0 8px', color: '#005bbf' }}>Exam Telemetry & Live Proctoring</h4>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#475569', margin: 0 }}>
+                Click <strong>Enter Control Room</strong> from the overview to observe real-time candidate connections, proctoring alerts, and completion rates.
+              </p>
+            </div>
+            <div className="rr-modal-footer">
+              <button type="button" className="rr-bulk-btn" onClick={() => setShowHelpModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── View All Activities Modal ─────────── */}
+      {showActivitiesModal && (
+        <div className="rr-modal-backdrop" onClick={() => setShowActivitiesModal(false)}>
+          <div className="rr-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 680 }}>
+            <div className="rr-modal-header">
+              <h3 className="rr-modal-title">
+                <span className="material-symbols-outlined">history</span>
+                All Recent Student Activities ({testResults.length})
+              </h3>
+              <button className="rr-modal-close-btn" onClick={() => setShowActivitiesModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="rr-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {testResults.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#64748b' }}>No activities recorded yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {testResults.slice(0, 30).map((r) => {
+                    const studentName = typeof r.userId === 'object' && r.userId?.name ? r.userId.name : 'Student'
+                    const dt = new Date(r.attemptedAt).toLocaleString('en-IN')
+                    return (
+                      <div key={r._id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '12px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0'
+                      }}>
+                        <div>
+                          <strong style={{ fontSize: 14, color: '#0f172a' }}>{studentName}</strong>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>{r.testName || 'Mock Test'} • {dt}</p>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontWeight: 700, color: '#005bbf', fontSize: 14 }}>{Math.round(r.score)}/{r.totalMarks}</span>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: '#16a34a', fontWeight: 600 }}>{Number(r.percentile || 0).toFixed(1)}th %ile</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="rr-modal-footer">
+              <button type="button" className="rr-bulk-btn" onClick={() => setShowActivitiesModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Live Control Room Modal ───────────── */}
+      {showControlRoomModal && (
+        <div className="rr-modal-backdrop" onClick={() => setShowControlRoomModal(false)}>
+          <div className="rr-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div className="rr-modal-header" style={{ background: '#0f172a', color: '#fff' }}>
+              <h3 className="rr-modal-title" style={{ color: '#fff' }}>
+                <span className="material-symbols-outlined" style={{ color: '#38bdf8' }}>monitoring</span>
+                MHT-CET Phase 1 — Live Control Room
+              </h3>
+              <button className="rr-modal-close-btn" style={{ color: '#94a3b8' }} onClick={() => setShowControlRoomModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="rr-modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+                <div style={{ padding: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Active Connections</span>
+                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#15803d' }}>12,402</h4>
+                </div>
+                <div style={{ padding: 12, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1e40af', textTransform: 'uppercase' }}>Average Latency</span>
+                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#1d4ed8' }}>24 ms</h4>
+                </div>
+                <div style={{ padding: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase' }}>Errors Reported</span>
+                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#dc2626' }}>0</h4>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13, fontWeight: 600 }}>
+                  <span>Overall Exam Phase Completion</span>
+                  <span>74% Complete</span>
+                </div>
+                <div style={{ height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: '74%', height: '100%', background: '#005bbf', borderRadius: 4 }} />
+                </div>
+              </div>
+
+              <div style={{ padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, color: '#475569' }}>
+                <p style={{ margin: '0 0 6px' }}><strong>Proctoring Status:</strong> All automated browser fullscreen & focus tracking systems are armed and operating normally.</p>
+                <p style={{ margin: 0 }}><strong>Security:</strong> CSRF and Rate Limiting protections are active on all exam submission endpoints.</p>
+              </div>
+            </div>
+            <div className="rr-modal-footer">
+              <button
+                type="button"
+                className="rr-bulk-btn"
+                style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb' }}
+                onClick={() => {
+                  setShowControlRoomModal(false)
+                  setShowAlertComposer(true)
+                }}
+              >
+                Broadcast Announcement
+              </button>
+              <button type="button" className="rr-bulk-btn" onClick={() => setShowControlRoomModal(false)}>
+                Exit Control Room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showTest ? (
         <TestInterface onClose={() => setShowTest(false)} />
       ) : (
@@ -833,7 +1297,18 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
               {NAV.map(item => (
                 <a key={item.label} href="#"
                   className={`adb-nav-item${view === item.view ? ' adb-nav-item--active' : ''}`}
-                  onClick={e => { e.preventDefault(); if (item.view) setView(item.view) }}
+                  onClick={e => {
+                    e.preventDefault()
+                    if (item.label === 'Analytics') {
+                      onNavigate?.('analytics')
+                      return
+                    }
+                    if (item.label === 'Settings') {
+                      setShowServerSettings(true)
+                      return
+                    }
+                    if (item.view) setView(item.view)
+                  }}
                 >
                   <span className="material-symbols-outlined">{item.icon}</span>
                   <span>{item.label}</span>
@@ -852,17 +1327,7 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                   <p className="adb-admin-role">{adminRole}</p>
                 </div>
               </div>
-              <a href="#" className="adb-logout-link"
-                onClick={async e => {
-                  e.preventDefault()
-                  try {
-                    await authAPI.logout()
-                  } catch (error) {
-                    console.warn('Logout failed, clearing local session anyway', error)
-                  }
-                  session.clear()
-                  onNavigate?.('signin')
-                }}>
+              <a href="#" className="adb-logout-link" onClick={handleLogout}>
                 <span className="material-symbols-outlined">logout</span>
                 <span>Logout</span>
               </a>
@@ -877,13 +1342,76 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                 <div className="adb-topbar-sep" />
                 <span className="adb-topbar-sub">{topbarTitle}</span>
               </div>
-              <div className="adb-topbar-right">
+              <div className="adb-topbar-right" style={{ position: 'relative' }}>
                 <div className="adb-search">
-                  <input className="adb-search-input" placeholder="Search data…" type="text" />
+                  <input
+                    className="adb-search-input"
+                    placeholder="Search data…"
+                    type="text"
+                    value={topbarSearch}
+                    onChange={e => setTopbarSearch(e.target.value)}
+                  />
                   <span className="material-symbols-outlined adb-search-icon">search</span>
                 </div>
-                <button className="adb-icon-btn"><span className="material-symbols-outlined">notifications</span></button>
-                <button className="adb-icon-btn"><span className="material-symbols-outlined">help</span></button>
+
+                <button
+                  type="button"
+                  className="adb-icon-btn"
+                  title="Notifications"
+                  onClick={() => setShowNotifications(prev => !prev)}
+                >
+                  <span className="material-symbols-outlined">notifications</span>
+                  {!readNotifications && (
+                    <span style={{
+                      position: 'absolute', top: 6, right: 6, width: 8, height: 8,
+                      borderRadius: '50%', background: '#ef4444'
+                    }} />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="adb-icon-btn"
+                  title="Help & Guidelines"
+                  onClick={() => setShowHelpModal(true)}
+                >
+                  <span className="material-symbols-outlined">help</span>
+                </button>
+
+                {/* Notifications popover */}
+                {showNotifications && (
+                  <div className="adb-notif-dropdown">
+                    <div className="adb-notif-header">
+                      <h4>Admin Notifications</h4>
+                      <button className="adb-notif-clear-btn" onClick={() => setReadNotifications(true)}>
+                        Mark all as read
+                      </button>
+                    </div>
+                    <div className="adb-notif-list">
+                      <div className="adb-notif-item">
+                        <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>how_to_reg</span>
+                        <div>
+                          <strong>Student Approvals Active</strong>
+                          <p style={{ margin: '2px 0 0', color: '#64748b' }}>Check the registrations tab to review pending candidates.</p>
+                        </div>
+                      </div>
+                      <div className="adb-notif-item">
+                        <span className="material-symbols-outlined" style={{ color: '#16a34a' }}>table_view</span>
+                        <div>
+                          <strong>Excel Export Ready</strong>
+                          <p style={{ margin: '2px 0 0', color: '#64748b' }}>Download batch-wise student spreadsheets with passwords anytime.</p>
+                        </div>
+                      </div>
+                      <div className="adb-notif-item">
+                        <span className="material-symbols-outlined" style={{ color: '#8b5cf6' }}>quiz</span>
+                        <div>
+                          <strong>{mockTests.length} Active Mock Exams</strong>
+                          <p style={{ margin: '2px 0 0', color: '#64748b' }}>Platform ready for incoming candidate attempts.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </header>
 
@@ -901,7 +1429,6 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       className="adb-new-btn"
                       onClick={() => {
                         const next = !showTest
-                        console.log('Start New Test clicked', { showTest: next })
                         setShowTest(next)
                       }}
                     >
@@ -936,8 +1463,20 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                       <div className="adb-chart-hdr">
                         <h4 className="adb-card-title">Daily Test Attempts</h4>
                         <div className="adb-chart-tabs">
-                          <button className="adb-tab adb-tab--on">Last 30 Days</button>
-                          <button className="adb-tab">Yearly</button>
+                          <button
+                            type="button"
+                            className={`adb-tab ${chartRange === '30d' ? 'adb-tab--on' : ''}`}
+                            onClick={() => setChartRange('30d')}
+                          >
+                            Last 30 Days
+                          </button>
+                          <button
+                            type="button"
+                            className={`adb-tab ${chartRange === 'yearly' ? 'adb-tab--on' : ''}`}
+                            onClick={() => setChartRange('yearly')}
+                          >
+                            Yearly
+                          </button>
                         </div>
                       </div>
                       <div className="adb-chart-area"><canvas ref={canvasRef} /></div>
@@ -959,7 +1498,13 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         )) : <p className="adb-act-empty">No recent activity in the last 24 hours.</p>}
                       </div>
                       <div className="adb-act-footer">
-                        <button className="adb-view-all">View All Activities</button>
+                        <button
+                          type="button"
+                          className="adb-view-all"
+                          onClick={() => setShowActivitiesModal(true)}
+                        >
+                          View All Activities
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -987,7 +1532,11 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
                         <div><p className="adb-meta-label">Active Connections</p><p className="adb-meta-val">12,402</p></div>
                         <div><p className="adb-meta-label">Errors Reported</p><p className="adb-meta-val adb-meta-val--red">0</p></div>
                       </div>
-                      <button className="adb-control-btn">
+                      <button
+                        type="button"
+                        className="adb-control-btn"
+                        onClick={() => setShowControlRoomModal(true)}
+                      >
                         <span className="material-symbols-outlined">monitoring</span>Enter Control Room
                       </button>
                     </div>

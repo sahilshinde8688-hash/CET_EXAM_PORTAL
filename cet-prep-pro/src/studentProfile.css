@@ -1371,3 +1371,137 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Edit Profile Modal ── */
+.sp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  animation: sp-fadeIn 0.2s ease;
+}
+@keyframes sp-fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.sp-modal-card {
+  background: #fff;
+  border-radius: 16px;
+  width: 95%;
+  max-width: 520px;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.18);
+  overflow: hidden;
+  animation: sp-slideUp 0.25s ease;
+}
+@keyframes sp-slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+.sp-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.sp-modal-header h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+.sp-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  border-radius: 8px;
+  padding: 4px;
+  transition: background 0.2s;
+}
+.sp-modal-close:hover { background: #f1f5f9; color: #334155; }
+
+.sp-modal-body { padding: 24px; }
+
+.sp-edit-form { display: grid; gap: 16px; }
+
+.sp-edit-row {
+  display: grid;
+  gap: 6px;
+}
+.sp-edit-row label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+.sp-edit-row input {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.sp-edit-row input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background: #fff;
+}
+
+.sp-edit-row-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.sp-edit-msg {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin: 0;
+}
+.sp-edit-msg--success {
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.sp-edit-msg--error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.sp-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.sp-modal-btn {
+  padding: 9px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+.sp-modal-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sp-modal-btn--cancel {
+  background: #f1f5f9;
+  color: #475569;
+}
+.sp-modal-btn--cancel:hover:not(:disabled) { background: #e2e8f0; }
+.sp-modal-btn--save {
+  background: #2563eb;
+  color: #fff;
+}
+.sp-modal-btn--save:hover:not(:disabled) { background: #1d4ed8; }

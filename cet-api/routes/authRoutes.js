@@ -353,6 +353,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
 
     return res.status(200).json(payload)
   } catch (err) {
+    console.error('Login route error:', err.message || err)
     return res.status(500).json({ success: false, message: 'Internal server error.' })
   }
 })

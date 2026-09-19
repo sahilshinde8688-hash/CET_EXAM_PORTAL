@@ -8,6 +8,7 @@ import {
   Copy, FileText, Bold, Italic, Underline, List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
   Superscript, Subscript, Table, Type, Palette
 } from 'lucide-react'
+import { exportQuestionBankHTML } from '../lib/exportUtils'
 import { questionsAPI, Question } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import '../question-bank.css'
@@ -90,7 +91,7 @@ export default function QuestionBank() {
     showToast('CSV export started', 'success')
   }
 
-  const handleDownloadPDF = () => showToast('PDF export coming soon', 'success')
+  const handleDownloadPDF = () => exportQuestionBankHTML(filteredQuestions, 'CET Question Bank')
 
   // Dashboard Stats (Calculated)
   const stats = {
@@ -240,6 +241,19 @@ export default function QuestionBank() {
       difficulty: q.difficulty || 'Medium', status: q.isActive ? 'Published' : 'Draft'
     })
     setActiveTab('add')
+  }
+
+  const duplicate = (q: Question) => {
+    setEditingId(null)
+    setForm({
+      ...form,
+      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text ? `${q.text} (Copy)` : '', imageUrl: q.imageUrl || '', options: q.options ? [...q.options] : ['', '', '', ''],
+      solution: q.solution || '',
+      correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
+      difficulty: q.difficulty || 'Medium', status: 'Draft'
+    })
+    setActiveTab('add')
+    showToast('Question duplicated — edit and save as new')
   }
 
   const handleQuestionImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -475,7 +489,7 @@ export default function QuestionBank() {
                           <div style={{display: 'flex', gap: '4px'}}>
                             <button className="qb-btn-icon" title="Preview" onClick={() => setPreviewQ(q)}><Eye size={18}/></button>
                             <button className="qb-btn-icon" title="Edit" onClick={() => edit(q)}><Edit2 size={18}/></button>
-                            <button className="qb-btn-icon" title="Duplicate"><Copy size={18}/></button>
+                            <button className="qb-btn-icon" title="Duplicate" onClick={() => duplicate(q)}><Copy size={18}/></button>
                             <button className="qb-btn-icon danger" title="Delete" onClick={() => remove(q._id)}><Trash2 size={18}/></button>
                           </div>
                         </td>

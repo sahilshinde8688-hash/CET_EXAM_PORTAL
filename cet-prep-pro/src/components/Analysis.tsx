@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Sidebar, { type Page } from './Sidebar'
 import UserAvatar from './UserAvatar'
 import { session, type AuthUser } from '../lib/api'
+import { shareTestReport } from '../lib/exportUtils'
 
 interface AnalysisProps {
   onNavigate?: (page: Page) => void
@@ -63,8 +64,8 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
             <span className="material-symbols-outlined an-search-icon">search</span>
             <input className="an-search-input" placeholder="Search analytics..." type="text" />
           </div>
-          <button className="an-icon-btn"><span className="material-symbols-outlined">notifications</span></button>
-          <button className="an-icon-btn"><span className="material-symbols-outlined">settings</span></button>
+          <button className="an-icon-btn" title="Notifications"><span className="material-symbols-outlined">notifications</span></button>
+          <button className="an-icon-btn" title="Settings" onClick={() => onNavigate?.('settings')}><span className="material-symbols-outlined">settings</span></button>
           <UserAvatar user={user} className="an-avatar" onClick={() => onNavigate?.('settings')} />
         </div>
       </nav>
@@ -98,10 +99,10 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
               </div>
             </div>
             <div className="an-hero-actions">
-              <button className="an-hero-btn an-hero-btn--glass">
+              <button className="an-hero-btn an-hero-btn--glass" onClick={() => window.print()}>
                 <span className="material-symbols-outlined">download</span> Download PDF
               </button>
-              <button className="an-hero-btn an-hero-btn--white">
+              <button className="an-hero-btn an-hero-btn--white" onClick={() => shareTestReport('Analytics Report', 0, 200, '0')}>
                 <span className="material-symbols-outlined">share</span> Share Report
               </button>
             </div>
@@ -188,7 +189,7 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
                   </div>
                 ))}
               </div>
-              <button className="an-drill-btn">Start Prep Drill</button>
+              <button className="an-drill-btn" onClick={() => onNavigate?.('mocktests')}>Start Prep Drill</button>
             </div>
 
             {/* Question Grid */}
@@ -291,10 +292,10 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
 
           {/* Footer */}
           <footer className="an-footer">
-            <p className="an-footer-text">Detailed analysis generated on 24th Oct • Next Mock Test scheduled for 30th Oct</p>
+            <p className="an-footer-text">Detailed analysis generated on {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
             <div className="an-footer-btns">
-              <button className="an-footer-btn an-footer-btn--outline">Previous Test</button>
-              <button className="an-footer-btn an-footer-btn--primary">Next Suggested Goal</button>
+              <button className="an-footer-btn an-footer-btn--outline" onClick={() => onNavigate?.('results')}>Previous Test</button>
+              <button className="an-footer-btn an-footer-btn--primary" onClick={() => onNavigate?.('mocktests')}>Next Suggested Goal</button>
             </div>
           </footer>
 

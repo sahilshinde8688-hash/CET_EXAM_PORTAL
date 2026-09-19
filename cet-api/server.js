@@ -57,6 +57,7 @@ app.use('/api/tests', require('./routes/testRoutes'))
 app.use('/api/upload', require('./routes/uploadRoutes'))
 app.use('/api/questions', require('./routes/questionRoutes'))
 app.use('/api/mock-tests', require('./routes/mockTestRoutes'))
+app.use('/api/ai', require('./routes/aiRoutes'))
 
 // Standard Health Checks
 app.get('/health', (req, res) => {

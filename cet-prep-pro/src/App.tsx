@@ -124,9 +124,10 @@ export default function App() {
     }
   }, [page])
 
-  const navigate = (target: Page) => {
-    if (target === page) return
-    setNextPage(target)
+  const navigate = (target: Page | string) => {
+    const resolvedTarget = (target === 'admin-dashboard' ? 'admin' : target) as Page
+    if (resolvedTarget === page) return
+    setNextPage(resolvedTarget)
     setTransitioning(true)
   }
 
@@ -160,7 +161,16 @@ export default function App() {
   if (page === 'analytics') return <Analysis onNavigate={navigate} />
   if (page === 'settings')  return <Settings onNavigate={navigate} />
   if (page === 'admin') {
-    return <AdminDashboard onLogout={() => { clearAdminCredentials(); setAdminLoggedIn(false); navigate('signin') }} />
+    return (
+      <AdminDashboard
+        onNavigate={navigate}
+        onLogout={() => {
+          clearAdminCredentials()
+          setAdminLoggedIn(false)
+          navigate('signin')
+        }}
+      />
+    )
   }
   return <Dashboard onNavigate={navigate} />
 }
