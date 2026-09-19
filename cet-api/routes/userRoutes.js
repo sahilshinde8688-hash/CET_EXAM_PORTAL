@@ -226,7 +226,7 @@ router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, ap
         emailPayload,
         { timeout: 5000 }
       )
-      res.json({ success: true, message: `New credentials sent to ${user.email}` })
+      res.json({ success: true, message: `New credentials sent to ${user.email}`, password: newTempPassword })
     } catch (emailErr) {
       console.error('⚠️ Email service error:', emailErr.message)
       res.status(500).json({ success: false, message: 'Failed to send email. The email service is unreachable.' })

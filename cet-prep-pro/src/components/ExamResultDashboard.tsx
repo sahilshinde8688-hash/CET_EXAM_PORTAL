@@ -786,7 +786,7 @@ export default function ExamResultDashboard({
                     </div>
 
                     {/* Question Statement */}
-                    <div style={{ fontSize: '15.5px', fontWeight: 500, color: '#0f172a', marginBottom: '18px', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '15.5px', fontWeight: 500, color: '#0f172a', marginBottom: '18px', lineHeight: 1.6, minWidth: 0, overflowWrap: 'anywhere' }}>
                       <MathRenderer value={q.text} />
                     </div>
 
@@ -822,13 +822,14 @@ export default function ExamResultDashboard({
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               gap: '12px',
+                              minWidth: 0,
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14.5px', color: '#1e293b' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14.5px', color: '#1e293b', minWidth: 0, overflowWrap: 'anywhere' }}>
                               <span style={{ fontWeight: 700, color: badgeColor, minWidth: '22px' }}>
                                 {String.fromCharCode(65 + optIdx)})
                               </span>
-                              <span><MathRenderer value={opt} /></span>
+                              <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><MathRenderer value={opt} /></span>
                             </div>
                             <div>
                               {isThisCorrect && (

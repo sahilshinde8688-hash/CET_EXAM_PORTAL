@@ -101,8 +101,9 @@ export function shouldUseKaTeX(value: string = ''): boolean {
   const normalized = normalizePlainText(value).trim()
   if (!normalized) return false
 
+  // Keep prose as prose so a single formula does not make the whole sentence unwrappable.
+  if (looksLikeSentence(normalized)) return false
   if (hasExplicitLatex(normalized)) return true
-  if (looksLikeSentence(normalized) && !looksLikeFormula(normalized)) return false
   if (!looksLikeFormula(normalized)) return false
 
   const compact = normalized.replace(/\s+/g, '')
@@ -133,13 +134,13 @@ export function MathRenderer({ value = '', className = '' }: { value?: string; c
   if (shouldUseKaTeX(value)) {
     return (
       <span
-        className={className}
+        className={`math-renderer ${className}`.trim()}
         dangerouslySetInnerHTML={{ __html: renderMathWithKaTeX(value) }}
       />
     )
   }
 
-  return <span className={className}>{formatFallbackText(value)}</span>
+  return <span className={`math-renderer ${className}`.trim()}>{formatFallbackText(value)}</span>
 }
 
 export const MathText = MathRenderer

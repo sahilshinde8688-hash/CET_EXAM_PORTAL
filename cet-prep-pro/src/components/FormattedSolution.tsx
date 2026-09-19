@@ -62,23 +62,87 @@ function renderInlineMath(text: string): React.ReactNode[] {
   return parts
 }
 
+function renderFormattedText(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const boldRegex = /\*\*(.+?)\*\*/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = boldRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(...renderInlineMath(text.slice(lastIndex, match.index)))
+    }
+    parts.push(<strong key={`${match.index}-${match[0]}`}>{renderInlineMath(match[1])}</strong>)
+    lastIndex = boldRegex.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(...renderInlineMath(text.slice(lastIndex)))
+  }
+
+  return parts
+}
+
 export default function FormattedSolution({ content, className = '' }: FormattedSolutionProps) {
   if (!content) return null
 
-  // Split into lines/blocks
-  const lines = content.split('\n')
+  // Group multi-line display equations before rendering individual solution lines.
+  const sourceLines = content.split('\n')
+  const lines: Array<{ type: 'line' | 'displayMath'; value: string }> = []
+  let displayMath: string[] | null = null
+
+  sourceLines.forEach(line => {
+    const trimmed = line.trim()
+    const startsDisplayMath = trimmed === '\\[' || trimmed === '$$'
+    const endsDisplayMath = trimmed === '\\]' || trimmed === '$$'
+
+    if (displayMath) {
+      if (endsDisplayMath) {
+        lines.push({ type: 'displayMath', value: displayMath.join('\n') })
+        displayMath = null
+      } else {
+        displayMath.push(line)
+      }
+    } else if (startsDisplayMath) {
+      displayMath = []
+    } else {
+      lines.push({ type: 'line', value: line })
+    }
+  })
+
+  if (displayMath) {
+    lines.push({ type: 'displayMath', value: displayMath.join('\n') })
+  }
 
   return (
     <div className={`formatted-solution-box ${className}`} style={{ fontSize: '14.5px', lineHeight: '1.7', color: '#1e293b' }}>
-      {lines.map((line, idx) => {
-        const trimmed = line.trim()
+      {lines.map((block, idx) => {
+        if (block.type === 'displayMath') {
+          try {
+            const html = katex.renderToString(block.value.trim(), {
+              throwOnError: false,
+              displayMode: true,
+            })
+            return (
+              <div
+                key={`display-${idx}`}
+                style={{ maxWidth: '100%', overflowX: 'auto', margin: '8px 0' }}
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            )
+          } catch {
+            return <pre key={`display-${idx}`} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{block.value}</pre>
+          }
+        }
+
+        const trimmed = block.value.trim()
         if (!trimmed) {
           return <div key={idx} style={{ height: '8px' }} />
         }
 
         // Section Headers
         if (trimmed.startsWith('###') || trimmed.startsWith('##')) {
-          const title = trimmed.replace(/^#+\s*/, '')
+          const title = trimmed.replace(/^#+\s*/, '').replace(/^\*\*(.+)\*\*:?$/, '$1')
           const isTrap = /trap|mistake|incorrect/i.test(title)
           const isTip = /tip|shortcut|speed/i.test(title)
           const isFormula = /formula|concept/i.test(title)
@@ -130,7 +194,7 @@ export default function FormattedSolution({ content, className = '' }: Formatted
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{icon}</span>
-              <span>{title}</span>
+              <span>{renderFormattedText(title)}</span>
             </div>
           )
         }
@@ -144,7 +208,7 @@ export default function FormattedSolution({ content, className = '' }: Formatted
           return (
             <div key={idx} style={{ display: 'flex', gap: '8px', marginLeft: '12px', marginBottom: '4px' }}>
               <span style={{ color: '#3b82f6', fontWeight: 600 }}>{isNumbered ? trimmed.split(' ')[0] : '•'}</span>
-              <div>{renderInlineMath(cleanText)}</div>
+              <div>{renderFormattedText(cleanText)}</div>
             </div>
           )
         }
@@ -152,7 +216,7 @@ export default function FormattedSolution({ content, className = '' }: Formatted
         // Standard Paragraph
         return (
           <p key={idx} style={{ margin: '4px 0' }}>
-            {renderInlineMath(trimmed)}
+            {renderFormattedText(trimmed)}
           </p>
         )
       })}

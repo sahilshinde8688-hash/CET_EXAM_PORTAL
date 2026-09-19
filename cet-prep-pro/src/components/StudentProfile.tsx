@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usersAPI, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import { downloadTestHistoryCSV } from '../lib/exportUtils'
+import GlobalLoader from './GlobalLoader'
 import '../studentProfile.css'
+import '../global-loader.css'
 
 interface Props { studentId: string; onBack: () => void }
 
@@ -10,6 +12,7 @@ export default function StudentProfile({ studentId, onBack }: Props) {
   const [results, setResults] = useState<TestResult[]>([])
   const [loading, setLoading] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+  const [resendingPassword, setResendingPassword] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [photoError, setPhotoError] = useState('')
   const [showEditModal, setShowEditModal] = useState(false)
@@ -23,10 +26,6 @@ export default function StudentProfile({ studentId, onBack }: Props) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-
-    const timer = setTimeout(() => {
-      if (!cancelled) setLoading(false)
-    }, 2000)
 
     Promise.all([usersAPI.getAll(), testsAPI.getAllAdmin()]).then(([students, allResults]) => {
       if (cancelled) return
@@ -59,12 +58,10 @@ export default function StudentProfile({ studentId, onBack }: Props) {
     }).catch(error => {
       console.error('Failed to load student profile:', error)
     }).finally(() => {
-      clearTimeout(timer)
       if (!cancelled) setLoading(false)
     })
     return () => {
       cancelled = true
-      clearTimeout(timer)
     }
   }, [studentId])
 
@@ -118,6 +115,23 @@ export default function StudentProfile({ studentId, onBack }: Props) {
     } finally { setPhotoUploading(false) }
   }
 
+  const handleResendPassword = async () => {
+    if (!student) return
+    setResendingPassword(true)
+    try {
+      const id = student._id || student.id || studentId
+      const response = await usersAPI.resendCredentials(id)
+      if (response.password) {
+        setStudent(current => current ? { ...current, mhcetPassword: response.password } : current)
+        setShowPassword(true)
+      }
+    } catch (error) {
+      console.error('Failed to resend student credentials:', error)
+    } finally {
+      setResendingPassword(false)
+    }
+  }
+
   const openEditModal = () => {
     if (!student) return
     setEditForm({
@@ -154,7 +168,7 @@ export default function StudentProfile({ studentId, onBack }: Props) {
     }
   }
 
-  if (loading) return <div className="sp-root"><div className="sp-loading">Loading student details…</div></div>
+  if (loading) return <GlobalLoader message="Loading student details" />
 
   if (!student) return (
     <div className="sp-root" style={{ padding: '3rem', textAlign: 'center' }}>
@@ -186,8 +200,9 @@ export default function StudentProfile({ studentId, onBack }: Props) {
       <div className="sp-password-section">
         <div className="sp-password-heading"><span className="material-symbols-outlined">key</span><span>Latest Password</span></div>
         <div className="sp-password-value">
-          <span>{student.mhcetPassword ? (showPassword ? student.mhcetPassword : '••••••••') : 'Not available'}</span>
+          <span>{student.mhcetPassword ? (showPassword ? student.mhcetPassword : '••••••••') : resendingPassword ? 'Generating…' : 'Not available'}</span>
           {student.mhcetPassword && <button type="button" className="sp-password-toggle" onClick={() => setShowPassword(current => !current)} aria-label={showPassword ? 'Hide latest password' : 'Show latest password'} title={showPassword ? 'Hide password' : 'Show password'}><span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span></button>}
+          {!student.mhcetPassword && <button type="button" className="sp-password-toggle" onClick={handleResendPassword} disabled={resendingPassword} aria-label="Resend student credentials" title="Resend credentials"><span className="material-symbols-outlined">refresh</span></button>}
         </div>
       </div>
       <div className="sp-sidebar-actions"><button className="sp-sidebar-btn sp-sidebar-btn--primary" onClick={openEditModal}><span className="material-symbols-outlined">edit</span> Edit Profile</button><button className="sp-sidebar-btn" onClick={() => downloadTestHistoryCSV(results, student.name)}><span className="material-symbols-outlined">download</span> Download Report</button><button className="sp-sidebar-btn" onClick={() => window.print()}><span className="material-symbols-outlined">print</span> Print Profile</button></div>

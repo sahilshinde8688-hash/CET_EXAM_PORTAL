@@ -589,6 +589,7 @@ export const usersAPI = {
     let sbUsers: AuthUser[] = []
     try {
       let q = supabase.from('users').select('*')
+      q = q.eq('role', 'student')
       if (status) q = q.eq('status', status)
       const { data } = await q
       if (data) {
@@ -600,7 +601,7 @@ export const usersAPI = {
           phone: r.phone,
           branch: r.branch,
           batch: r.batch,
-          role: r.role || 'student',
+          role: 'student',
           status: r.status || 'approved',
           mhcetId: r.mhcet_id,
           mhcetPassword: r.mhcet_password,
@@ -617,22 +618,29 @@ export const usersAPI = {
       if (u && u.email) map.set(u.email.toLowerCase(), u)
     })
 
-    // Priority 2: Backend API users
+    // Priority 2: Backend API users. Preserve credentials when one source omits them.
     apiUsers.forEach((u) => {
-      if (u && u.email) map.set(u.email.toLowerCase(), u)
+      if (!u || !u.email) return
+      const key = u.email.toLowerCase()
+      const existing = map.get(key)
+      map.set(key, existing ? {
+        ...existing,
+        ...u,
+        mhcetPassword: u.mhcetPassword || existing.mhcetPassword,
+      } : u)
     })
 
-    // Local storage is only a compatibility fallback for records not yet persisted.
-    localUsers.forEach((u) => {
-      if (u && u.email) {
-        const key = u.email.toLowerCase()
-        if (!map.has(key)) {
+    // Only use local storage when both remote sources are unavailable.
+    if (apiUsers.length === 0 && sbUsers.length === 0) {
+      localUsers.forEach((u) => {
+        if (u && u.email && u.role === 'student') {
+          const key = u.email.toLowerCase()
           map.set(key, u)
         }
-      }
-    })
+      })
+    }
 
-    const allList = Array.from(map.values())
+    const allList = Array.from(map.values()).filter((u) => u.role === 'student')
     if (status) {
       return allList.filter((u) => u.status === status)
     }
@@ -709,7 +717,7 @@ export const usersAPI = {
       headers,
     })
     const data = await handle(res).then(() => res.json())
-    return data as { message: string }
+    return data as { message: string; password?: string }
   },
   async reject(id: string) {
     try {
