@@ -7,13 +7,14 @@ import StudentProfile from './StudentProfile'
 import TestInterface from './TestInterface'
 import QuestionBank from './QuestionBank'
 import AdminMockTests from './AdminMockTests'
+import AdminAnalysis from './AdminAnalysis'
 import '../admin.css'
 import '../testInterface.css'
 import '../questionBank.css'
 Chart.register(...registerables)
 
 type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'admin-dashboard'
-type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests'
+type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics'
 
 interface AdminDashboardProps {
   onNavigate?: (page: Page | string) => void
@@ -47,7 +48,7 @@ const NAV = [
   { icon: 'how_to_reg', label: 'Registrations', view: 'registrations' as AdminView },
   { icon: 'group', label: 'Students', view: 'students' as AdminView },
   { icon: 'menu_book', label: 'Question Bank', view: 'questions' as AdminView },
-  { icon: 'analytics', label: 'Analytics', view: null },
+  { icon: 'analytics', label: 'Analytics', view: 'analytics' as AdminView },
   { icon: 'settings', label: 'Settings', view: null },
 ]
 
@@ -362,7 +363,7 @@ function RegistrationReview() {
   const [isBulkLoading, setIsBulkLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [batchFilter, setBatchFilter] = useState('All')
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'all'>('pending')
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
   const [viewingStudent, setViewingStudent] = useState<AuthUser | null>(null)
 
   const fetchData = async (hideLoading = false) => {
@@ -880,17 +881,29 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const [showHelpModal, setShowHelpModal] = useState(false)
   const [showActivitiesModal, setShowActivitiesModal] = useState(false)
   const [showControlRoomModal, setShowControlRoomModal] = useState(false)
+  const [showAdminProfileModal, setShowAdminProfileModal] = useState(false)
   const [readNotifications, setReadNotifications] = useState(false)
   const [topbarSearch, setTopbarSearch] = useState('')
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSent, setAlertSent] = useState(false)
   const [currentAdmin, setCurrentAdmin] = useState<AuthUser | null>(() => session.get<AuthUser>())
+  const [adminProfileForm, setAdminProfileForm] = useState({ name: '', email: '', phone: '' })
+  const [adminProfileSaving, setAdminProfileSaving] = useState(false)
+  const [adminProfileMessage, setAdminProfileMessage] = useState('')
+  const [adminPhotoError, setAdminPhotoError] = useState('')
+  const [adminPhotoUploading, setAdminPhotoUploading] = useState(false)
+  const [adminPhotoRemoving, setAdminPhotoRemoving] = useState(false)
 
   useEffect(() => {
     const syncAdmin = async () => {
       const savedAdmin = session.get<AuthUser>()
       if (savedAdmin) {
         setCurrentAdmin(savedAdmin)
+        setAdminProfileForm({
+          name: savedAdmin.name || '',
+          email: savedAdmin.email || '',
+          phone: savedAdmin.phone || '',
+        })
       }
 
       try {
@@ -898,6 +911,11 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
         if (me && typeof me === 'object') {
           session.save(me)
           setCurrentAdmin(me as AuthUser)
+          setAdminProfileForm({
+            name: (me as AuthUser).name || '',
+            email: (me as AuthUser).email || '',
+            phone: (me as AuthUser).phone || '',
+          })
         }
       } catch {
         // Fall back to saved session data if the server is unavailable.
@@ -907,10 +925,25 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     syncAdmin()
   }, [])
 
+  useEffect(() => {
+    if (currentAdmin) {
+      setAdminProfileForm({
+        name: currentAdmin.name || '',
+        email: currentAdmin.email || '',
+        phone: currentAdmin.phone || '',
+      })
+    }
+  }, [currentAdmin])
+
   const attemptsToday = getAttemptsToday(testResults)
-  const adminName = currentAdmin?.name || 'System Administrator'
+  const normalizeAdminName = (value?: string | null) => {
+    const name = value?.trim()
+    if (!name || name === 'System Administrator') return 'Administrator'
+    return name
+  }
+  const adminName = normalizeAdminName(currentAdmin?.name)
   const adminRole = currentAdmin?.role === 'admin' ? 'Admin' : 'Exam Controller'
-  const adminPhoto = currentAdmin?.photo || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDWpayorudDpV1PjBCVsrLYUz1_tl6nSQvGAZ8XASMWIW6RVYVgBkWsHzHE9qtkE1B055qgcgwyYHZYHYXQYQDXBBlvXnZpQA67ft2ftscqBUExT7zmtmtKw8Sd3gsu8T0xpM69hVIwoRXpBSsBmPtVLQOO_UC2KNSavm28KJyv9lHaWPS-CfwzW6mlU2ihGpurQh7NbKA6chXikCijY-TtmEiXmj5tr-Zn034nC1B4OPPLHSowXaj5f2cItjlmFEIdu2SMscAZKVo'
+  const adminPhoto = currentAdmin?.photo
 
   useEffect(() => {
     if (view !== 'overview') return
@@ -1063,6 +1096,8 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     ? 'Question Bank Management'
     : view === 'mocktests'
     ? 'Mock Tests'
+    : view === 'analytics'
+    ? 'Analysis Dashboard'
     : 'Admin Console'
 
   const handleQuickAction = (label: string) => {
@@ -1094,8 +1129,170 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     else onNavigate?.('signin')
   }
 
+  const handleAdminProfileSave = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setAdminProfileSaving(true)
+    setAdminProfileMessage('')
+
+    try {
+      const payload = {
+        name: adminProfileForm.name.trim(),
+        email: adminProfileForm.email.trim(),
+        phone: adminProfileForm.phone.trim(),
+      }
+
+      const response = await usersAPI.updateProfile(payload)
+      const updatedAdmin = response.user
+      session.save(updatedAdmin)
+      setCurrentAdmin(updatedAdmin)
+      setAdminProfileMessage('Profile updated successfully.')
+    } catch (error) {
+      setAdminProfileMessage(error instanceof Error ? error.message : 'Unable to update profile.')
+    } finally {
+      setAdminProfileSaving(false)
+    }
+  }
+
+  const handleAdminPhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setAdminPhotoError('Please select a valid image file.')
+      return
+    }
+
+    setAdminPhotoError('')
+    setAdminPhotoUploading(true)
+
+    try {
+      const response = await usersAPI.uploadMyPhoto(file)
+      const nextAdmin = currentAdmin ? { ...currentAdmin, photo: response.photoUrl } : null
+      if (nextAdmin) {
+        session.save(nextAdmin)
+        setCurrentAdmin(nextAdmin)
+      }
+    } catch (error) {
+      console.error('Admin photo upload failed:', error)
+      setAdminPhotoError(error instanceof Error ? error.message : 'Photo upload failed.')
+    } finally {
+      setAdminPhotoUploading(false)
+    }
+  }
+
+  const handleAdminPhotoRemove = async () => {
+    if (!currentAdmin?.photo || adminPhotoRemoving) return
+    setAdminPhotoError('')
+    setAdminPhotoRemoving(true)
+
+    try {
+      await usersAPI.removeMyPhoto()
+      const nextAdmin = { ...currentAdmin, photo: undefined }
+      session.save(nextAdmin)
+      setCurrentAdmin(nextAdmin)
+      setAdminProfileMessage('Profile photo removed successfully.')
+    } catch (error) {
+      console.error('Admin photo removal failed:', error)
+      setAdminPhotoError(error instanceof Error ? error.message : 'Photo removal failed.')
+    } finally {
+      setAdminPhotoRemoving(false)
+    }
+  }
+
   return (
     <>
+      {showAdminProfileModal && (
+        <div className="adb-dialog-backdrop" onClick={() => setShowAdminProfileModal(false)}>
+          <div className="adb-admin-profile-modal" onClick={event => event.stopPropagation()}>
+            <div className="adb-admin-profile-header">
+              <div>
+                <p className="adb-admin-profile-kicker">Profile</p>
+                <h3>Administrator Account</h3>
+              </div>
+              <button type="button" className="adb-modal-close" onClick={() => setShowAdminProfileModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="adb-admin-profile-body">
+              <div className="adb-admin-profile-photo-panel">
+                <div className="adb-admin-profile-image-wrap">
+                  {adminPhoto ? <img src={adminPhoto} alt={adminName} /> : <span className="adb-admin-profile-initial">A</span>}
+                </div>
+                <div className="adb-admin-photo-actions">
+                  <label className="adb-admin-photo-picker">
+                    <span className="material-symbols-outlined">add_a_photo</span>
+                    <span>{adminPhotoUploading ? 'Uploading...' : 'Change photo'}</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAdminPhotoChange} disabled={adminPhotoUploading || adminPhotoRemoving} />
+                  </label>
+                  {currentAdmin?.photo && (
+                    <button type="button" className="adb-admin-photo-remove" onClick={handleAdminPhotoRemove} disabled={adminPhotoUploading || adminPhotoRemoving}>
+                      <span className="material-symbols-outlined">delete</span>
+                      <span>{adminPhotoRemoving ? 'Removing...' : 'Remove photo'}</span>
+                    </button>
+                  )}
+                </div>
+                {adminPhotoError && <p className="adb-profile-error">{adminPhotoError}</p>}
+              </div>
+
+              <form className="adb-admin-profile-form" onSubmit={handleAdminProfileSave}>
+                <div className="adb-field-row">
+                  <label className="adb-field">
+                    <span>Full name</span>
+                    <input
+                      type="text"
+                      value={adminProfileForm.name}
+                      onChange={event => setAdminProfileForm(current => ({ ...current, name: event.target.value }))}
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="adb-field-row adb-field-row--two">
+                  <label className="adb-field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={adminProfileForm.email}
+                      onChange={event => setAdminProfileForm(current => ({ ...current, email: event.target.value }))}
+                      required
+                    />
+                  </label>
+                  <label className="adb-field">
+                    <span>Phone</span>
+                    <input
+                      type="tel"
+                      value={adminProfileForm.phone}
+                      onChange={event => setAdminProfileForm(current => ({ ...current, phone: event.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="adb-admin-profile-summary">
+                  <div>
+                    <span>Role</span>
+                    <strong>{adminRole}</strong>
+                  </div>
+                  <div>
+                    <span>Access</span>
+                    <strong>Full admin access</strong>
+                  </div>
+                </div>
+
+                {adminProfileMessage && <p className="adb-profile-message">{adminProfileMessage}</p>}
+
+                <div className="adb-dialog-actions">
+                  <button type="button" className="adb-dialog-secondary" onClick={() => setShowAdminProfileModal(false)}>Close</button>
+                  <button type="submit" className="adb-dialog-primary" disabled={adminProfileSaving}>
+                    {adminProfileSaving ? 'Saving...' : 'Save profile'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Alert Composer Modal ──────────────── */}
       {showAlertComposer && (
         <div className="adb-dialog-backdrop" onClick={() => setShowAlertComposer(false)}>
@@ -1123,7 +1320,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
             <div className="adb-setting-row"><span>Database</span><strong>Supabase PostgreSQL</strong></div>
             <div className="adb-setting-row"><span>Auth & CSRF</span><strong>Strict Token Validation</strong></div>
             <div className="adb-setting-row"><span>Excel Export Engine</span><strong className="adb-dialog-success">SheetJS (.xlsx) Active</strong></div>
-            <div className="adb-setting-row"><span>Environment</span><strong>{process.env.NODE_ENV || 'development'}</strong></div>
+            <div className="adb-setting-row"><span>Environment</span><strong>{import.meta.env.MODE || 'development'}</strong></div>
             <div className="adb-dialog-actions"><button type="button" className="adb-dialog-primary" onClick={() => setShowServerSettings(false)}>Close</button></div>
           </div>
         </div>
@@ -1299,10 +1496,6 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   className={`adb-nav-item${view === item.view ? ' adb-nav-item--active' : ''}`}
                   onClick={e => {
                     e.preventDefault()
-                    if (item.label === 'Analytics') {
-                      onNavigate?.('analytics')
-                      return
-                    }
                     if (item.label === 'Settings') {
                       setShowServerSettings(true)
                       return
@@ -1317,16 +1510,13 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
             </nav>
 
             <div className="adb-sidebar-bottom">
-              <div className="adb-admin-row">
-                <img className="adb-admin-avatar"
-                  src={adminPhoto}
-                  alt={adminName}
-                />
+              <button type="button" className="adb-admin-row adb-admin-row--button" onClick={() => setShowAdminProfileModal(true)}>
+                {adminPhoto ? <img className="adb-admin-avatar" src={adminPhoto} alt={adminName} /> : <span className="adb-admin-avatar adb-admin-avatar--initial">A</span>}
                 <div>
                   <p className="adb-admin-name">{adminName}</p>
                   <p className="adb-admin-role">{adminRole}</p>
                 </div>
-              </div>
+              </button>
               <a href="#" className="adb-logout-link" onClick={handleLogout}>
                 <span className="material-symbols-outlined">logout</span>
                 <span>Logout</span>
@@ -1552,6 +1742,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
               )}
               {view === 'questions' && <QuestionBank />}
               {view === 'mocktests' && <AdminMockTests />}
+              {view === 'analytics' && <AdminAnalysis />}
             </div>
           </main>
         </div>

@@ -90,45 +90,366 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
-  padding: 0 8px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.06);
+  width: 100%;
+  text-align: left;
+}
+
+.adb-admin-row--button {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.adb-admin-row--button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.12);
+  border-color: #bfdbfe;
 }
 
 .adb-admin-avatar {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #e2e8f0;
+  border: 2px solid #ffffff;
+  box-shadow: 0 5px 12px rgba(15, 23, 42, 0.12);
 }
 
 .adb-admin-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: #0f172a;
   margin: 0;
+  line-height: 1.25;
 }
 
 .adb-admin-role {
   font-size: 11px;
-  color: #64748b;
-  margin: 2px 0 0 0;
+  color: #475569;
+  margin: 4px 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 700;
 }
 
 .adb-logout-link {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   padding: 10px 14px;
   color: #dc2626;
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   transition: all 0.2s ease;
+  border: 1px solid rgba(220, 38, 38, 0.12);
 }
 
 .adb-logout-link:hover {
-  background-color: #fef2f2;
+  background: linear-gradient(135deg, #fff5f5 0%, #ffe4e6 100%);
+  transform: translateY(-1px);
+}
+
+.adb-admin-profile-modal {
+  width: min(680px, calc(100vw - 32px));
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  overflow: hidden;
+}
+
+.adb-admin-profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 22px 24px 18px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.adb-admin-profile-kicker {
+  margin: 0 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.adb-admin-profile-header h3 {
+  margin: 0;
+  font-size: 26px;
+  color: #0f172a;
+}
+
+.adb-modal-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.8);
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.adb-admin-profile-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 22px;
+  padding: 24px;
+}
+
+.adb-admin-profile-photo-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.adb-admin-profile-image-wrap {
+  width: 160px;
+  height: 160px;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 3px solid #dbeafe;
+  background: linear-gradient(135deg, #f8fafc, #e0f2fe);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
+}
+
+.adb-admin-profile-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.adb-admin-profile-initial {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #1d4ed8;
+  font-size: 64px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+}
+
+.adb-admin-avatar--initial {
+  display: inline-grid;
+  place-items: center;
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.adb-admin-photo-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 170px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #bfdbfe;
+  transition: all 0.2s ease;
+}
+
+.adb-admin-photo-picker:hover {
+  background: #dbeafe;
+}
+
+.adb-admin-photo-picker input {
+  display: none;
+}
+
+.adb-admin-photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.adb-admin-photo-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid #fecdd3;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #be123c;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.adb-admin-photo-remove:hover {
+  background: #ffe4e6;
+}
+
+.adb-admin-photo-remove:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.adb-admin-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.adb-field-row {
+  display: flex;
+  width: 100%;
+}
+
+.adb-field-row--two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.adb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.adb-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.adb-field input {
+  width: 100%;
+  border: 1px solid #dbe2ea;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.adb-field input:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+.adb-admin-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.adb-admin-profile-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adb-admin-profile-summary span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.adb-admin-profile-summary strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.adb-profile-message,
+.adb-profile-error {
+  margin: 0;
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.adb-profile-message {
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.adb-profile-error {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.adb-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.adb-dialog-secondary,
+.adb-dialog-primary {
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.adb-dialog-secondary {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.adb-dialog-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
+}
+
+.adb-dialog-primary:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media (max-width: 760px) {
+  .adb-admin-profile-body {
+    grid-template-columns: 1fr;
+  }
+
+  .adb-field-row--two,
+  .adb-admin-profile-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Hide admin sidebar when viewing student profile */
