@@ -1,12 +1,5 @@
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import SignIn from './components/SignIn'
-import Dashboard from './components/Dashboard'
-import MockTests from './components/MockTests'
-import Results from './components/Results'
-import Analysis from './components/Analysis'
-import Settings from './components/Settings'
-import AdminPanel from './components/AdminPanel'
-import AdminDashboard from './components/AdminDashboard'
 import { clearAdminCredentials, isAdminCredentials } from './adminAuth'
 import { session } from './lib/api'
 import './dashboard.css'
@@ -14,6 +7,13 @@ import './mocktests.css'
 import './results.css'
 import './analysis.css'
 import './settings.css'
+
+const Dashboard = lazy(() => import('./components/Dashboard'))
+const MockTests = lazy(() => import('./components/MockTests'))
+const Results = lazy(() => import('./components/Results'))
+const Analysis = lazy(() => import('./components/Analysis'))
+const Settings = lazy(() => import('./components/Settings'))
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 
 export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin'
 
@@ -30,34 +30,6 @@ const PAGE_LABELS: Record<string, string> = {
   results:   'Results',
   analytics: 'Analytics',
   settings:  'Settings',
-}
-
-/* ── Initial boot loader — freezes the screen ── */
-function BootLoader() {
-  return (
-    <div className="boot-overlay">
-      <div className="boot-inner">
-        {/* Logo mark */}
-        <div className="boot-logo-wrap">
-          <div className="boot-logo-circle">
-            <span className="material-symbols-outlined boot-logo-icon">school</span>
-          </div>
-          <div className="boot-logo-pulse" />
-        </div>
-
-        {/* Brand name */}
-        <h1 className="boot-brand">CET Prep Pro</h1>
-        <p className="boot-tagline">Elevate your future with precision learning</p>
-
-        {/* Animated bar */}
-        <div className="boot-bar-track">
-          <div className="boot-bar-fill" />
-        </div>
-
-        <p className="boot-status">Initializing portal…</p>
-      </div>
-    </div>
-  )
 }
 
 /* ── Page transition loader ── */
@@ -103,17 +75,10 @@ function PageLoader({ target }: { target: Page }) {
 }
 
 export default function App() {
-  const [booting, setBooting] = useState(true)
   const [page, setPage] = useState<Page>('signin')
   const [transitioning, setTransitioning] = useState(false)
   const [nextPage, setNextPage] = useState<Page | null>(null)
   const [adminLoggedIn, setAdminLoggedIn] = useState(false)
-
-  /* Boot loader runs once on first load — 2.4s */
-  useEffect(() => {
-    const t = setTimeout(() => setBooting(false), 2400)
-    return () => clearTimeout(t)
-  }, [])
 
   useEffect(() => {
     const currentUser = session.get()
@@ -137,40 +102,37 @@ export default function App() {
       setPage(nextPage)
       setNextPage(null)
       setTransitioning(false)
-    }, 950)
+    }, 250)
     return () => clearTimeout(t)
   }, [transitioning, nextPage])
 
-  /* Boot: render page behind the overlay so it's ready instantly after */
-  if (booting) return <BootLoader />
-
   if (transitioning && nextPage) return <PageLoader target={nextPage} />
-  if (page === 'signin') {
-    return (
-      <SignIn
-        onSuccess={() => navigate('dashboard')}
-        onAdminLogin={() => {
-          setAdminLoggedIn(true)
-          navigate('admin')
-        }}
-      />
-    )
-  }
-  if (page === 'mocktests') return <MockTests onNavigate={navigate} />
-  if (page === 'results')   return <Results onNavigate={navigate} />
-  if (page === 'analytics') return <Analysis onNavigate={navigate} />
-  if (page === 'settings')  return <Settings onNavigate={navigate} />
-  if (page === 'admin') {
-    return (
-      <AdminDashboard
-        onNavigate={navigate}
-        onLogout={() => {
-          clearAdminCredentials()
-          setAdminLoggedIn(false)
-          navigate('signin')
-        }}
-      />
-    )
-  }
-  return <Dashboard onNavigate={navigate} />
+  return (
+    <Suspense fallback={<PageLoader target={page} />}>
+      {page === 'signin' && (
+        <SignIn
+          onSuccess={() => navigate('dashboard')}
+          onAdminLogin={() => {
+            setAdminLoggedIn(true)
+            navigate('admin')
+          }}
+        />
+      )}
+      {page === 'mocktests' && <MockTests onNavigate={navigate} />}
+      {page === 'results' && <Results onNavigate={navigate} />}
+      {page === 'analytics' && <Analysis onNavigate={navigate} />}
+      {page === 'settings' && <Settings onNavigate={navigate} />}
+      {page === 'admin' && (
+        <AdminDashboard
+          onNavigate={navigate}
+          onLogout={() => {
+            clearAdminCredentials()
+            setAdminLoggedIn(false)
+            navigate('signin')
+          }}
+        />
+      )}
+      {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
+    </Suspense>
+  )
 }

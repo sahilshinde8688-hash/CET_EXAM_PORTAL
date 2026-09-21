@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { authAPI, usersAPI, session } from '../lib/api'
-import GlobalLoader from './GlobalLoader'
+
+const GlobalLoader = lazy(() => import('./GlobalLoader'))
 
 type Tab = 'login' | 'register'
 type SubmitState = 'idle' | 'loading' | 'success' | 'error' | 'pending'
@@ -89,7 +90,11 @@ export default function SignIn({ onSuccess, onAdminLogin }: Props) {
 
   return (
     <>
-      {submitState === 'loading' && <GlobalLoader message={mustResetPassword ? 'Updating your account' : activeTab === 'login' ? 'Signing you in' : 'Creating your account'} />}
+      {submitState === 'loading' && (
+        <Suspense fallback={null}>
+          <GlobalLoader message={mustResetPassword ? 'Updating your account' : activeTab === 'login' ? 'Signing you in' : 'Creating your account'} />
+        </Suspense>
+      )}
     <div className="page">
       <section className="left-panel">
         <div className="dot-pattern" />
