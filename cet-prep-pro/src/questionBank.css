@@ -218,6 +218,57 @@
   transform: translateY(-1px);
 }
 
+@media (max-width: 700px) {
+  .qb-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .qb-filters {
+    width: 100%;
+  }
+
+  .qb-input,
+  .qb-select,
+  .qb-textarea,
+  .qb-filters .qb-btn {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .qb-card {
+    padding: 16px;
+  }
+
+  .qb-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .qb-span-2 {
+    grid-column: auto;
+  }
+
+  .qb-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .qb-actions .qb-btn {
+    width: 100%;
+  }
+
+  .qb-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .qb-table {
+    min-width: 620px;
+  }
+}
+
 .qb-toolbar-btn:active {
   transform: translateY(0);
   background: #f1f5f9;

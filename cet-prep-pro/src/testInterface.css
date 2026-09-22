@@ -396,6 +396,10 @@
 
 .test-sidebar {
   width: 320px;
+  flex: 0 0 320px;
+  min-width: 320px;
+  max-width: 320px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -508,6 +512,7 @@
   flex-direction: column;
   overflow: hidden;
   height: 100%;
+  min-width: 0;
 }
 
 .test-palette-header {
@@ -525,7 +530,7 @@
 
 .test-legend {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -533,6 +538,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   font-size: 11px;
   color: #64748b;
   font-weight: 600;
@@ -552,7 +558,7 @@
 .test-palette-grid {
   padding: 16px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   overflow-y: auto;
   flex: 1;
@@ -621,6 +627,16 @@
 
 .test-instructions-btn:hover {
   background: #f1f5f9;
+}
+
+.exam-rules-grid {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .exam-rules-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 .test-footer {
@@ -1080,6 +1096,82 @@
 
 /* Responsive Adjustments */
 @media (max-width: 768px) {
+  .test-header {
+    height: auto;
+    min-height: 64px;
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .test-header-left,
+  .test-header-right {
+    gap: 8px;
+  }
+
+  .test-brand,
+  .test-exam-name {
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .test-main {
+    height: auto;
+    min-height: calc(100dvh - 84px);
+    flex-direction: column;
+    padding: 12px;
+    gap: 12px;
+    overflow: visible;
+  }
+
+  .test-question-area {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .test-question-header,
+  .test-question-body {
+    max-width: none;
+  }
+
+  .test-question-body {
+    padding: 16px;
+    min-height: 0;
+  }
+
+  .test-question-text {
+    font-size: 16px;
+    margin-bottom: 18px;
+  }
+
+  .test-options {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .test-option {
+    padding: 14px;
+  }
+
+  .test-sidebar {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 0 0 auto;
+    height: auto;
+    max-height: 300px;
+  }
+
+  .test-palette {
+    height: auto;
+    max-height: 300px;
+  }
+
+  .test-palette-grid {
+    max-height: 190px;
+  }
+
   .test-qgrid {
     grid-template-columns: repeat(10, 1fr);
   }

@@ -521,6 +521,13 @@
   .db-mobile-spacer { display: block; }
   .db-mobile-overlay { display: block; }
 }
+
+@media (max-width: 600px) {
+  .db-popover {
+    width: min(320px, calc(100vw - 24px)) !important;
+    right: -4px !important;
+  }
+}
 @media (max-width: 560px) {
   .db-result-row { flex-direction: column; align-items: flex-start; }
   .db-result-right { width: 100%; justify-content: space-between; }

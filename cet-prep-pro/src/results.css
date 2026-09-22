@@ -219,18 +219,18 @@
 
 /* Score Trend */
 .rs-trend-card { min-height: 280px; display: flex; flex-direction: column; }
-.rs-trend-bars {
-  flex: 1; display: flex; align-items: flex-end; gap: 6px;
-  padding: 0 4px; min-height: 160px;
-}
-.rs-trend-bar {
-  flex: 1; border-radius: 6px 6px 0 0;
-  background: rgba(0,91,191,0.18);
-  transition: background 0.2s;
-  cursor: pointer;
-}
-.rs-trend-bar:hover { background: rgba(0,91,191,0.38); }
-.rs-trend-bar--active { background: #005bbf; }
+.rs-trend-chart { flex: 1; display: flex; gap: 10px; min-height: 170px; padding: 8px 0 0; }
+.rs-trend-y-axis { display: flex; flex-direction: column; justify-content: space-between; padding: 0 0 2px; color: #8a93a3; font-size: 10px; line-height: 1; }
+.rs-trend-plot { position: relative; flex: 1; min-width: 0; }
+.rs-trend-grid-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(114,119,133,0.2); }
+.rs-trend-grid-line--top { top: 0; }
+.rs-trend-grid-line--middle { top: 50%; }
+.rs-trend-grid-line--bottom { bottom: 0; }
+.rs-trend-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.rs-trend-area { fill: rgba(0,91,191,0.1); stroke: none; }
+.rs-trend-line { fill: none; stroke: #005bbf; stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+.rs-trend-point { fill: #fff; stroke: #005bbf; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.rs-trend-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; color: #8a93a3; font-size: 12px; text-align: center; }
 .rs-trend-labels {
   display: flex; justify-content: space-between;
   font-size: 10px; font-weight: 700; color: #727785;

@@ -70,7 +70,7 @@ export default function ExamInstructions({ onStart, onCancel }: ExamInstructions
               <span className="material-symbols-outlined" style={{ color: '#2563eb', fontSize: '22px' }}>gavel</span>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Exam Rules</h2>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="exam-rules-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {[
                 'The clock will be set at the server. The countdown timer in the top right corner will display the remaining time available for you to complete the examination.',
                 'You are strictly prohibited from using calculators, mobile phones, or any other electronic devices during the test.',

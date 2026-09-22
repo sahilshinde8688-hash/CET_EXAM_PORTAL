@@ -106,7 +106,12 @@ export default function Results({ onNavigate }: ResultsProps) {
     const safeTotalMarks = toSafeNumber(t.totalMarks, 100)
     return safeTotalMarks > 0 ? (safeScore / safeTotalMarks) * 100 : 0
   })
-  const displayScoreBars = trendScores.length > 0 ? trendScores : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  const trendPoints = trendScores.map((score, index) => {
+    const x = trendScores.length === 1 ? 50 : 8 + (index / (trendScores.length - 1)) * 84
+    const y = 92 - Math.min(100, Math.max(0, score)) * 0.72
+    return { x, y, score }
+  })
+  const trendPolyline = trendPoints.map(point => `${point.x},${point.y}`).join(' ')
 
   const displayedTests = useMemo(() => {
     return testHistory.filter(t => {
@@ -324,11 +329,26 @@ export default function Results({ onNavigate }: ResultsProps) {
                     <p className="rs-card-sub">Last 10 Attempted Tests</p>
                   </div>
                 </div>
-                <div className="rs-trend-bars">
-                  {displayScoreBars.map((h, i) => (
-                    <div key={i} className={`rs-trend-bar${i === displayScoreBars.length - 1 ? ' rs-trend-bar--active' : ''}`}
-                      style={{ height: `${h}%` }} />
-                  ))}
+                <div className="rs-trend-chart" role="img" aria-label={testsCount ? `Score trend from ${trendScores[0].toFixed(0)}% to ${trendScores[trendScores.length - 1].toFixed(0)}%` : 'No score trend data available'}>
+                  <div className="rs-trend-y-axis"><span>100%</span><span>50%</span><span>0%</span></div>
+                  <div className="rs-trend-plot">
+                    <div className="rs-trend-grid-line rs-trend-grid-line--top" />
+                    <div className="rs-trend-grid-line rs-trend-grid-line--middle" />
+                    <div className="rs-trend-grid-line rs-trend-grid-line--bottom" />
+                    {trendPoints.length > 0 ? (
+                      <svg className="rs-trend-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                        <polyline className="rs-trend-area" points={`8,92 ${trendPolyline} 92,92`} />
+                        <polyline className="rs-trend-line" points={trendPolyline} />
+                        {trendPoints.map((point, index) => (
+                          <circle key={index} className="rs-trend-point" cx={point.x} cy={point.y} r="2.2">
+                            <title>{point.score.toFixed(1)}%</title>
+                          </circle>
+                        ))}
+                      </svg>
+                    ) : (
+                      <div className="rs-trend-empty">Complete a test to see your score trend.</div>
+                    )}
+                  </div>
                 </div>
                 <div className="rs-trend-labels">
                   <span>{testsCount > 0 ? 'Earliest' : 'N/A'}</span><span>{testsCount > 0 ? 'Latest' : 'N/A'}</span>
@@ -435,7 +455,9 @@ export default function Results({ onNavigate }: ResultsProps) {
                                     onClick={() => downloadSingleTestReport({
                                       ...row,
                                       candidateName: user?.name,
-                                      rollNumber: user?.mhcetId
+                                      rollNumber: user?.mhcetId,
+                                      passMark: 50,
+                                      hasPassed: ((Number(row.score) || 0) / (Number(row.totalMarks) || 1)) * 100 >= 50,
                                     })}
                                   >
                                     <span className="material-symbols-outlined">picture_as_pdf</span>

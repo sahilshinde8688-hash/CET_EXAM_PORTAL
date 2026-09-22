@@ -1,5 +1,8 @@
 const express = require('express')
+const { protect } = require('../middleware/auth')
 const router = express.Router()
+
+router.use(protect)
 
 const getApiKey = () => process.env.OPENROUTER_API_KEY
 
@@ -36,9 +39,10 @@ Unanswered: ${unansweredQuestions} questions
 Subject Performance Breakdown:
 ${subjectWiseScores.map(s => `- ${s.subject}: ${s.score}/${s.maxScore} (${Number(s.percentage || 0).toFixed(1)}%)`).join('\n')}
 
-Provide an expert, highly actionable, encouraging yet honest diagnostic analysis.
+Provide an expert, highly actionable, encouraging yet honest diagnostic analysis. Set aiScore as a holistic readiness score from 0 to 100 based on score, accuracy, completion, subject balance, and time efficiency.
 You MUST respond with valid JSON adhering EXACTLY to this schema (no markdown formatting around the json, pure json):
 {
+  "aiScore": 0,
   "summaryDiagnosis": "2-3 sentences summarizing the overall performance and readiness for MHT-CET",
   "projectedPercentile": "estimated percentile e.g. 96.5%ile - 98.0%ile",
   "estimatedCetRank": "estimated state rank range e.g. Rank 2,500 - 4,000",

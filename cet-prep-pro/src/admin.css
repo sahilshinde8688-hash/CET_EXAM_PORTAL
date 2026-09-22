@@ -1112,6 +1112,98 @@
   }
 }
 
+@media (max-width: 900px) {
+  .adb-root {
+    display: block;
+  }
+
+  .adb-sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 12px 16px;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .adb-brand {
+    margin-bottom: 10px;
+    padding-left: 0;
+  }
+
+  .adb-nav {
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .adb-nav-item {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 10px 12px;
+  }
+
+  .adb-sidebar-bottom {
+    display: none;
+  }
+
+  .adb-main,
+  .adb-root--profile .adb-main {
+    margin-left: 0;
+    min-width: 0;
+  }
+
+  .adb-topbar {
+    height: auto;
+    min-height: 64px;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .adb-topbar-sub,
+  .adb-search {
+    display: none;
+  }
+
+  .adb-content {
+    padding: 20px 16px;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  .adb-welcome {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .adb-topbar-brand {
+    font-size: 16px;
+  }
+
+  .adb-content {
+    padding: 16px 12px;
+  }
+
+  .rr-stats {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rr-stat {
+    padding: 14px 16px;
+  }
+
+  .rr-divider {
+    width: auto;
+    height: 1px;
+  }
+}
+
 /* ═══════════════════════════════════════════
    REGISTRATION REVIEW PAGE
 ═══════════════════════════════════════════ */
