@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { Analytics } from '@vercel/analytics/react'
 import SignIn from './components/SignIn'
 import { clearAdminCredentials, isAdminCredentials } from './adminAuth'
 import { session } from './lib/api'
@@ -108,31 +109,34 @@ export default function App() {
 
   if (transitioning && nextPage) return <PageLoader target={nextPage} />
   return (
-    <Suspense fallback={<PageLoader target={page} />}>
-      {page === 'signin' && (
-        <SignIn
-          onSuccess={() => navigate('dashboard')}
-          onAdminLogin={() => {
-            setAdminLoggedIn(true)
-            navigate('admin')
-          }}
-        />
-      )}
-      {page === 'mocktests' && <MockTests onNavigate={navigate} />}
-      {page === 'results' && <Results onNavigate={navigate} />}
-      {page === 'analytics' && <Analysis onNavigate={navigate} />}
-      {page === 'settings' && <Settings onNavigate={navigate} />}
-      {page === 'admin' && (
-        <AdminDashboard
-          onNavigate={navigate}
-          onLogout={() => {
-            clearAdminCredentials()
-            setAdminLoggedIn(false)
-            navigate('signin')
-          }}
-        />
-      )}
-      {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
-    </Suspense>
+    <>
+      <Suspense fallback={<PageLoader target={page} />}>
+        {page === 'signin' && (
+          <SignIn
+            onSuccess={() => navigate('dashboard')}
+            onAdminLogin={() => {
+              setAdminLoggedIn(true)
+              navigate('admin')
+            }}
+          />
+        )}
+        {page === 'mocktests' && <MockTests onNavigate={navigate} />}
+        {page === 'results' && <Results onNavigate={navigate} />}
+        {page === 'analytics' && <Analysis onNavigate={navigate} />}
+        {page === 'settings' && <Settings onNavigate={navigate} />}
+        {page === 'admin' && (
+          <AdminDashboard
+            onNavigate={navigate}
+            onLogout={() => {
+              clearAdminCredentials()
+              setAdminLoggedIn(false)
+              navigate('signin')
+            }}
+          />
+        )}
+        {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
+      </Suspense>
+      <Analytics />
+    </>
   )
 }
