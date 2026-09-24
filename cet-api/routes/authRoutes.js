@@ -16,6 +16,7 @@ const {
 const { validateCsrfToken } = require('../middleware/csrf')
 const { sensitiveHeaders } = require('../middleware/securityHeaders')
 const { loginLimiter, registerLimiter, refreshLimiter } = require('../middleware/rateLimit')
+const { protect } = require('../middleware/auth')
 
 const getUserPayload = (user) => ({
   _id: user.id || user._id,
@@ -24,6 +25,7 @@ const getUserPayload = (user) => ({
   email: user.email,
   branch: user.branch,
   role: user.role,
+  adminRole: user.adminRole,
   status: user.status,
   mhcetId: user.mhcetId,
   phone: user.phone,
@@ -49,43 +51,6 @@ const passwordMatches = async (inputPassword, user) => {
   if (user.mhcetPassword && String(user.mhcetPassword).trim() === supplied) return true
 
   return false
-}
-
-const ensureDefaultAdminAccount = async () => {
-  const adminEmail = 'admin@1234'
-  const adminPassword = 'admin@1234'
-
-  try {
-    let existing = await db.findUserByEmail(adminEmail)
-
-    if (!existing) {
-      existing = await db.createUser({
-        id: '00000000-0000-0000-0000-000000000001',
-        name: 'System Administrator',
-        email: adminEmail,
-        password: await bcrypt.hash(adminPassword, 12),
-        branch: 'Byculla',
-        batch: 2024,
-        role: 'admin',
-        status: 'approved',
-      })
-      return existing
-    }
-
-    if (existing.role !== 'admin' || existing.status !== 'approved' || !existing.password) {
-      await db.updateUser(existing.id, {
-        role: 'admin',
-        status: 'approved',
-        password: await bcrypt.hash(adminPassword, 12),
-      })
-      existing = await db.findUserByEmail(adminEmail)
-    }
-
-    return existing
-  } catch (err) {
-    console.warn('Default admin bootstrap failed:', err.message)
-    return null
-  }
 }
 
 const createAuthSession = async (user, req, res, rememberMe = false) => {
@@ -284,21 +249,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
     let user = null
     const input = String(email).trim()
 
-    const isDefaultAdminLogin = (input === 'admin@1234' || input === 'admin') &&
-      (String(password) === 'admin@1234' || String(password) === 'admin')
-
-    if (isDefaultAdminLogin) {
-      user = await ensureDefaultAdminAccount() || {
-        id: '00000000-0000-0000-0000-000000000001',
-        _id: '00000000-0000-0000-0000-000000000001',
-        email: 'admin@1234',
-        name: 'System Administrator',
-        branch: 'Byculla',
-        role: 'admin',
-        status: 'approved',
-        batch: 2024,
-      }
-    } else if (/^MHC-/i.test(input)) {
+    if (/^MHC-/i.test(input)) {
       user = await db.findUserByMhcetId(input.toUpperCase())
     } else {
       user = await db.findUserByEmail(input.toLowerCase())
@@ -327,12 +278,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
     }
 
     // Verify password hash with bcrypt, while supporting legacy plain-text passwords in the database
-    let isMatch = false
-    if (isDefaultAdminLogin) {
-      isMatch = true
-    } else {
-      isMatch = await passwordMatches(password, user)
-    }
+    const isMatch = await passwordMatches(password, user)
 
     if (!isMatch) {
       await db.createLoginHistory({
@@ -378,26 +324,8 @@ router.get('/csrf', (req, res) => {
   return res.json({ success: true, csrfToken: req.csrfToken })
 })
 
-router.get('/me', sensitiveHeaders, async (req, res) => {
-  let token = req.cookies?.accessToken
-  if (!token && req.headers.authorization?.startsWith('Bearer ')) {
-    token = req.headers.authorization.split(' ')[1]
-  }
-
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Not authenticated.' })
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
-    const user = await db.findUserById(decoded.id)
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'User not found.' })
-    }
-    return res.json(getUserPayload(user))
-  } catch {
-    return res.status(401).json({ success: false, message: 'Session expired.' })
-  }
+router.get('/me', sensitiveHeaders, protect, async (req, res) => {
+  return res.json(getUserPayload(req.user))
 })
 
 module.exports = router

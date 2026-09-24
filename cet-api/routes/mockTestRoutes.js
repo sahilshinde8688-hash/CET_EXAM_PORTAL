@@ -5,8 +5,13 @@ const { apiLimiter } = require('../middleware/rateLimit')
 const { protect, adminOnly } = require('../middleware/auth')
 const { validateCsrfToken } = require('../middleware/csrf')
 
+const requireAdminQuery = (req, res, next) => {
+  if (req.query.admin !== 'true') return next()
+  return protect(req, res, () => adminOnly(req, res, next))
+}
+
 // GET all mock tests
-router.get('/', apiLimiter, async (req, res) => {
+router.get('/', requireAdminQuery, apiLimiter, async (req, res) => {
   try {
     const tests = await db.getMockTests(req.query)
     res.json(tests)

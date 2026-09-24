@@ -9,11 +9,14 @@ interface DashboardProps {
 }
 
 const navItems = [
-  { icon: 'dashboard', label: 'Home' },
-  { icon: 'quiz', label: 'Tests' },
-  { icon: 'insights', label: 'Stats' },
-  { icon: 'person', label: 'Profile' },
+  { icon: 'dashboard', label: 'Home', page: 'dashboard' },
+  { icon: 'quiz', label: 'Tests', page: 'mocktests' },
+  { icon: 'bar_chart', label: 'Results', page: 'results' },
+  { icon: 'insights', label: 'Stats', page: 'analytics' },
+  { icon: 'person', label: 'Profile', page: 'settings' },
 ]
+
+const mobileNavItems = navItems
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -197,12 +200,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         {mobileNavOpen && (
           <div className="db-mobile-overlay" onClick={() => setMobileNavOpen(false)}>
             <div className="db-mobile-nav" onClick={e => e.stopPropagation()}>
-              {navItems.map(item => (
-                <a key={item.label} href="#" className={`db-nav-item${activeNav === item.label ? ' db-nav-item--active' : ''}`}
-                  onClick={e => { e.preventDefault(); setActiveNav(item.label); setMobileNavOpen(false) }}>
+              {mobileNavItems.map(item => (
+                <button key={item.label} type="button" className={`db-nav-item${activeNav === item.label ? ' db-nav-item--active' : ''}`}
+                  onClick={() => { setActiveNav(item.label); setMobileNavOpen(false); onNavigate?.(item.page as any) }}>
                   <span className="material-symbols-outlined">{item.icon}</span>
                   <span>{item.label}</span>
-                </a>
+                </button>
               ))}
             </div>
           </div>
@@ -397,23 +400,17 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* ── Mobile Bottom Nav ────────────────────── */}
       <nav className="db-mobile-nav-bar">
-        {[
-          { icon: 'dashboard', label: 'Home', page: 'dashboard' },
-          { icon: 'quiz', label: 'Tests', page: 'mocktests' },
-          { icon: 'insights', label: 'Stats', page: 'analytics' },
-          { icon: 'person', label: 'Profile', page: 'settings' },
-        ].map(item => (
-          <a key={item.label} href="#"
+        {mobileNavItems.map(item => (
+          <button key={item.label} type="button"
             className={`db-mobile-nav-item${activeNav === item.label ? ' db-mobile-nav-item--active' : ''}`}
-            onClick={e => { 
-              e.preventDefault(); 
+            onClick={() => {
               setActiveNav(item.label);
               if (item.page && onNavigate) onNavigate(item.page as any)
             }}
           >
             <span className="material-symbols-outlined">{item.icon}</span>
             <span>{item.label}</span>
-          </a>
+          </button>
         ))}
       </nav>
     </div>

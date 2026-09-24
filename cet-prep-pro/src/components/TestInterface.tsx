@@ -83,6 +83,8 @@ export default function TestInterface({
   onResultSaved,
   examName = 'MHT-CET Mock Test',
   durationMinutes = 120,
+  questionCount,
+  questionIds = [],
   reviewMode = false, 
   pastAnswers, 
   pastResultData 
@@ -94,6 +96,8 @@ export default function TestInterface({
   onResultSaved?: (result: any) => void;
   examName?: string;
   durationMinutes?: number;
+  questionCount?: number;
+  questionIds?: string[];
   reviewMode?: boolean;
   pastAnswers?: Record<string, number>;
   pastResultData?: any;
@@ -160,13 +164,22 @@ export default function TestInterface({
   })
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
     if (reviewMode) return durationMinutes * 60
-    const saved = localStorage.getItem('cet_exam_time_remaining')
-    return saved ? parseInt(saved, 10) : durationMinutes * 60
+    const savedTime = Number(localStorage.getItem('cet_exam_time_remaining'))
+    const savedDuration = Number(localStorage.getItem('cet_exam_duration_minutes'))
+    const savedTestName = localStorage.getItem('cet_exam_name')
+    const matchesCurrentTest = savedDuration === durationMinutes && savedTestName === examName
+    return matchesCurrentTest && Number.isFinite(savedTime) && savedTime >= 0
+      ? Math.min(savedTime, durationMinutes * 60)
+      : durationMinutes * 60
   }) // exam duration in seconds
   const [timeElapsed, setTimeElapsed] = useState<number>(() => {
     if (reviewMode) return 0
     const saved = localStorage.getItem('cet_exam_time_elapsed')
-    return saved ? parseInt(saved, 10) : 0
+    const savedDuration = Number(localStorage.getItem('cet_exam_duration_minutes'))
+    const savedTestName = localStorage.getItem('cet_exam_name')
+    return savedDuration === durationMinutes && savedTestName === examName && saved
+      ? Math.max(0, parseInt(saved, 10))
+      : 0
   }) // Track actual elapsed time
 
   // Set ongoing test indicator in localStorage for Dashboard resume card
@@ -197,12 +210,21 @@ export default function TestInterface({
   useEffect(() => {
     if (reviewMode) return
     localStorage.setItem('cet_exam_time_remaining', timeRemaining.toString())
-  }, [timeRemaining, reviewMode])
+    localStorage.setItem('cet_exam_duration_minutes', durationMinutes.toString())
+    localStorage.setItem('cet_exam_name', examName)
+  }, [durationMinutes, examName, reviewMode, timeRemaining])
 
   useEffect(() => {
     if (reviewMode) return
     localStorage.setItem('cet_exam_time_elapsed', timeElapsed.toString())
   }, [timeElapsed, reviewMode])
+
+  useEffect(() => {
+    setCurrentIndex(index => questions.length > 0
+      ? Math.min(index, questions.length - 1)
+      : 0)
+  }, [questions.length])
+
   const [submitted, setSubmitted] = useState(reviewMode)
   const [result, setResult] = useState<{
     total: number
@@ -360,6 +382,8 @@ export default function TestInterface({
     localStorage.removeItem('cet_exam_marked')
     clearQuestionOrder()
     localStorage.removeItem('cet_exam_time_remaining')
+    localStorage.removeItem('cet_exam_duration_minutes')
+    localStorage.removeItem('cet_exam_name')
     localStorage.removeItem('cet_exam_time_elapsed')
     localStorage.removeItem('cet_inProgressTest')
     
@@ -464,15 +488,21 @@ export default function TestInterface({
           if (reviewMode) {
             setQuestions(normalizedQuestions)
           } else {
-            const savedQuestionIds = loadQuestionOrder()
             const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
+            const assignedQuestions = questionIds
+              .map(questionId => questionsById.get(questionId))
+              .filter((question): question is Question => Boolean(question))
+            const savedQuestionIds = loadQuestionOrder()
             const orderedQuestions = savedQuestionIds
               .map(questionId => questionsById.get(questionId))
               .filter((question): question is Question => Boolean(question))
-            const newQuestions = normalizedQuestions.filter(question => !savedQuestionIds.includes(question._id))
-            const nextQuestions = savedQuestionIds.length > 0
-              ? [...orderedQuestions, ...newQuestions]
-              : shuffleQuestionsBySubject(normalizedQuestions)
+            const configuredCount = Number.isFinite(questionCount) && questionCount && questionCount > 0
+              ? questionCount
+              : normalizedQuestions.length
+            const nextQuestions = assignedQuestions.length > 0
+              ? assignedQuestions
+              : (orderedQuestions.length > 0 ? orderedQuestions : shuffleQuestionsBySubject(normalizedQuestions))
+                .slice(0, configuredCount)
 
             setQuestions(nextQuestions)
             saveQuestionOrder(nextQuestions)
@@ -494,12 +524,12 @@ export default function TestInterface({
     }, 100)
     
     return () => clearTimeout(timeout)
-  }, [])
+  }, [durationMinutes, examName, questionCount, questionIds, reviewMode])
 
 
   // Timer — pauses automatically when fullscreen/focus warning is active
   useEffect(() => {
-    if (loading) return
+    if (loading || submitted) return
     const timer = setInterval(() => {
       if (timerPaused) return // Do not tick while warning modal is shown
       setTimeRemaining(t => {
@@ -512,7 +542,12 @@ export default function TestInterface({
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [loading, timerPaused])
+  }, [loading, submitted, timerPaused])
+
+  useEffect(() => {
+    if (reviewMode || loading || submitted || isSubmitting || timeRemaining > 0) return
+    void submitTest()
+  }, [isSubmitting, loading, reviewMode, submitted, timeRemaining])
 
   const formatTime = (seconds: number) => {
     try {

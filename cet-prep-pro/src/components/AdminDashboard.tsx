@@ -8,13 +8,26 @@ import TestInterface from './TestInterface'
 import QuestionBank from './QuestionBank'
 import AdminMockTests from './AdminMockTests'
 import AdminAnalysis from './AdminAnalysis'
+import AdminSettings from './AdminSettings'
 import '../admin.css'
 import '../testInterface.css'
 import '../questionBank.css'
 Chart.register(...registerables)
 
 type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'admin-dashboard'
-type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics'
+type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics' | 'settings'
+
+const adminPathToView = (pathname: string): AdminView => {
+  if (pathname === '/admin/mock-tests') return 'mocktests'
+  if (pathname === '/admin/registrations') return 'registrations'
+  if (pathname === '/admin/students') return 'students'
+  if (pathname === '/admin/question-bank') return 'questions'
+  if (pathname === '/admin/analytics') return 'analytics'
+  if (pathname === '/admin/settings') return 'settings'
+  return 'overview'
+}
+
+const adminViewToPath = (view: AdminView) => `/admin/${view === 'overview' ? 'dashboard' : view === 'mocktests' ? 'mock-tests' : view === 'questions' ? 'question-bank' : view}`
 
 interface AdminDashboardProps {
   onNavigate?: (page: Page | string) => void
@@ -865,7 +878,7 @@ function RegistrationReview() {
 export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart | null>(null)
-  const [view, setView] = useState<AdminView>('overview')
+  const [view, setView] = useState<AdminView>(() => adminPathToView(window.location.pathname))
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
   const [showTest, setShowTest] = useState(false)
   const [students, setStudents] = useState<AuthUser[]>([])
@@ -893,6 +906,18 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const [adminPhotoError, setAdminPhotoError] = useState('')
   const [adminPhotoUploading, setAdminPhotoUploading] = useState(false)
   const [adminPhotoRemoving, setAdminPhotoRemoving] = useState(false)
+
+  const changeView = (nextView: AdminView) => {
+    if (nextView === view) return
+    window.history.pushState({ adminView: nextView }, '', adminViewToPath(nextView))
+    setView(nextView)
+  }
+
+  useEffect(() => {
+    const handleAdminPopState = () => setView(adminPathToView(window.location.pathname))
+    window.addEventListener('popstate', handleAdminPopState)
+    return () => window.removeEventListener('popstate', handleAdminPopState)
+  }, [])
 
   useEffect(() => {
     const syncAdmin = async () => {
@@ -953,8 +978,8 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       try {
         const [studentData, questionData, mockTestData, resultData] = await Promise.all([
           usersAPI.getAll('approved'),
-          questionsAPI.getAll({ isActive: true }),
-          mockTestsAPI.getAll(),
+          questionsAPI.getAllAdmin({ isActive: true }),
+          mockTestsAPI.getAllAdmin(),
           testsAPI.getAllAdmin(),
         ])
         if (cancelled) return
@@ -1098,11 +1123,13 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     ? 'Mock Tests'
     : view === 'analytics'
     ? 'Analysis Dashboard'
+    : view === 'settings'
+    ? 'System Settings'
     : 'Admin Console'
 
   const handleQuickAction = (label: string) => {
-    if (label === 'Manage Faculty') setView('students')
-    if (label === 'Upload Data') setView('questions')
+    if (label === 'Manage Faculty') changeView('students')
+    if (label === 'Upload Data') changeView('questions')
     if (label === 'Send Alerts') {
       setAlertSent(false)
       setShowAlertComposer(true)
@@ -1497,10 +1524,10 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   onClick={e => {
                     e.preventDefault()
                     if (item.label === 'Settings') {
-                      setShowServerSettings(true)
+                      changeView('settings')
                       return
                     }
-                    if (item.view) setView(item.view)
+                    if (item.view) changeView(item.view)
                   }}
                 >
                   <span className="material-symbols-outlined">{item.icon}</span>
@@ -1743,6 +1770,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
               {view === 'questions' && <QuestionBank />}
               {view === 'mocktests' && <AdminMockTests />}
               {view === 'analytics' && <AdminAnalysis />}
+              {view === 'settings' && <AdminSettings />}
             </div>
           </main>
         </div>

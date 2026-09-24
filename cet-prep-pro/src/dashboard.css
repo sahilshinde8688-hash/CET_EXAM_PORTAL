@@ -483,6 +483,8 @@
 .db-mobile-nav-item {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   text-decoration: none; color: #727785;
+  border: 0; background: transparent; cursor: pointer;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   font-size: 10px; font-family: 'Inter', sans-serif;
   transition: color 0.2s;
 }
@@ -523,6 +525,16 @@
 }
 
 @media (max-width: 600px) {
+  .db-mobile-nav-bar {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .db-mobile-nav-item {
+    min-width: 48px;
+    font-size: 9px;
+  }
+
   .db-popover {
     width: min(320px, calc(100vw - 24px)) !important;
     right: -4px !important;

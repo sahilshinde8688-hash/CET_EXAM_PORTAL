@@ -187,6 +187,7 @@ export interface AuthUser {
   email: string
   name: string
   role: 'student' | 'admin' | 'teacher'
+  adminRole?: string
   status?: 'pending' | 'approved' | 'rejected'
   phone?: string
   branch?: string
@@ -243,13 +244,14 @@ export const authAPI = {
 
     // 1. Try the real backend session first so protected API calls get valid cookies.
     let backendError: Error | null = null
+    let backendResponded = false
     try {
       const csrfToken = await ensureCsrfToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000)
+      const timeoutId = setTimeout(() => controller.abort(), 30000)
 
       const res = await fetch(`${BASE}/auth/login`, {
         method: 'POST',
@@ -258,6 +260,7 @@ export const authAPI = {
         signal: controller.signal,
         body: JSON.stringify({ email: cleanId, password, rememberMe }),
       }).finally(() => clearTimeout(timeoutId))
+      backendResponded = true
 
       const headerResCsrf = res.headers.get('X-CSRF-Token')
       if (headerResCsrf) setCsrfToken(headerResCsrf)
@@ -278,6 +281,7 @@ export const authAPI = {
               headers,
               body: JSON.stringify({ email: cleanId, password, rememberMe }),
             })
+            backendResponded = true
             const retryCsrf = retryRes.headers.get('X-CSRF-Token')
             if (retryCsrf) setCsrfToken(retryCsrf)
             if (retryRes.ok) {
@@ -295,18 +299,19 @@ export const authAPI = {
         backendError = new Error(body.message || `Login failed with status ${res.status}.`)
       }
     } catch (error) {
-      backendError = error instanceof Error ? error : new Error('Unable to reach the login server.')
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        backendError = new Error('The authentication server took too long to respond. Please try again.')
+      } else {
+        backendError = error instanceof Error ? error : new Error('Unable to reach the login server.')
+      }
     }
 
-    if (import.meta.env.PROD || import.meta.env.VITE_API_URL) {
+    if (backendResponded || import.meta.env.PROD || import.meta.env.VITE_API_URL) {
       throw backendError || new Error('Unable to reach the login server.')
     }
 
-    // 2. Do not silently create a fake admin session when the backend is unavailable.
+    // 2. No default system admin credentials are allowed; only real registered profiles may sign in.
     // Protected endpoints require a real access token cookie from the API server.
-    if ((cleanId === 'admin@1234' || cleanId === 'admin') && (password === 'admin@1234' || password === 'admin')) {
-      throw new Error('Admin login requires the CET API server to be running and authenticated. Please make sure the backend is active before continuing.')
-    }
 
     // 3. Fallback to Supabase Database
     try {
@@ -325,8 +330,7 @@ export const authAPI = {
         }
 
         const passMatch = (dbUser.mhcet_password && dbUser.mhcet_password === password) ||
-                          (dbUser.password && dbUser.password === password) ||
-                          password === 'admin@1234'
+                          (dbUser.password && dbUser.password === password)
 
         if (passMatch) {
           const authUser: AuthUser = {
@@ -370,7 +374,7 @@ export const authAPI = {
       if (localFound.status === 'rejected') {
         throw new Error('Your registration application was rejected.')
       }
-      if (localFound.mhcetPassword === password || localFound.password === password || password === 'admin@1234') {
+      if (localFound.mhcetPassword === password || localFound.password === password) {
         return localFound
       }
       throw new Error('Invalid password.')
@@ -916,13 +920,29 @@ export const usersAPI = {
   async uploadMyPhoto(file: File) {
     const form = new FormData()
     form.append('image', file)
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = {}
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
     const res = await fetch(`${BASE}/upload/profile`, {
       method: 'POST',
       credentials: 'include',
+      headers,
       body: form,
     })
     const data = await handle(res).then(() => res.json())
     return data as { photoUrl: string; message: string }
+  },
+  async removeMyPhoto() {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = {}
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/upload/profile`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers,
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as { message: string }
   },
   async resetPassword(newPassword: string) {
     try {
@@ -1187,6 +1207,11 @@ export const mockTestsAPI = {
     const data = await handle(res).then(() => res.json())
     return data as MockTest[]
   },
+  async getAllAdmin() {
+    const res = await fetch(`${BASE}/mock-tests?admin=true`, { credentials: 'include' })
+    const data = await handle(res).then(() => res.json())
+    return data as MockTest[]
+  },
   async create(payload: Omit<MockTest, '_id' | 'createdAt' | 'attempts' | 'avgScore'>) {
     const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -1254,6 +1279,17 @@ export const questionsAPI = {
     Object.entries(filters || {}).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
     const url = qs.toString() ? `${BASE}/questions?${qs.toString()}` : `${BASE}/questions`
     const res = await fetch(url, { credentials: 'include' })
+    const data = await handle(res).then(() => res.json())
+    return data as Question[]
+  },
+  async getAllAdmin(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean }) {
+    const params = new URLSearchParams({ admin: 'true' })
+    if (filters?.subject) params.set('subject', filters.subject)
+    if (filters?.topic) params.set('topic', filters.topic)
+    if (filters?.difficulty) params.set('difficulty', filters.difficulty)
+    if (filters?.isActive !== undefined) params.set('isActive', String(filters.isActive))
+    params.set('includeAnswers', String(filters?.includeAnswers ?? true))
+    const res = await fetch(`${BASE}/questions?${params.toString()}`, { credentials: 'include' })
     const data = await handle(res).then(() => res.json())
     return data as Question[]
   },

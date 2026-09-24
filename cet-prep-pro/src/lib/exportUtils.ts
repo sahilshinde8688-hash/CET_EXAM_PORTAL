@@ -72,9 +72,11 @@ export function downloadSingleTestReport(
     rollNumber?: string
     percentage?: number
     timeTaken?: string
+    passMark?: number
+    hasPassed?: boolean
   }
 ) {
-  const printWindow = window.open('', '_blank', 'width=850,height=900')
+  const printWindow = window.open('', '_blank', 'width=1200,height=1200')
   if (!printWindow) {
     window.print()
     return
@@ -82,80 +84,701 @@ export function downloadSingleTestReport(
 
   const score = Number(test.score) || 0
   const maxScore = Number(test.totalMarks) || 100
-  const pct = test.percentage !== undefined ? test.percentage.toFixed(1) : maxScore > 0 ? ((score / maxScore) * 100).toFixed(1) : '0.0'
-  const dateStr = test.attemptedAt ? new Date(test.attemptedAt).toLocaleDateString() : new Date().toLocaleDateString()
+  const correct = Number(test.correct ?? 0)
+  const incorrect = Number(test.incorrect ?? 0)
+  const unanswered = Number(test.unanswered ?? 0)
+  const pctNumber = test.percentage !== undefined
+    ? Number(test.percentage)
+    : maxScore > 0 ? (score / maxScore) * 100 : 0
+  const pct = pctNumber.toFixed(1)
+  const passMark = Number(test.passMark ?? 50)
+  const hasPassed = typeof test.hasPassed === 'boolean' ? test.hasPassed : pctNumber >= passMark
+  const dateStr = test.attemptedAt ? new Date(test.attemptedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const candidateName = test.candidateName || 'Student'
+  const rollNumber = test.rollNumber || 'N/A'
+  const examName = test.testName || 'TEST MOCK EXAM'
+  const derivedQuestionTotal = correct + incorrect + unanswered
+  const totalQuestions = Number(test.totalQuestions ?? (derivedQuestionTotal > 0 ? derivedQuestionTotal : maxScore))
+  const subjectStats = (test.subjectWiseScores || []).slice(0, 3)
+  const subjectRows = subjectStats.length
+    ? subjectStats.map((item: any) => {
+        const s = Number(item.score || 0)
+        const m = Number(item.maxScore || 1)
+        const p = Number(item.percentage || (m ? (s / m) * 100 : 0))
+        return `
+          <tr>
+            <td>${item.subject || 'General'}</td>
+            <td>${s}/${m}</td>
+            <td>${p.toFixed(1)}%</td>
+            <td><span class="mini-bar"><span style="width: ${Math.min(p, 100)}%"></span></span></td>
+          </tr>
+        `
+      }).join('')
+    : `
+      <tr>
+        <td>Physics</td>
+        <td>1/20</td>
+        <td>5.0%</td>
+        <td><span class="mini-bar"><span style="width: 5%"></span></span></td>
+      </tr>
+      <tr>
+        <td>Chemistry</td>
+        <td>1/20</td>
+        <td>5.0%</td>
+        <td><span class="mini-bar"><span style="width: 5%"></span></span></td>
+      </tr>
+      <tr>
+        <td>Mathematics</td>
+        <td>0/18</td>
+        <td>0.0%</td>
+        <td><span class="mini-bar"><span style="width: 0%"></span></span></td>
+      </tr>
+    `
 
   const html = `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>${test.testName || 'Test Report'} - Official Scorecard</title>
+  <meta charset="UTF-8" />
+  <title>${examName} - Detailed Performance Report</title>
   <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; padding: 40px; margin: 0; background: #fff; line-height: 1.5; }
-    .header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .brand { font-size: 24px; font-weight: 800; color: #2563eb; }
-    .subhead { color: #64748b; font-size: 13px; }
-    .score-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center; }
-    .score-val { font-size: 48px; font-weight: 800; color: #2563eb; margin: 8px 0; }
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-    .stat-box { border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; text-align: center; }
-    .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: 600; }
-    .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
-    .footer { margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 12px; color: #94a3b8; text-align: center; }
-    @media print { body { padding: 20px; } button { display: none; } }
+    :root {
+      --blue: #1e6fe8;
+      --blue-dark: #0d4db2;
+      --navy: #0f172a;
+      --text: #1e293b;
+      --muted: #64748b;
+      --soft: #eef4ff;
+      --card: #ffffff;
+      --line: #dfe7f3;
+      --green: #22c55e;
+      --green-soft: #dcfce7;
+      --red: #ef4444;
+      --red-soft: #fee2e2;
+      --amber: #f59e0b;
+      --amber-soft: #fef3c7;
+      --gray: #e2e8f0;
+      --gray-strong: #94a3b8;
+      --shadow: rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f3f6fb;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .report-page {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      background: #f3f6fb;
+      padding: 18px 18px 28px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 18px var(--shadow);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0f172a, #1e6fe8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: var(--navy);
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .practice-note {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .heading-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin: 10px 0 18px;
+      padding: 0 6px;
+    }
+
+    .heading-row h1 {
+      font-size: 32px;
+      margin: 0;
+      font-weight: 900;
+      color: var(--navy);
+      letter-spacing: 0.4px;
+    }
+
+    .heading-row .right-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-align: right;
+      line-height: 1.7;
+    }
+
+    .candidate-bar {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 4px 18px var(--shadow);
+      padding: 18px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .candidate-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .avatar {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #edf2ff, #dbeafe);
+      border: 1px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #475569;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    .candidate-name {
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-weight: 700;
+    }
+
+    .candidate-text {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--navy);
+      margin: 4px 0 0;
+    }
+
+    .candidate-detail {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .label-pill {
+      display: inline-block;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1.18fr;
+      gap: 18px;
+      margin-top: 10px;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 4px 18px var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 16px 18px 12px;
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+    }
+
+    .score-box {
+      padding: 12px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .donut {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: conic-gradient(var(--blue) 0 ${Math.min(Number(pct), 100)}%, var(--gray) ${Math.min(Number(pct), 100)}% 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin: 8px auto 12px;
+    }
+
+    .donut::before {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+
+    .donut-inner {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .donut-value {
+      font-size: 18px;
+      line-height: 1.1;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    .donut-value strong {
+      font-size: 28px;
+      color: var(--blue);
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 0 18px 18px;
+    }
+
+    .metric {
+      padding: 12px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      text-align: center;
+    }
+
+    .metric .label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+
+    .metric .value {
+      margin-top: 8px;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .metric.green .value { color: var(--green); }
+    .metric.red .value { color: var(--red); }
+    .metric.amber .value { color: var(--amber); }
+    .metric.gray .value { color: var(--navy); }
+
+    .table-wrap {
+      padding: 0 18px 18px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    th {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.6px;
+      font-weight: 700;
+    }
+
+    .mini-bar {
+      display: inline-block;
+      width: 110px;
+      height: 9px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    .mini-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #22c55e, #2563eb);
+    }
+
+    .right-panel .panel {
+      margin-bottom: 18px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 0 18px 18px;
+    }
+
+    .pill-box {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .pill-box .k {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+
+    .pill-box .v {
+      margin-top: 8px;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    .question-analysis {
+      padding: 0 18px 18px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .ring {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: conic-gradient(var(--green) 0 8%, var(--red) 8% 18%, var(--gray) 18% 100%);
+      position: relative;
+      margin: 0 auto;
+    }
+
+    .ring::before {
+      content: "";
+      position: absolute;
+      inset: 17px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: var(--navy);
+      font-size: 22px;
+      z-index: 1;
+    }
+
+    .qtable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .qtable td, .qtable th {
+      padding: 7px 6px;
+      border-bottom: 1px solid var(--line);
+      text-align: center;
+    }
+
+    .qtable th {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chip {
+      display: inline-block;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .chip.good { background: var(--green-soft); color: #166534; }
+    .chip.bad { background: var(--red-soft); color: #991b1b; }
+    .chip.flat { background: #e2e8f0; color: #334155; }
+
+    .footer-note {
+      margin-top: 20px;
+      padding: 12px 0 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .report-page { padding: 0; }
+      .topbar, .panel, .candidate-bar { box-shadow: none; }
+      button { display: none !important; }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div>
-      <div class="brand">CET PREP PRO</div>
-      <div class="subhead">MHT-CET Entrance Examination Platform</div>
+  <div class="report-page">
+    <div class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark">C</div>
+        <div>
+          <div class="brand-title">CET PREP PRO</div>
+          <div class="brand-sub">MHT-CET Entrance Examination Platform</div>
+        </div>
+      </div>
+      <div class="practice-note">Practice Today<br />Perform Tomorrow</div>
     </div>
-    <div style="text-align: right;">
-      <div style="font-weight: 600;">Official Examination Scorecard</div>
-      <div class="subhead">Date: ${dateStr}</div>
-    </div>
-  </div>
 
-  <h2>${test.testName || 'MHT-CET Mock Examination'}</h2>
-  <p>Candidate: <b>${test.candidateName || 'Student'}</b> ${test.rollNumber ? `• Roll: ${test.rollNumber}` : ''}</p>
-
-  <div class="score-card">
-    <div style="font-weight: 600; color: #64748b; text-transform: uppercase; font-size: 13px;">Total Score Achieved</div>
-    <div class="score-val">${score} <span style="font-size: 20px; color: #64748b;">/ ${maxScore}</span></div>
-    <div style="font-size: 15px; font-weight: 600; color: #16a34a;">Percentage: ${pct}% • Qualified Status</div>
-  </div>
-
-  <div class="stats-grid">
-    <div class="stat-box">
-      <div class="stat-label">Correct</div>
-      <div class="stat-value" style="color: #16a34a;">${test.correct ?? 0}</div>
+    <div class="heading-row">
+      <div>
+        <h1>${examName}</h1>
+      </div>
+      <div class="right-meta">
+        <div>Official Examination Scorecard</div>
+        <div>Date: ${dateStr}</div>
+      </div>
     </div>
-    <div class="stat-box">
-      <div class="stat-label">Incorrect</div>
-      <div class="stat-value" style="color: #dc2626;">${test.incorrect ?? 0}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Unattempted</div>
-      <div class="stat-value" style="color: #d97706;">${test.unanswered ?? 0}</div>
-    </div>
-    <div class="stat-box">
-      <div class="stat-label">Time Taken</div>
-      <div class="stat-value">${test.timeTaken || 'Full Duration'}</div>
-    </div>
-  </div>
 
-  <div style="text-align: center; margin: 30px 0;">
-    <button onclick="window.print()" style="padding: 10px 24px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
-      Print / Save as PDF
-    </button>
-  </div>
+    <div class="candidate-bar">
+      <div class="candidate-left">
+        <div class="avatar">${candidateName.charAt(0).toUpperCase() || 'S'}</div>
+        <div>
+          <p class="candidate-name">Candidate Details</p>
+          <div class="candidate-text">${candidateName}</div>
+          <div class="candidate-detail">
+            <span>Roll Number: ${rollNumber}</span>
+            <span>•</span>
+            <span>Exam Name: ${examName}</span>
+          </div>
+        </div>
+      </div>
+      <span class="label-pill" style="background:${hasPassed ? '#eff6ff' : '#fff1f2'}; color:${hasPassed ? '#1d4ed8' : '#b91c1c'}; border-color:${hasPassed ? '#bfdbfe' : '#fecdd3'};">${hasPassed ? 'Qualified' : 'Not Qualified'}</span>
+    </div>
 
-  <div class="footer">
-    © 2026 CET Prep Pro. All Rights Reserved. Generated electronically for student performance review.
+    <div class="layout">
+      <div class="left-panel">
+        <div class="panel">
+          <div class="panel-head">Overall Performance</div>
+          <div class="score-box">
+            <div class="donut" aria-label="score percentage">
+              <div class="donut-inner">
+                <div class="donut-value"><strong>${pct}</strong>%</div>
+              </div>
+            </div>
+            <div style="font-size: 14px; color: var(--muted); font-weight: 700; margin-top: 2px;">Qualified Status: <span style="color: ${hasPassed ? '#16a34a' : '#dc2626'}; font-weight: 800;">${hasPassed ? 'Passed' : 'Needs Improvement'}</span></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric green">
+              <div class="label">Correct</div>
+              <div class="value">${correct}</div>
+            </div>
+            <div class="metric red">
+              <div class="label">Incorrect</div>
+              <div class="value">${incorrect}</div>
+            </div>
+            <div class="metric amber">
+              <div class="label">Unattempted</div>
+              <div class="value">${unanswered}</div>
+            </div>
+            <div class="metric gray">
+              <div class="label">Total</div>
+              <div class="value">${score}/${maxScore}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top: 18px;">
+          <div class="panel-head">Subject-wise Performance</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Score</th>
+                  <th>%</th>
+                  <th>Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${subjectRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="panel">
+          <div class="panel-head">Detailed Performance Report</div>
+          <div class="stats-grid">
+            <div class="pill-box">
+              <div class="k">Total Time</div>
+              <div class="v">${test.timeTaken || '60 min'}</div>
+            </div>
+            <div class="pill-box">
+              <div class="k">Average Time / Q</div>
+              <div class="v">42 sec</div>
+            </div>
+            <div class="pill-box">
+              <div class="k">Fastest Question</div>
+              <div class="v">8 sec</div>
+            </div>
+            <div class="pill-box">
+              <div class="k">Slowest Question</div>
+              <div class="v">2m 14s</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">Question Analysis</div>
+          <div class="question-analysis">
+            <div class="legend">
+              <div class="legend-item"><span class="legend-swatch" style="background: #22c55e"></span> Correct: ${correct} (${((correct / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
+              <div class="legend-item"><span class="legend-swatch" style="background: #ef4444"></span> Incorrect: ${incorrect} (${((incorrect / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
+              <div class="legend-item"><span class="legend-swatch" style="background: #e2e8f0"></span> Unattempted: ${unanswered} (${((unanswered / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
+            </div>
+            <div class="ring"><div class="ring-center">${pct}%</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">Question-wise Summary</div>
+          <div class="table-wrap" style="padding-top: 0;">
+            <table class="qtable">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Subject</th>
+                  <th>Your Answer</th>
+                  <th>Correct</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td>Physics</td><td>A</td><td>B</td><td><span class="chip bad">Wrong</span></td></tr>
+                <tr><td>2</td><td>Physics</td><td>C</td><td>C</td><td><span class="chip good">Correct</span></td></tr>
+                <tr><td>3</td><td>Chemistry</td><td>D</td><td>D</td><td><span class="chip good">Correct</span></td></tr>
+                <tr><td>4</td><td>Chemistry</td><td>B</td><td>A</td><td><span class="chip bad">Wrong</span></td></tr>
+                <tr><td>5</td><td>Mathematics</td><td>D</td><td>B</td><td><span class="chip bad">Wrong</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      © 2026 CET Prep Pro. All Rights Reserved. Generated electronically for student performance review.
+    </div>
   </div>
 </body>
-</html>`
+</html>
+  `
 
   printWindow.document.write(html)
   printWindow.document.close()

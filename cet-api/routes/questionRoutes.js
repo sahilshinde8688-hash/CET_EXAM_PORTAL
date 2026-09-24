@@ -8,6 +8,11 @@ const { apiLimiter, uploadLimiter } = require('../middleware/rateLimit')
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth')
 const { validateCsrfToken } = require('../middleware/csrf')
 
+const requireAdminQuery = (req, res, next) => {
+  if (req.query.admin !== 'true') return next()
+  return protect(req, res, () => adminOnly(req, res, next))
+}
+
 // Strict Multer setup for question spreadsheets
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -24,7 +29,7 @@ const upload = multer({
 
 // GET /api/questions
 // Withholds answer keys and solutions from students and anonymous users
-router.get('/', optionalAuth, apiLimiter, async (req, res) => {
+router.get('/', requireAdminQuery, optionalAuth, apiLimiter, async (req, res) => {
   const { subject, topic, difficulty, isActive, includeAnswers } = req.query
   const filter = {}
   if (subject) filter.subject = subject

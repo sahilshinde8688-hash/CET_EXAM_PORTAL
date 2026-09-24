@@ -22,19 +22,7 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid token type.' })
     }
 
-    let user = await findUserById(decoded.id)
-    if (!user && decoded.id === '00000000-0000-0000-0000-000000000001') {
-      user = {
-        _id: decoded.id,
-        id: decoded.id,
-        name: 'System Administrator',
-        email: 'admin@1234',
-        branch: 'Byculla',
-        role: 'admin',
-        status: 'approved',
-        batch: 2024,
-      }
-    }
+    const user = await findUserById(decoded.id)
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'User account not found or deactivated.' })
@@ -64,7 +52,10 @@ const adminOnly = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Authentication required.' })
   }
 
-  const isApprovedAdmin = req.user.role === 'admin' && (req.user.status === 'approved' || req.user.status == null)
+  const allowedRoles = new Set(['Super Admin', 'ADMIN', 'EXAM_MANAGER', 'QUESTION_MANAGER', 'ANALYST', 'SUPPORT'])
+  const isApprovedAdmin = req.user.role === 'admin'
+    && (req.user.status === 'approved' || req.user.status == null)
+    && (!req.user.adminRole || allowedRoles.has(req.user.adminRole))
   if (isApprovedAdmin) {
     return next()
   }

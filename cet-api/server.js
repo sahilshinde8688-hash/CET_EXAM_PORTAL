@@ -5,7 +5,6 @@ const cookieParser = require('cookie-parser')
 const dns = require('dns')
 const { applySecurityHeaders, configureCors } = require('./middleware/securityHeaders')
 const { generateCsrfToken } = require('./middleware/csrf')
-const { bootstrapAdminAccount } = require('./services/dbService')
 
 // Startup Environment Validation
 const requiredEnv = ['JWT_SECRET', 'SUPABASE_URL']
@@ -121,10 +120,6 @@ const startServer = (port) => {
 
 // Run bootstrap & listen only when executed directly
 if (require.main === module) {
-  const defaultAdminEmail = process.env.ADMIN_EMAIL || 'admin@1234'
-  const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin@1234'
-  bootstrapAdminAccount(defaultAdminEmail, defaultAdminPassword)
-
   startServer(DEFAULT_PORT)
 
   // Graceful shutdown handling

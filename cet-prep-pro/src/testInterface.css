@@ -639,6 +639,35 @@
   }
 }
 
+@media (max-width: 480px) {
+  .test-header {
+    align-items: center;
+    padding: 8px 10px;
+  }
+
+  .test-header-left {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .test-title {
+    display: none;
+  }
+
+  .test-subject-select {
+    max-width: 112px;
+  }
+
+  .test-timer-text {
+    font-size: 12px;
+  }
+
+  .test-submit-btn {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
 .test-footer {
   height: 80px;
   background: #ffffff;
@@ -1109,7 +1138,7 @@
   }
 
   .test-brand,
-  .test-exam-name {
+  .test-title {
     max-width: 42vw;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1152,6 +1181,43 @@
 
   .test-option {
     padding: 14px;
+  }
+
+  .test-sep {
+    display: none;
+  }
+
+  .test-brand {
+    display: none;
+  }
+
+  .test-title {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+  }
+
+  .test-subject-select {
+    max-width: 92px;
+    padding: 6px 4px !important;
+    font-size: 12px !important;
+  }
+
+  .test-header-right {
+    flex-shrink: 0;
+  }
+
+  .test-timer {
+    padding: 8px;
+    gap: 3px;
+  }
+
+  .test-timer .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  .test-submit-btn {
+    padding: 8px 10px;
+    font-size: 12px;
   }
 
   .test-sidebar {

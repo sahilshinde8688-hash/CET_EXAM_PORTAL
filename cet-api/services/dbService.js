@@ -14,6 +14,7 @@ const userToCamel = (row) => {
     branch: row.branch,
     batch: row.batch,
     role: row.role,
+    adminRole: row.admin_role,
     status: row.status,
     mhcetId: row.mhcet_id,
     photo: row.photo,
@@ -343,40 +344,6 @@ const getAllUsers = async (filters = {}) => {
   return Array.from(map.values())
 }
 
-// ---------------- ADMIN BOOTSTRAP ----------------
-const bootstrapAdminAccount = async (adminEmail, adminPassword) => {
-  if (!adminEmail || !adminPassword) return
-
-  const cleanEmail = adminEmail.toLowerCase().trim()
-  try {
-    const existing = await findUserByEmail(cleanEmail)
-    const hashedPassword = await bcrypt.hash(adminPassword, 12)
-
-    if (!existing) {
-      console.log(`[BOOTSTRAP] Initializing admin account for ${cleanEmail}...`)
-      await createUser({
-        name: 'System Administrator',
-        email: cleanEmail,
-        password: hashedPassword,
-        branch: 'Byculla',
-        batch: 2024,
-        role: 'admin',
-        status: 'approved',
-      })
-      console.log(`[BOOTSTRAP] ✅ Admin account created successfully.`)
-    } else if (existing.role !== 'admin' || !existing.password) {
-      console.log(`[BOOTSTRAP] Updating existing account to admin privileges for ${cleanEmail}...`)
-      await updateUser(existing.id, {
-        role: 'admin',
-        status: 'approved',
-        password: hashedPassword,
-      })
-      console.log(`[BOOTSTRAP] ✅ Admin account updated successfully.`)
-    }
-  } catch (err) {
-    console.error(`[BOOTSTRAP] ❌ Failed to bootstrap admin account:`, err.message)
-  }
-}
 
 // ---------------- SESSION OPERATIONS ----------------
 const createSession = async (sessionData) => {
@@ -803,7 +770,6 @@ module.exports = {
   updateUser,
   deleteUser,
   getAllUsers,
-  bootstrapAdminAccount,
 
   // Session
   createSession,

@@ -175,7 +175,7 @@ export default function QuestionBank() {
   const load = async () => {
     setLoading(true)
     try {
-      const data = await questionsAPI.getAll()
+      const data = await questionsAPI.getAllAdmin()
       setQuestions(data)
     } finally { setLoading(false) }
   }

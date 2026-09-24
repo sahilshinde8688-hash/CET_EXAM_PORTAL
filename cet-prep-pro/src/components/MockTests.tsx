@@ -150,6 +150,18 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     const saved = localStorage.getItem('cet_selected_test_duration')
     return saved ? Number(saved) : 120
   })
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('cet_selected_question_ids')
+    try {
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+  const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(() => {
+    const saved = localStorage.getItem('cet_selected_question_count')
+    return saved ? Number(saved) : 150
+  })
   const bypassBackGuard = useRef(false)
 
   // ── Restore exam state on reload ─────────────────────────────────────────
@@ -247,9 +259,11 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     desc: `Questions: ${test.questions} | Duration: ${test.duration} mins`,
     questions: test.questions,
     mins: test.duration,
+    questionIds: test.questionIds || [],
     difficulty: getDifficulty(test.difficulty),
     subject: getSubject(test.subject),
     tab: getTabType(test.status),
+    questionIds: test.questionIds || [],
     recommended: test.status === 'active',
     primary: test.status === 'active',
   })).filter(t => {
@@ -376,6 +390,8 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
         onClose={exitExam}
         examName={selectedTestName}
         durationMinutes={selectedTestDuration}
+        questionCount={selectedQuestionCount}
+        questionIds={selectedQuestionIds}
         onBackToAnalysis={() => {
           exitExam()
           onNavigate?.('analytics')
@@ -508,8 +524,12 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                     <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} onClick={() => {
                       localStorage.setItem('cet_selected_test_name', test.title)
                       localStorage.setItem('cet_selected_test_duration', String(test.mins))
+                      localStorage.setItem('cet_selected_question_ids', JSON.stringify(test.questionIds))
+                      localStorage.setItem('cet_selected_question_count', String(test.questions))
                       setSelectedTestName(test.title)
                       setSelectedTestDuration(test.mins)
+                      setSelectedQuestionCount(test.questions)
+                      setSelectedQuestionIds(test.questionIds)
                       setStartingTest(true)
                     }}>
                       Start Now

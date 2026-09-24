@@ -85,7 +85,7 @@ export default function AdminMockTests() {
   const loadMockTests = async () => {
     try {
       const [data, resultData] = await Promise.all([
-        mockTestsAPI.getAll(),
+        mockTestsAPI.getAllAdmin(),
         testsAPI.getAllAdmin(),
       ])
 
@@ -231,7 +231,7 @@ export default function AdminMockTests() {
         questionIds: formData.questionSelection === 'bank' ? formData.selectedQuestions : [],
         status: status as 'active' | 'scheduled' | 'draft',
         scheduledDate,
-        createdBy: currentAdmin?.name || 'System Administrator',
+        createdBy: currentAdmin?.name || 'Administrator',
       }
       if (editingTest) {
         await mockTestsAPI.update(editingTest._id, payload)
@@ -397,7 +397,7 @@ export default function AdminMockTests() {
     if (showCreateModal) {
       loadQuestionBankMeta()
       const subject = formData.subject && formData.subject !== 'Mixed' ? formData.subject : undefined
-      questionsAPI.getAll({ isActive: true }).then(questions => {
+      questionsAPI.getAllAdmin({ isActive: true }).then(questions => {
         setAvailableQuestions(questions)
         setQuestionCounts(questions.reduce<Record<string, number>>((counts, question) => {
           const subjectName = question.subject?.trim() || 'Other'
@@ -405,7 +405,7 @@ export default function AdminMockTests() {
           return counts
         }, {}))
       }).catch(error => console.error('Failed to count questions:', error))
-      questionsAPI.getAll({ isActive: true, subject }).then(questions => setAvailableQuestionCount(questions.length)).catch(error => console.error('Failed to count selected subject questions:', error))
+      questionsAPI.getAllAdmin({ isActive: true, subject }).then(questions => setAvailableQuestionCount(questions.length)).catch(error => console.error('Failed to count selected subject questions:', error))
     }
   }, [showCreateModal, formData.subject])
 

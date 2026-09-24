@@ -27,6 +27,13 @@ router.post(
 
       const userId = req.user.id || req.user._id
 
+      const user = await db.findUserById(userId)
+      if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+      if (user.photo) {
+        await deleteFromCloudinary(`cet-students/student_${userId}`).catch(() => {})
+      }
+
       const result = await uploadToCloudinary(req.file.buffer, 'cet-students', `student_${userId}`)
 
       await db.updateUser(userId, { photo: result.secure_url })
@@ -37,6 +44,30 @@ router.post(
         photoUrl: result.secure_url,
         publicId: result.public_id,
       })
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message })
+    }
+  }
+)
+
+// DELETE /api/upload/profile - Remove the logged-in user's profile photo
+router.delete(
+  '/profile',
+  protect,
+  validateCsrfToken,
+  uploadLimiter,
+  async (req, res) => {
+    try {
+      const userId = req.user.id || req.user._id
+      const user = await db.findUserById(userId)
+      if (!user) return res.status(404).json({ success: false, message: 'User not found' })
+
+      if (user.photo) {
+        await deleteFromCloudinary(`cet-students/student_${userId}`).catch(() => {})
+      }
+
+      await db.updateUser(userId, { photo: null })
+      res.json({ success: true, message: 'Profile photo removed' })
     } catch (err) {
       res.status(500).json({ success: false, message: err.message })
     }

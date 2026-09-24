@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import SignIn from './components/SignIn'
-import { clearAdminCredentials, isAdminCredentials } from './adminAuth'
-import { session } from './lib/api'
+import { clearAdminCredentials } from './adminAuth'
+import { authAPI, session, type AuthUser } from './lib/api'
 import './dashboard.css'
 import './mocktests.css'
 import './results.css'
@@ -15,7 +15,25 @@ const Analysis = lazy(() => import('./components/Analysis'))
 const Settings = lazy(() => import('./components/Settings'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 
-export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin'
+export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'unauthorized'
+
+const pathToPage = (pathname: string): Page => {
+  if (pathname.startsWith('/admin')) return 'admin'
+  if (pathname === '/dashboard' || pathname === '/') return 'dashboard'
+  if (pathname === '/mock-tests') return 'mocktests'
+  if (pathname === '/results') return 'results'
+  if (pathname === '/analytics') return 'analytics'
+  if (pathname === '/settings') return 'settings'
+  if (pathname === '/unauthorized') return 'unauthorized'
+  return 'signin'
+}
+
+const pageToPath = (page: Page) => {
+  if (page === 'admin') return '/admin/dashboard'
+  if (page === 'signin') return '/login'
+  if (page === 'unauthorized') return '/unauthorized'
+  return `/${page === 'mocktests' ? 'mock-tests' : page}`
+}
 
   const PAGE_ICONS: Record<string, string> = {
   dashboard: 'dashboard',
@@ -23,6 +41,7 @@ export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics
   results:   'history',
   analytics: 'analytics',
   settings:  'settings',
+  unauthorized: 'lock',
 }
 const PAGE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -30,6 +49,7 @@ const PAGE_LABELS: Record<string, string> = {
   results:   'Results',
   analytics: 'Analytics',
   settings:  'Settings',
+  unauthorized: 'Access denied',
 }
 
 /* ── Page transition loader ── */
@@ -75,23 +95,65 @@ function PageLoader({ target }: { target: Page }) {
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>('signin')
+  const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
+  const [authLoading, setAuthLoading] = useState(true)
+  const authenticatedUserRef = useRef<AuthUser | null>(null)
   const [transitioning, setTransitioning] = useState(false)
   const [nextPage, setNextPage] = useState<Page | null>(null)
-  const [adminLoggedIn, setAdminLoggedIn] = useState(false)
 
   useEffect(() => {
-    const currentUser = session.get()
-    if (page === 'admin' && (!currentUser || currentUser.role !== 'admin')) {
-      clearAdminCredentials()
-      setAdminLoggedIn(false)
-      setPage('signin')
+    const requestedPage = pathToPage(window.location.pathname)
+    let active = true
+
+    const initializeAuth = async () => {
+      try {
+        const user = await authAPI.me()
+        if (!active) return
+        session.save(user)
+        authenticatedUserRef.current = user
+        if (requestedPage === 'admin' && user.role !== 'admin') {
+          window.history.replaceState(null, '', '/unauthorized')
+          setPage('unauthorized')
+        } else if (requestedPage === 'signin') {
+          const destination = user.role === 'admin' ? 'admin' : 'dashboard'
+          window.history.replaceState(null, '', pageToPath(destination))
+          setPage(destination)
+        } else {
+          setPage(requestedPage)
+        }
+      } catch {
+        session.clear()
+        authenticatedUserRef.current = null
+        if (requestedPage !== 'signin') {
+          window.history.replaceState(null, '', '/login')
+          setPage('signin')
+        } else {
+          setPage('signin')
+        }
+      } finally {
+        if (active) setAuthLoading(false)
+      }
     }
-  }, [page])
+
+    void initializeAuth()
+
+    const handlePopState = () => {
+      const next = pathToPage(window.location.pathname)
+      if (next === 'admin' && authenticatedUserRef.current?.role !== 'admin') {
+        window.history.replaceState(null, '', '/unauthorized')
+        setPage('unauthorized')
+        return
+      }
+      setPage(next)
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => { active = false; window.removeEventListener('popstate', handlePopState) }
+  }, [])
 
   const navigate = (target: Page | string) => {
     const resolvedTarget = (target === 'admin-dashboard' ? 'admin' : target) as Page
     if (resolvedTarget === page) return
+    window.history.pushState({ page: resolvedTarget }, '', pageToPath(resolvedTarget))
     setNextPage(resolvedTarget)
     setTransitioning(true)
   }
@@ -106,6 +168,7 @@ export default function App() {
     return () => clearTimeout(t)
   }, [transitioning, nextPage])
 
+  if (authLoading) return <PageLoader target={page} />
   if (transitioning && nextPage) return <PageLoader target={nextPage} />
   return (
     <Suspense fallback={<PageLoader target={page} />}>
@@ -113,8 +176,14 @@ export default function App() {
         <SignIn
           onSuccess={() => navigate('dashboard')}
           onAdminLogin={() => {
-            setAdminLoggedIn(true)
-            navigate('admin')
+            void authAPI.me().then(user => {
+              authenticatedUserRef.current = user
+              navigate('admin')
+            }).catch(() => {
+              session.clear()
+              window.history.replaceState(null, '', '/login')
+              setPage('signin')
+            })
           }}
         />
       )}
@@ -127,12 +196,23 @@ export default function App() {
           onNavigate={navigate}
           onLogout={() => {
             clearAdminCredentials()
-            setAdminLoggedIn(false)
-            navigate('signin')
+            window.history.replaceState(null, '', '/login')
+            setPage('signin')
           }}
         />
       )}
       {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
+      {page === 'unauthorized' && (
+        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
+          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16 }}>
+            <h1>403</h1>
+            <h2>Access Denied</h2>
+            <p>You don't have permission to access this area.</p>
+            <button type="button" onClick={() => navigate('dashboard')}>Back to Dashboard</button>
+            <button type="button" onClick={() => { session.clear(); window.history.replaceState(null, '', '/login'); setPage('signin') }}>Logout</button>
+          </div>
+        </div>
+      )}
     </Suspense>
   )
 }
