@@ -95,6 +95,18 @@ body {
 }
 
 /* ─── Brand ───────────────────────────────── */
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+}
+
 .brand-title {
   font-size: 26px;
   font-weight: 700;

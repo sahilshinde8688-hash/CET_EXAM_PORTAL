@@ -26,9 +26,9 @@ export default function Sidebar({ activePage, onNavigate, onStartTest }: Sidebar
     <aside className="db-sidebar">
       <div className="db-sidebar-brand">
         <div className="db-sidebar-logo">
-          <span className="material-symbols-outlined">school</span>
+          <img src="/logo.png" alt="CET NOVA" />
         </div>
-        <span className="db-sidebar-title">CET Prep Pro</span>
+        <span className="db-sidebar-title">CET NOVA</span>
       </div>
 
       <nav className="db-sidebar-nav">

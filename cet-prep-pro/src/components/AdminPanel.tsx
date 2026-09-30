@@ -44,7 +44,7 @@ export default function AdminPanel({ onLogout }: AdminPanelProps) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 20 }}>
           <div>
             <p style={{ margin: 0, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.24em', fontSize: 12 }}>Admin Panel</p>
-            <h1 style={{ margin: '6px 0 0', fontSize: 28 }}>CET Prep Pro Control Center</h1>
+            <h1 style={{ margin: '6px 0 0', fontSize: 28 }}>CET NOVA Control Center</h1>
           </div>
           <button onClick={onLogout} style={{ padding: '10px 14px', borderRadius: 999, border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer' }}>
             Logout

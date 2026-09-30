@@ -93,7 +93,10 @@ export default function SignIn({ onSuccess, onAdminLogin }: Props) {
         <div className="dot-pattern" />
         <div className="form-wrapper">
 
-          <h1 className="brand-title">CET Prep Pro</h1>
+          <div className="brand-lockup">
+            <img className="brand-logo" src="/logo.png" alt="CET NOVA" />
+            <h1 className="brand-title">CET NOVA</h1>
+          </div>
           <p className="brand-subtitle">Elevate your future with precision learning.</p>
 
           <div className="tabs">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { session, type AuthUser } from '../lib/api'
+import { getApiUrl, session, type AuthUser } from '../lib/api'
 import '../adminSettings.css'
 import '../adminSettingsLayout.css'
 
@@ -8,6 +8,47 @@ type SectionKey = 'general' | 'roles' | 'security' | 'ai' | 'notifications' | 'i
 type SettingsData = Record<string, string | boolean | number>
 type AdminRecord = { id: string; name: string; email: string; role: string; admin_role?: string; status: string; created_at: string }
 type AuditRecord = { id: string; admin_name: string; action: string; module: string; created_at: string; ip_address: string; status: string }
+type HealthState = {
+  api: { status: string; value: string }
+  database: { status: string; value: string; count: number }
+}
+type BackupInfo = { createdAt: string | null; size: number; tables: number }
+
+const backupTables = ['users', 'questions', 'mock_tests', 'test_results', 'system_settings', 'admin_audit_logs'] as const
+
+const formatUptime = (seconds: number) => {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days) return `${days}d ${hours}h`
+  if (hours) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+const formatBytes = (bytes: number) => {
+  if (!bytes) return 'No backup created'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const downloadFile = (content: string, filename: string, type: string) => {
+  const url = URL.createObjectURL(new Blob([content], { type }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+const toCsv = (rows: Record<string, unknown>[]) => {
+  if (!rows.length) return 'No records found\n'
+  const columns = Array.from(new Set(rows.flatMap(row => Object.keys(row))))
+  const escape = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
+  return [columns.map(escape).join(','), ...rows.map(row => columns.map(column => escape(row[column])).join(','))].join('\n')
+}
 
 const sections: Array<{ key: SectionKey; label: string; icon: string; description: string }> = [
   { key: 'general', label: 'Portal configuration', icon: 'tune', description: 'Core identity and operating mode' },
@@ -64,21 +105,41 @@ export default function AdminSettings() {
   const [confirmAction, setConfirmAction] = useState('')
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', role: 'Support Staff' })
   const [showKey, setShowKey] = useState(false)
+  const [health, setHealth] = useState<HealthState>({ api: { status: 'gray', value: 'Checking...' }, database: { status: 'gray', value: 'Checking...', count: 0 } })
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [backupInfo, setBackupInfo] = useState<BackupInfo>({ createdAt: null, size: 0, tables: 0 })
+  const [backupBusy, setBackupBusy] = useState(false)
   const currentAdmin = session.get<AuthUser>()
   const activeSection = sections.find(section => section.key === active) || sections[0]
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const [{ data: settingRows, error: settingsError }, { data: adminRows }, { data: logs }] = await Promise.all([
+      const apiHealthRequest = fetch(`${getApiUrl()}/health`).then(async response => ({ ok: response.ok, payload: response.ok ? await response.json() : null })).catch(() => ({ ok: false, payload: null }))
+      const [{ data: settingRows, error: settingsError }, { data: adminRows }, { data: logs }, apiHealth, databaseHealth] = await Promise.all([
         supabase.from('system_settings').select('key,value'),
         supabase.from('users').select('id,name,email,role,admin_role,status,created_at').eq('role', 'admin').order('created_at', { ascending: false }),
         supabase.from('admin_audit_logs').select('*').order('created_at', { ascending: false }).limit(100),
+        apiHealthRequest,
+        supabase.from('users').select('id', { count: 'exact', head: true }),
       ])
       if (settingsError) setError('Settings storage is not available yet. Run the supplied Supabase migration, then reload.')
       if (settingRows) setSettings(previous => ({ ...previous, ...Object.fromEntries(settingRows.map(row => [row.key, row.value])) }))
+      const backupAt = settingRows?.find(row => row.key === 'last_backup_at')?.value
+      const backupSize = Number(settingRows?.find(row => row.key === 'last_backup_size')?.value || 0)
+      const backupTableCount = Number(settingRows?.find(row => row.key === 'last_backup_tables')?.value || 0)
+      setBackupInfo({ createdAt: backupAt ? String(backupAt) : null, size: backupSize, tables: backupTableCount })
       setAdmins((adminRows || []) as AdminRecord[])
       setAuditLogs((logs || []) as AuditRecord[])
+      setHealth({
+        api: apiHealth.ok
+          ? { status: 'green', value: `Operational · ${formatUptime(Number(apiHealth.payload?.uptime || 0))} uptime` }
+          : { status: 'red', value: 'Unavailable' },
+        database: databaseHealth.error
+          ? { status: 'red', value: 'Query failed', count: 0 }
+          : { status: 'green', value: `${databaseHealth.count ?? 0} users visible`, count: databaseHealth.count ?? 0 },
+      })
+      setLastSyncedAt(new Date().toISOString())
       setLoading(false)
     }
     load().catch(() => { setError('Unable to load system settings.'); setLoading(false) })
@@ -105,6 +166,56 @@ export default function AdminSettings() {
     else { notify('Admin added'); setAdminModal(false); setNewAdmin({ name: '', email: '', role: 'Support Staff' }) }
   }
 
+  const fetchBackupRows = async (table: string) => {
+    const { data, error: queryError } = await supabase.from(table).select('*')
+    if (queryError) throw new Error(`${table}: ${queryError.message}`)
+    return data || []
+  }
+
+  const createBackup = async (recordBackup: boolean) => {
+    setBackupBusy(true)
+    try {
+      const [users, questions, mockTests, testResults, systemSettings, auditLogs] = await Promise.all(backupTables.map(fetchBackupRows))
+      const safeUsers = users.map(user => Object.fromEntries(Object.entries(user).filter(([key]) => !['password', 'mhcet_password'].includes(key))))
+      const snapshot = {
+        generatedAt: new Date().toISOString(),
+        source: 'CET NOVA admin backup',
+        note: 'Credentials, session records, refresh tokens, and login history are excluded from client downloads.',
+        tables: { users: safeUsers, questions, mock_tests: mockTests, test_results: testResults, system_settings: systemSettings, admin_audit_logs: auditLogs },
+      }
+      const content = JSON.stringify(snapshot, null, 2)
+      const size = new Blob([content]).size
+      const createdAt = snapshot.generatedAt
+      downloadFile(content, `cet-nova-backup-${createdAt.slice(0, 10)}.json`, 'application/json')
+      setBackupInfo({ createdAt, size, tables: backupTables.length })
+      if (recordBackup) {
+        const { error: metadataError } = await supabase.from('system_settings').upsert([
+          { key: 'last_backup_at', value: createdAt, updated_by: currentAdmin?._id || null, updated_at: createdAt },
+          { key: 'last_backup_size', value: size, updated_by: currentAdmin?._id || null, updated_at: createdAt },
+          { key: 'last_backup_tables', value: backupTables.length, updated_by: currentAdmin?._id || null, updated_at: createdAt },
+        ], { onConflict: 'key' })
+        if (metadataError) throw metadataError
+        await supabase.from('admin_audit_logs').insert({ admin_id: currentAdmin?._id || null, admin_name: currentAdmin?.name || 'Admin', action: 'Created data backup', module: 'Backup & data', status: 'Success' })
+      }
+      notify(`${recordBackup ? 'Backup created' : 'Backup downloaded'}: ${formatBytes(size)}`)
+    } catch (backupError) {
+      setError(backupError instanceof Error ? backupError.message : 'Unable to create backup')
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  const exportTable = async (table: string, filename: string, sanitize = false) => {
+    try {
+      const rows = await fetchBackupRows(table)
+      const safeRows = sanitize ? rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => !['password', 'mhcet_password'].includes(key)))) : rows
+      downloadFile(toCsv(safeRows), `${filename}-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8')
+      notify(`${rows.length} records exported`)
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : `Unable to export ${table}`)
+    }
+  }
+
   const filteredLogs = useMemo(() => auditLogs.filter(log => `${log.admin_name} ${log.action} ${log.module}`.toLowerCase().includes(search.toLowerCase())), [auditLogs, search])
   const filteredAdmins = admins.filter(admin => roleFilter === 'All' || (admin.admin_role || 'Super Admin') === roleFilter)
   const value = (key: string) => settings[key]
@@ -128,9 +239,9 @@ export default function AdminSettings() {
         {active === 'integrations' && <><Card title="Connected services" icon="hub"><div className="as-integration-grid"><Integration name="Supabase" icon="database" status="Connected" /><Integration name="Google OAuth" icon="login" status={bool('google_oauth') ? 'Connected' : 'Not connected'} action={() => update('google_oauth', !bool('google_oauth'))} /><Integration name="SMTP" icon="mail" status="Ready to configure" action={() => setActive('notifications')} /></div></Card><Card title="API & webhooks" icon="api"><div className="as-grid"><Field label="SMTP host" value={String(value('smtp_host'))} onChange={v => update('smtp_host', v)} placeholder="smtp.example.com" /><Field label="SMTP port" value={Number(value('smtp_port'))} onChange={v => update('smtp_port', Number(v))} type="number" /><Field label="External API URL" value={String(value('external_api_url'))} onChange={v => update('external_api_url', v)} /><Field label="Webhook URL" value={String(value('webhook_url'))} onChange={v => update('webhook_url', v)} /></div><div className="as-card-actions"><button className="as-secondary" onClick={() => notify('Connection test queued')}>Test connections</button><button className="as-secondary" onClick={() => notify('API key rotation queued')}>Manage API keys</button></div></Card></>}
         {active === 'branding' && <><Card title="Appearance" icon="palette"><div className="as-color-row"><label>Primary color<input type="color" value={String(value('primary_color'))} onChange={e => update('primary_color', e.target.value)} /></label><label>Secondary color<input type="color" value={String(value('secondary_color'))} onChange={e => update('secondary_color', e.target.value)} /></label></div><SwitchRow label="Dark mode" description="Available to administrators only." checked={bool('dark_mode')} onChange={v => update('dark_mode', v)} /><SwitchRow label="Login page branding" checked={bool('login_branding')} onChange={v => update('login_branding', v)} /></Card><Card title="Brand assets" icon="image"><UploadRow label="Logo" /><UploadRow label="Favicon" /><Field label="Custom tagline" value={String(value('tagline'))} onChange={v => update('tagline', v)} /><button className="as-secondary" onClick={() => notify('Preview opened in a new tab')}>Preview changes</button></Card></>}
         {active === 'features' && <Card title="Platform controls" icon="toggle_on"><p className="as-card-intro">Changes take effect immediately across the student experience.</p>{[['student_registration', 'Student Registration'], ['mock_test_system', 'Mock Test System'], ['ai_question_generator', 'AI Question Generator'], ['ai_doubt_solver', 'AI Doubt Solver'], ['google_login', 'Google Login'], ['email_notifications_feature', 'Email Notifications'], ['result_publishing', 'Result Publishing'], ['new_user_registration', 'New User Registration'], ['maintenance_mode', 'Maintenance Mode']].map(([key, label]) => <SwitchRow key={key} label={label} checked={bool(key)} onChange={v => update(key, v)} />)}</Card>}
-        {active === 'backup' && <><Card title="Backup status" icon="cloud_done"><div className="as-backup-banner"><span className="material-symbols-outlined">check_circle</span><div><strong>Last backup completed successfully</strong><small>Today at 03:00 UTC · 2.4 GB</small></div></div><div className="as-card-actions"><button className="as-primary" onClick={() => notify('Backup started')}>Create backup</button><button className="as-secondary" onClick={() => notify('Backup download prepared')}>Download backup</button><button className="as-secondary" onClick={() => setConfirmAction('Restore the selected backup?')}>Restore backup</button></div></Card><Card title="Data management" icon="storage"><div className="as-card-actions"><button className="as-secondary" onClick={() => notify('Student export prepared')}>Export student data</button><button className="as-secondary" onClick={() => notify('Test export prepared')}>Export test data</button></div><Field label="Data retention (days)" value={Number(value('retention_days'))} onChange={v => update('retention_days', Number(v))} type="number" /><button className="as-text-button" onClick={() => notify('Backup history loaded')}>Show backup history</button></Card></>}
+        {active === 'backup' && <><Card title="Backup status" icon="cloud_done"><div className="as-backup-banner"><span className="material-symbols-outlined">{backupInfo.createdAt ? 'check_circle' : 'cloud_off'}</span><div><strong>{backupInfo.createdAt ? 'Last backup downloaded successfully' : 'No backup has been created'}</strong><small>{backupInfo.createdAt ? `${new Date(backupInfo.createdAt).toLocaleString()} · ${formatBytes(backupInfo.size)} · ${backupInfo.tables} tables` : 'Create a snapshot of the current Supabase data.'}</small></div></div><div className="as-card-actions"><button className="as-primary" disabled={backupBusy} onClick={() => createBackup(true)}>{backupBusy ? 'Creating...' : 'Create backup'}</button><button className="as-secondary" disabled={backupBusy} onClick={() => createBackup(false)}>Download current data</button><button className="as-secondary" disabled title="Restore requires a protected server-side import workflow">Restore backup</button></div></Card><Card title="Data management" icon="storage"><div className="as-card-actions"><button className="as-secondary" onClick={() => exportTable('users', 'cet-nova-students', true)}>Export student data</button><button className="as-secondary" onClick={() => exportTable('mock_tests', 'cet-nova-tests')}>Export test data</button></div><Field label="Data retention (days)" value={Number(value('retention_days'))} onChange={v => update('retention_days', Number(v))} type="number" /><button className="as-text-button" onClick={() => notify(`Backup history: ${backupInfo.createdAt ? new Date(backupInfo.createdAt).toLocaleString() : 'No backups recorded'}`)}>Show backup history</button></Card></>}
         {active === 'audit' && <Card title="Administrative activity" icon="manage_search"><div className="as-toolbar"><div className="as-search"><span className="material-symbols-outlined">search</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search admin, action, or module" /></div><button className="as-secondary" onClick={() => notify('Date filter opened')}>Filter date</button></div><div className="as-table-wrap"><table><thead><tr><th>Admin</th><th>Action</th><th>Module</th><th>Date & time</th><th>IP address</th><th>Status</th></tr></thead><tbody>{filteredLogs.map(log => <tr key={log.id}><td>{log.admin_name}</td><td>{log.action}</td><td>{log.module}</td><td>{new Date(log.created_at).toLocaleString()}</td><td>{log.ip_address || 'Internal'}</td><td><span className="as-status as-status--green">{log.status}</span></td></tr>)}</tbody></table>{!filteredLogs.length && <Empty label="No audit activity found" />}</div></Card>}
-        {active === 'health' && <><Card title="Service health" icon="monitor_heart"><div className="as-health-grid"><StatusRow label="Application server" value="Operational" status="green" /><StatusRow label="Database" value="Operational" status="green" /><StatusRow label="Supabase" value="Connected" status="green" /><StatusRow label="AI API" value={bool('ai_enabled') ? 'Enabled' : 'Disabled'} status={bool('ai_enabled') ? 'blue' : 'gray'} /><StatusRow label="SMTP" value="Ready" status="green" /></div></Card><Card title="Runtime details" icon="info"><div className="as-runtime"><span>Storage usage<strong>2.4 GB / 10 GB</strong></span><span>Application version<strong>v2.6.0</strong></span><span>Last backup<strong>Today, 03:00 UTC</strong></span><span>System uptime<strong>99.98% · 14d 08h</strong></span></div></Card></>}
+        {active === 'health' && <><Card title="Service health" icon="monitor_heart"><div className="as-health-grid"><StatusRow label="Application server" value={health.api.value} status={health.api.status} /><StatusRow label="Database" value={health.database.value} status={health.database.status} /><StatusRow label="Supabase" value={health.database.status === 'green' ? 'Connected' : 'Unavailable'} status={health.database.status} /><StatusRow label="AI API" value={bool('ai_enabled') ? `${String(value('ai_provider'))} configured` : 'Disabled'} status={bool('ai_enabled') ? 'blue' : 'gray'} /><StatusRow label="SMTP" value={String(value('smtp_host')).trim() ? 'Configured' : 'Not configured'} status={String(value('smtp_host')).trim() ? 'green' : 'gray'} /></div></Card><Card title="Runtime details" icon="info"><div className="as-runtime"><span>Registered users<strong>{health.database.count}</strong></span><span>Build mode<strong>{import.meta.env.MODE}</strong></span><span>Settings sync<strong>{lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : 'Unavailable'}</strong></span><span>API uptime<strong>{health.api.value.includes('uptime') ? health.api.value.split('· ')[1] : 'Unavailable'}</strong></span></div></Card></>}
       </main>
     </div>
     {adminModal && <div className="as-modal-backdrop" onClick={() => setAdminModal(false)}><form className="as-modal" onSubmit={createAdmin} onClick={e => e.stopPropagation()}><div className="as-modal-head"><h3>Add administrator</h3><button type="button" className="as-icon-btn" onClick={() => setAdminModal(false)}><span className="material-symbols-outlined">close</span></button></div><Field label="Name" value={newAdmin.name} onChange={v => setNewAdmin({ ...newAdmin, name: v })} /><Field label="Email" value={newAdmin.email} onChange={v => setNewAdmin({ ...newAdmin, email: v })} type="email" /><label className="as-field"><span>Role</span><select value={newAdmin.role} onChange={e => setNewAdmin({ ...newAdmin, role: e.target.value })}>{roles.map(role => <option key={role}>{role}</option>)}</select></label><div className="as-card-actions"><button type="button" className="as-secondary" onClick={() => setAdminModal(false)}>Cancel</button><button className="as-primary">Add admin</button></div></form></div>}

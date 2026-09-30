@@ -7,7 +7,7 @@ const { validateCsrfToken } = require('../middleware/csrf')
 
 // POST /api/tests — Save and authoritatively score a test result
 router.post('/', protect, validateCsrfToken, apiLimiter, async (req, res) => {
-  const { testName, answers, duration } = req.body
+  const { testName, answers, duration, questionIds } = req.body
   try {
     const userId = req.user.id || req.user._id
 
@@ -17,6 +17,7 @@ router.post('/', protect, validateCsrfToken, apiLimiter, async (req, res) => {
       testName: testName || 'MHT-CET Mock Test',
       answers: answers || {},
       duration: Number(duration) || 0,
+      questionIds: Array.isArray(questionIds) ? questionIds : [],
     })
 
     res.status(201).json(result)

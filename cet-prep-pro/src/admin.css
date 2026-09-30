@@ -37,6 +37,7 @@
   color: #2563eb;
   font-variation-settings: 'FILL' 1;
 }
+.adb-brand-logo { width: 34px; height: 34px; object-fit: contain; }
 
 .adb-brand-title {
   font-family: 'Public Sans', sans-serif;
@@ -487,12 +488,16 @@
 }
 
 .adb-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: 'Public Sans', sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: #2563eb;
   margin: 0;
 }
+.adb-topbar-brand img { width: 26px; height: 26px; object-fit: contain; }
 
 .adb-topbar-sep {
   width: 1px;

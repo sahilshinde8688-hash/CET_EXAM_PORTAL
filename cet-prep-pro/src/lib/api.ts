@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient'
 
-const getApiUrl = (): string => {
+export const getApiUrl = (): string => {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname
     if (host === 'localhost' || host === '127.0.0.1') {
@@ -1144,7 +1144,7 @@ export const testsAPI = {
     dashboardResultsCache.set(cacheKey, [result, ...current.filter(item => item._id !== result._id)])
   },
   
-  async submitResult(payload: { testName: string; subject: string; score: number; totalMarks: number; percentile: number; duration: number; subjectWiseScores?: any[]; answers?: Record<string, number>; correct: number; incorrect: number; unanswered: number; totalQuestions: number; }) {
+  async submitResult(payload: { testName: string; subject: string; score: number; totalMarks: number; percentile: number; duration: number; subjectWiseScores?: any[]; answers?: Record<string, number>; questionIds?: string[]; correct: number; incorrect: number; unanswered: number; totalQuestions: number; }) {
     try {
       const res = await fetch(`${BASE}/tests`, {
         method: 'POST',

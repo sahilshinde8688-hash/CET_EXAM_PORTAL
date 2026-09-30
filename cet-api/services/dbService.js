@@ -475,6 +475,7 @@ const getQuestions = async (filters = {}, { isAdmin = false } = {}) => {
   if (filters.topic) query = query.eq('topic', filters.topic)
   if (filters.difficulty) query = query.eq('difficulty', filters.difficulty)
   if (filters.isActive !== undefined) query = query.eq('is_active', filters.isActive)
+  if (Array.isArray(filters.ids) && filters.ids.length) query = query.in('id', filters.ids)
 
   const { data, error } = await query
   if (error) throw error
@@ -673,9 +674,15 @@ const createTestResult = async (resultData) => {
  * Authoritative server-side test scoring
  * Calculates official score and breakdown from verified questions and submitted answers
  */
-const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, duration = 0 }) => {
+const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, duration = 0, questionIds = [] }) => {
   // Fetch active questions with answer keys internally
-  const allQuestions = await getQuestions({ isActive: true }, { isAdmin: true })
+  const requestedQuestionIds = Array.isArray(questionIds) && questionIds.length
+    ? questionIds.map(String).filter(Boolean)
+    : Object.keys(answers).map(String)
+  const allQuestions = await getQuestions(
+    requestedQuestionIds.length ? { isActive: true, ids: requestedQuestionIds } : { isActive: true },
+    { isAdmin: true },
+  )
 
   let correct = 0
   let incorrect = 0

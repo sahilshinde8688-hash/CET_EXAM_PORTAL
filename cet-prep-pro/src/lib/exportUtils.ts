@@ -1,4 +1,4 @@
-// Export and Download Utilities for CET Prep Pro
+// Export and Download Utilities for CET NOVA
 
 import { TestResult, Question } from './api'
 
@@ -626,7 +626,7 @@ export function downloadSingleTestReport(
       <div class="brand-wrap">
         <div class="brand-mark">C</div>
         <div>
-          <div class="brand-title">CET PREP PRO</div>
+          <div class="brand-title">CET NOVA</div>
           <div class="brand-sub">MHT-CET Entrance Examination Platform</div>
         </div>
       </div>
@@ -773,7 +773,7 @@ export function downloadSingleTestReport(
     </div>
 
     <div class="footer-note">
-      © 2026 CET Prep Pro. All Rights Reserved. Generated electronically for student performance review.
+      © 2026 CET NOVA. All Rights Reserved. Generated electronically for student performance review.
     </div>
   </div>
 </body>
@@ -869,7 +869,7 @@ export function downloadCompleteSolutionBooklet(
 </head>
 <body>
   <div class="header">
-    <h1 style="margin:0 0 6px; color:#2563eb;">CET PREP PRO</h1>
+    <h1 style="margin:0 0 6px; color:#2563eb;">CET NOVA</h1>
     <h2 style="margin:0 0 6px; color:#0f172a;">${examName} - Complete Solutions Booklet</h2>
     <p style="margin:0; color:#64748b; font-size:14px;">Total Questions: ${questions.length} • Generated on ${new Date().toLocaleDateString()}</p>
     <div style="margin-top:16px;">
@@ -895,7 +895,7 @@ export function downloadCompleteSolutionBooklet(
  * Share report via navigator.share or clipboard fallback
  */
 export async function shareTestReport(examName: string, score: number, maxScore: number, percentile: string | number): Promise<boolean> {
-  const shareText = `🎯 CET Prep Pro Exam Result\nExam: ${examName}\nScore: ${score}/${maxScore} (${((score / maxScore) * 100).toFixed(1)}%)\nPercentile: ${percentile}th\nCheck it out on CET Prep Pro!`
+  const shareText = `🎯 CET NOVA Exam Result\nExam: ${examName}\nScore: ${score}/${maxScore} (${((score / maxScore) * 100).toFixed(1)}%)\nPercentile: ${percentile}th\nCheck it out on CET NOVA!`
   
   if (navigator.share) {
     try {
@@ -957,7 +957,7 @@ export function exportQuestionBankHTML(questions: Question[], title = 'CET Quest
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>${title} - CET Prep Pro</title>
+  <title>${title} - CET NOVA</title>
   <style>
     body { font-family: 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #0f172a; max-width: 960px; margin: 0 auto; padding: 32px 24px; background: #f8fafc; }
     .header { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center; }
@@ -974,7 +974,7 @@ export function exportQuestionBankHTML(questions: Question[], title = 'CET Quest
 </head>
 <body>
   <div class="header">
-    <h1 style="margin: 0 0 6px; color: #2563eb;">CET PREP PRO</h1>
+    <h1 style="margin: 0 0 6px; color: #2563eb;">CET NOVA</h1>
     <h2 style="margin: 0 0 6px; color: #0f172a;">${title}</h2>
     <p style="margin: 0; color: #64748b; font-size: 14px;">Total Questions: ${questions.length} • Generated on ${new Date().toLocaleDateString()}</p>
     <div style="margin-top: 16px;">

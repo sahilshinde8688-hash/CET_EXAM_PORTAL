@@ -115,10 +115,14 @@
 }
 
 .test-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   font-weight: 700;
   color: #2563eb;
 }
+.test-brand img { width: 26px; height: 26px; object-fit: contain; }
 
 .test-sep {
   width: 1px;

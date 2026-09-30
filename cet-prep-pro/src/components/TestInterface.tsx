@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { questionsAPI, usersAPI, testsAPI, session, Question } from '../lib/api'
+import { useState, useEffect, useMemo } from 'react'
+import { questionsAPI, usersAPI, testsAPI, Question } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
@@ -9,9 +9,6 @@ import FullscreenWarningModal from './FullscreenWarningModal'
 import SubmissionAnimation from './SubmissionAnimation'
 import { useFullscreenGuard } from '../lib/useFullscreenGuard'
 import '../testInterface.css'
-
-// Check if running in production mode
-const isProductionMode = import.meta.env.VITE_PRODUCTION_MODE === 'true'
 
 const QUESTION_ORDER_KEY = 'cet_exam_question_order_v2'
 
@@ -79,7 +76,6 @@ export default function TestInterface({
   onClose, 
   onBackRequest,
   onBackToAnalysis,
-  onSubmissionComplete,
   onResultSaved,
   examName = 'MHT-CET Mock Test',
   durationMinutes = 120,
@@ -92,7 +88,6 @@ export default function TestInterface({
   onClose: () => void; 
   onBackRequest?: () => void;
   onBackToAnalysis?: () => void;
-  onSubmissionComplete?: () => void;
   onResultSaved?: (result: any) => void;
   examName?: string;
   durationMinutes?: number;
@@ -102,51 +97,8 @@ export default function TestInterface({
   pastAnswers?: Record<string, number>;
   pastResultData?: any;
 }) {
-  // Generate demo questions function must be defined before useState
-  const generateDemoQuestions = (): Question[] => {
-    return [
-      {
-        _id: 'demo-1',
-        subject: 'Physics',
-        topic: 'Mechanics',
-        text: 'A body of mass 5 kg is moving with a velocity of 10 m/s. What is its kinetic energy?',
-        options: ['250 J', '500 J', '100 J', '50 J'],
-        correctIndex: 0,
-        marks: 2,
-        negativeMarks: 0,
-        difficulty: 'Easy',
-        isActive: true,
-      },
-      {
-        _id: 'demo-2',
-        subject: 'Chemistry',
-        topic: 'Atomic Structure',
-        text: 'What is the atomic number of Carbon?',
-        options: ['6', '8', '12', '14'],
-        correctIndex: 0,
-        marks: 2,
-        negativeMarks: 0,
-        difficulty: 'Easy',
-        isActive: true,
-      },
-      {
-        _id: 'demo-3',
-        subject: 'Mathematics',
-        topic: 'Calculus',
-        text: 'What is the derivative of x²?',
-        options: ['2x', 'x', 'x²/2', '2'],
-        correctIndex: 0,
-        marks: 2,
-        negativeMarks: 0,
-        difficulty: 'Easy',
-        isActive: true,
-      },
-    ]
-  }
-
-  // Start with demo questions immediately to prevent blank screen
-  const [questions, setQuestions] = useState<Question[]>(() => generateDemoQuestions())
-  const [loading, setLoading] = useState(false) // Start false since we have demo questions
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentIndex, setCurrentIndex] = useState<number>(() => {
     if (reviewMode) return 0
@@ -239,7 +191,6 @@ export default function TestInterface({
   } | null>(pastResultData || null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
-  const [activeQ, setActiveQ] = useState<number | null>(null)
   const [showSuccessPage, setShowSuccessPage] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [showSubmissionAnimation, setShowSubmissionAnimation] = useState(false)
@@ -427,6 +378,7 @@ export default function TestInterface({
         duration: resultData.duration,
         subjectWiseScores: subjectWisePayload,
         answers: answers,
+        questionIds: questions.map(question => question._id),
         correct: resultData.correct,
         incorrect: resultData.incorrect,
         unanswered: resultData.notAnswered,
@@ -448,11 +400,6 @@ export default function TestInterface({
     setIsSubmitting(false)
   }
 
-  const startTest = async () => {
-    // Skip fullscreen for now to avoid issues
-    console.log('Test started')
-  }
-
   const handleViewResults = () => {
     setShowSuccessPage(false)
     setShowResultPage(true)
@@ -469,60 +416,67 @@ export default function TestInterface({
     setShowSuccessPage(false)
     setShowResultPage(false)
     setCurrentIndex(0)
-    setActiveQ(null)
     setConfirmationId('')
     clearQuestionOrder()
   }
 
-  // Load questions and user data in background (demo questions already loaded)
+  // Load questions from the live backend only. No demo/mock fallback is allowed in production.
   useEffect(() => {
     const load = async () => {
+      setLoading(true)
+      setError(null)
+
       try {
         console.log('Loading questions from API...')
         const data = await questionsAPI.getAll({ isActive: true, includeAnswers: true })
         console.log('Questions loaded from API:', data.length)
-        
-        // If API returns questions, use them
-        if (data.length > 0) {
-          const normalizedQuestions = data.map(normalizeQuestion)
-          if (reviewMode) {
-            setQuestions(normalizedQuestions)
-          } else {
-            const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
-            const assignedQuestions = questionIds
-              .map(questionId => questionsById.get(questionId))
-              .filter((question): question is Question => Boolean(question))
-            const savedQuestionIds = loadQuestionOrder()
-            const orderedQuestions = savedQuestionIds
-              .map(questionId => questionsById.get(questionId))
-              .filter((question): question is Question => Boolean(question))
-            const configuredCount = Number.isFinite(questionCount) && questionCount && questionCount > 0
-              ? questionCount
-              : normalizedQuestions.length
-            const nextQuestions = assignedQuestions.length > 0
-              ? assignedQuestions
-              : (orderedQuestions.length > 0 ? orderedQuestions : shuffleQuestionsBySubject(normalizedQuestions))
-                .slice(0, configuredCount)
 
-            setQuestions(nextQuestions)
-            saveQuestionOrder(nextQuestions)
-          }
-          setError(null)
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('No live questions are available for this test right now.')
+        }
+
+        const normalizedQuestions = data.map(normalizeQuestion)
+        if (reviewMode) {
+          setQuestions(normalizedQuestions)
         } else {
-          console.warn('No questions from API, keeping demo questions')
+          const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
+          const assignedQuestions = questionIds
+            .map(questionId => questionsById.get(questionId))
+            .filter((question): question is Question => Boolean(question))
+          const savedQuestionIds = loadQuestionOrder()
+          const orderedQuestions = savedQuestionIds
+            .map(questionId => questionsById.get(questionId))
+            .filter((question): question is Question => Boolean(question))
+          const configuredCount = Number.isFinite(questionCount) && questionCount && questionCount > 0
+            ? questionCount
+            : normalizedQuestions.length
+          const nextQuestions = assignedQuestions.length > 0
+            ? assignedQuestions
+            : (orderedQuestions.length > 0 ? orderedQuestions : shuffleQuestionsBySubject(normalizedQuestions))
+              .slice(0, configuredCount)
+
+          setQuestions(nextQuestions)
+          saveQuestionOrder(nextQuestions)
         }
       } catch (e) {
+        const message = e instanceof Error ? e.message : 'Unable to load the live test questions.'
         console.error('Failed to load questions from API:', e)
-        console.warn('Keeping demo questions')
-        // Demo questions already loaded, no need to do anything
+        setError(message)
+        setQuestions([])
+      } finally {
+        setLoading(false)
       }
     }
-    
-    // Load in background after a short delay
+
     const timeout = setTimeout(() => {
-      load().catch(err => console.error('Error in load questions:', err))
+      load().catch(err => {
+        console.error('Error in load questions:', err)
+        setError('Unable to load the live test questions.')
+        setQuestions([])
+        setLoading(false)
+      })
     }, 100)
-    
+
     return () => clearTimeout(timeout)
   }, [durationMinutes, examName, questionCount, questionIds, reviewMode])
 
@@ -927,7 +881,7 @@ export default function TestInterface({
           <button className="test-back-btn" type="button" onClick={handleBackAction}>
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <span className="test-brand">CET Prep Pro</span>
+          <div className="test-brand"><img src="/logo.png" alt="" /> <span>CET NOVA</span></div>
           <div className="test-sep" />
           <h1 className="test-title">{examName}</h1>
           {questions.length > 0 && (
@@ -1262,6 +1216,7 @@ export default function TestInterface({
         fullscreenSupported={fullscreenSupported}
         onRequestFullscreen={requestFullscreen}
         onDismissFocusWarning={dismissFocusWarning}
+        onExitExam={handleBackAction}
       />
 
       {/* ── Report Error Modal ─────────────────────────────────── */}

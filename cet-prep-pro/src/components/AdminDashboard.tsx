@@ -1512,8 +1512,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           {/* ── Sidebar ─────────────────────────── */}
           <aside className="adb-sidebar">
             <div className="adb-brand">
-              <span className="material-symbols-outlined adb-brand-icon"
-                style={{ fontVariationSettings: "'FILL' 1" }}>analytics</span>
+              <img className="adb-brand-logo" src="/logo.png" alt="CET Admin" />
               <span className="adb-brand-title">CET Admin</span>
             </div>
 
@@ -1555,7 +1554,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           <main className="adb-main">
             <header className="adb-topbar">
               <div className="adb-topbar-left">
-                <h2 className="adb-topbar-brand">CET Prep Pro</h2>
+                <div className="adb-topbar-brand"><img src="/logo.png" alt="" /> <span>CET NOVA</span></div>
                 <div className="adb-topbar-sep" />
                 <span className="adb-topbar-sub">{topbarTitle}</span>
               </div>

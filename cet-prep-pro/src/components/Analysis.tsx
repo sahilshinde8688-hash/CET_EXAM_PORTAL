@@ -94,7 +94,7 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
 
       {/* ── Top Nav ───────────────────────────── */}
       <nav className="an-topnav">
-        <span className="an-topnav-brand">CET Prep Pro</span>
+        <div className="an-topnav-brand"><img src="/logo.png" alt="" /> <span>CET NOVA</span></div>
         <div className="an-topnav-right">
           <div className="an-search-wrap">
             <span className="material-symbols-outlined an-search-icon">search</span>

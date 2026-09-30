@@ -117,8 +117,6 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
     ...getUserPayload(user),
     sessionId: session.session_id || sessionId,
     rememberMe,
-    accessToken,
-    refreshToken: refreshTokenValue,
   }
 }
 
