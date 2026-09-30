@@ -28,7 +28,6 @@ export default function Sidebar({ activePage, onNavigate, onStartTest }: Sidebar
         <div className="db-sidebar-logo">
           <img src="/logo.png" alt="CET NOVA" />
         </div>
-        <span className="db-sidebar-title">CET NOVA</span>
       </div>
 
       <nav className="db-sidebar-nav">

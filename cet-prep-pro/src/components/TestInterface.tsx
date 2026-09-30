@@ -881,7 +881,7 @@ export default function TestInterface({
           <button className="test-back-btn" type="button" onClick={handleBackAction}>
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <div className="test-brand"><img src="/logo.png" alt="" /> <span>CET NOVA</span></div>
+          <div className="test-brand"><img src="/logo.png" alt="" /></div>
           <div className="test-sep" />
           <h1 className="test-title">{examName}</h1>
           {questions.length > 0 && (

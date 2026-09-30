@@ -133,10 +133,9 @@ const findUserByEmail = async (email) => {
   if (!email) return null
   const cleanEmail = email.toLowerCase().trim()
 
-  try {
-    const { data, error } = await supabase.from('users').select('*').eq('email', cleanEmail).maybeSingle()
-    if (!error && data) return userToCamel(data)
-  } catch {}
+  const { data, error } = await supabase.from('users').select('*').eq('email', cleanEmail).maybeSingle()
+  if (error) throw error
+  if (data) return userToCamel(data)
 
   if (approvedMemoryStore.has(cleanEmail)) return approvedMemoryStore.get(cleanEmail)
   if (pendingMemoryStore.has(cleanEmail)) return pendingMemoryStore.get(cleanEmail)
@@ -148,10 +147,9 @@ const findUserByMhcetId = async (mhcetId) => {
   if (!mhcetId) return null
   const cleanId = mhcetId.toUpperCase().trim()
 
-  try {
-    const { data, error } = await supabase.from('users').select('*').eq('mhcet_id', cleanId).maybeSingle()
-    if (!error && data) return userToCamel(data)
-  } catch {}
+  const { data, error } = await supabase.from('users').select('*').eq('mhcet_id', cleanId).maybeSingle()
+  if (error) throw error
+  if (data) return userToCamel(data)
 
   for (const user of approvedMemoryStore.values()) {
     if (user.mhcetId && user.mhcetId.toUpperCase() === cleanId) {

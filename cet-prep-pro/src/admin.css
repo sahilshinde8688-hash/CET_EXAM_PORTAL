@@ -37,7 +37,16 @@
   color: #2563eb;
   font-variation-settings: 'FILL' 1;
 }
-.adb-brand-logo { width: 34px; height: 34px; object-fit: contain; }
+.adb-brand-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
 
 .adb-brand-title {
   font-family: 'Public Sans', sans-serif;

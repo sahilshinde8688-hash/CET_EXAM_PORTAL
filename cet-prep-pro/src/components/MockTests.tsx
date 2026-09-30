@@ -145,6 +145,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   const [testResults, setTestResults] = useState<TestResult[]>([])
   const [loading, setLoading] = useState(true)
   const [showResumeDialog, setShowResumeDialog] = useState(false)
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
   const [selectedTestName, setSelectedTestName] = useState(() => localStorage.getItem('cet_selected_test_name') || 'MHT-CET Mock Test')
   const [selectedTestDuration, setSelectedTestDuration] = useState<number>(() => {
     const saved = localStorage.getItem('cet_selected_test_duration')
@@ -170,7 +171,18 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   const [testActive, setTestActive] = useState(savedState === 'test')
   const [startingTest, setStartingTest] = useState(savedState === 'instructions')
 
+  const hasActiveInProgressExam = () => {
+    const examState = localStorage.getItem(EXAM_STATE_KEY)
+    const inProgressTest = localStorage.getItem('cet_inProgressTest')
+    return examState === 'test' || examState === 'instructions' || Boolean(inProgressTest)
+  }
+
   const enterExamInstructions = () => {
+    if (hasActiveInProgressExam()) {
+      setBlockedMessage('Please complete the first test before starting a new one.')
+      return
+    }
+
     localStorage.setItem(EXAM_STATE_KEY, 'instructions')
     setStartingTest(true)
   }
@@ -385,6 +397,49 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   return (
     <>
     {showResumeDialog && <ResumeDialog />}
+    {blockedMessage && (
+      <div
+        role="alert"
+        style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 999999,
+          background: '#fff7ed',
+          color: '#9a4d00',
+          border: '1px solid #fdba74',
+          borderRadius: '12px',
+          boxShadow: '0 20px 45px rgba(15, 23, 42, 0.18)',
+          padding: '14px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          maxWidth: '90vw',
+          fontWeight: 600,
+          letterSpacing: '0.01em',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>warning</span>
+        <span>{blockedMessage}</span>
+        <button
+          type="button"
+          onClick={() => setBlockedMessage(null)}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: '#9a4d00',
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginLeft: '8px',
+            fontSize: '16px',
+          }}
+          aria-label="Dismiss warning"
+        >
+          ×
+        </button>
+      </div>
+    )}
     {testActive ? (
       <TestInterface
         onClose={exitExam}
@@ -522,6 +577,11 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                       <span className={`mt-diff-badge ${diffColors[test.difficulty]}`}>{test.difficulty}</span>
                     </div>
                     <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} onClick={() => {
+                      if (hasActiveInProgressExam()) {
+                        setBlockedMessage('Please complete the first test before starting a new one.')
+                        return
+                      }
+
                       localStorage.setItem('cet_selected_test_name', test.title)
                       localStorage.setItem('cet_selected_test_duration', String(test.mins))
                       localStorage.setItem('cet_selected_question_ids', JSON.stringify(test.questionIds))

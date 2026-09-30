@@ -1,15 +1,14 @@
 import { useState } from 'react'
-import { authAPI, usersAPI, session } from '../lib/api'
+import { authAPI, usersAPI, session, type AuthUser } from '../lib/api'
 
 type Tab = 'login' | 'register'
 type SubmitState = 'idle' | 'loading' | 'success' | 'error' | 'pending'
 
 interface Props {
-  onSuccess?: () => void
-  onAdminLogin?: (email: string, password: string) => void
+  onSuccess?: (user: AuthUser) => void
 }
 
-export default function SignIn({ onSuccess, onAdminLogin }: Props) {
+export default function SignIn({ onSuccess }: Props) {
   const [activeTab, setActiveTab]       = useState<Tab>('login')
   const [submitState, setSubmitState]   = useState<SubmitState>('idle')
   const [errorMsg, setErrorMsg]         = useState('')
@@ -45,7 +44,7 @@ export default function SignIn({ onSuccess, onAdminLogin }: Props) {
         const updated = await usersAPI.me()
         session.save(updated)
         setSubmitState('success')
-        setTimeout(() => onSuccess?.(), 700)
+        setTimeout(() => onSuccess?.(updated), 700)
         return
       }
 
@@ -60,10 +59,7 @@ export default function SignIn({ onSuccess, onAdminLogin }: Props) {
         }
 
         setSubmitState('success')
-        setTimeout(() => {
-          if (user.role === 'admin') onAdminLogin?.(email, password)
-          else onSuccess?.()
-        }, 700)
+        setTimeout(() => onSuccess?.(user), 700)
       } else {
         await authAPI.register(name.trim(), regEmail.trim().toLowerCase(), regPhone.trim(), branch, batch)
         setSubmitState('pending')
@@ -95,7 +91,6 @@ export default function SignIn({ onSuccess, onAdminLogin }: Props) {
 
           <div className="brand-lockup">
             <img className="brand-logo" src="/logo.png" alt="CET NOVA" />
-            <h1 className="brand-title">CET NOVA</h1>
           </div>
           <p className="brand-subtitle">Elevate your future with precision learning.</p>
 

@@ -122,7 +122,16 @@
   font-weight: 700;
   color: #2563eb;
 }
-.test-brand img { width: 26px; height: 26px; object-fit: contain; }
+.test-brand img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
 
 .test-sep {
   width: 1px;

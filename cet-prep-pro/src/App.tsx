@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import SignIn from './components/SignIn'
 import { clearAdminCredentials } from './adminAuth'
-import { authAPI, session, type AuthUser } from './lib/api'
+import { authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
 import './dashboard.css'
 import './mocktests.css'
 import './results.css'
@@ -97,62 +97,107 @@ function PageLoader({ target }: { target: Page }) {
 export default function App() {
   const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
   const [authLoading, setAuthLoading] = useState(true)
+  const [authError, setAuthError] = useState(false)
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthUser | null>(null)
   const authenticatedUserRef = useRef<AuthUser | null>(null)
   const [transitioning, setTransitioning] = useState(false)
   const [nextPage, setNextPage] = useState<Page | null>(null)
 
-  useEffect(() => {
-    const requestedPage = pathToPage(window.location.pathname)
-    let active = true
+  const restoreSession = async (requestedPage: Page) => {
+    setAuthLoading(true)
+    setAuthError(false)
+    try {
+      const user = await authAPI.me()
+      session.save(user)
+      authenticatedUserRef.current = user
+      setAuthenticatedUser(user)
 
-    const initializeAuth = async () => {
-      try {
-        const user = await authAPI.me()
-        if (!active) return
-        session.save(user)
-        authenticatedUserRef.current = user
-        if (requestedPage === 'admin' && user.role !== 'admin') {
-          window.history.replaceState(null, '', '/unauthorized')
-          setPage('unauthorized')
-        } else if (requestedPage === 'signin') {
-          const destination = user.role === 'admin' ? 'admin' : 'dashboard'
-          window.history.replaceState(null, '', pageToPath(destination))
-          setPage(destination)
-        } else {
-          setPage(requestedPage)
-        }
-      } catch {
-        session.clear()
-        authenticatedUserRef.current = null
-        if (requestedPage !== 'signin') {
-          window.history.replaceState(null, '', '/login')
-          setPage('signin')
-        } else {
-          setPage('signin')
-        }
-      } finally {
-        if (active) setAuthLoading(false)
+      const destination = requestedPage === 'signin'
+        ? user.role === 'admin' ? 'admin' : 'dashboard'
+        : requestedPage === 'admin' && user.role !== 'admin'
+          ? 'unauthorized'
+          : requestedPage
+
+      if (destination !== requestedPage) {
+        window.history.replaceState({ page: destination }, '', pageToPath(destination))
       }
-    }
-
-    void initializeAuth()
-
-    const handlePopState = () => {
-      const next = pathToPage(window.location.pathname)
-      if (next === 'admin' && authenticatedUserRef.current?.role !== 'admin') {
-        window.history.replaceState(null, '', '/unauthorized')
-        setPage('unauthorized')
+      setPage(destination)
+    } catch (error) {
+      if (!(error instanceof SessionExpiredError)) {
+        setAuthError(true)
+        setAuthLoading(false)
         return
       }
-      setPage(next)
+
+      session.clear()
+      authenticatedUserRef.current = null
+      setAuthenticatedUser(null)
+      if (requestedPage !== 'signin') {
+        window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
+      }
+      setPage('signin')
+    } finally {
+      setAuthLoading(false)
     }
+  }
+
+  useEffect(() => {
+    const handlePopState = () => { void restoreSession(pathToPage(window.location.pathname)) }
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) void restoreSession(pathToPage(window.location.pathname))
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === session.KEY) void restoreSession(pathToPage(window.location.pathname))
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && pathToPage(window.location.pathname) !== 'signin') {
+        void restoreSession(pathToPage(window.location.pathname))
+      }
+    }
+    const handleSessionExpired = () => {
+      authenticatedUserRef.current = null
+      setAuthenticatedUser(null)
+      setAuthError(false)
+      setAuthLoading(false)
+      setTransitioning(false)
+      setNextPage(null)
+      window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
+      setPage('signin')
+    }
+
+    void restoreSession(pathToPage(window.location.pathname))
     window.addEventListener('popstate', handlePopState)
-    return () => { active = false; window.removeEventListener('popstate', handlePopState) }
+    window.addEventListener('pageshow', handlePageShow)
+    window.addEventListener('storage', handleStorage)
+    window.addEventListener('auth:expired', handleSessionExpired)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener('pageshow', handlePageShow)
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('auth:expired', handleSessionExpired)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   const navigate = (target: Page | string) => {
     const resolvedTarget = (target === 'admin-dashboard' ? 'admin' : target) as Page
     if (resolvedTarget === page) return
+    if (resolvedTarget === 'signin') {
+      authenticatedUserRef.current = null
+      setAuthenticatedUser(null)
+      setAuthError(false)
+      setTransitioning(false)
+      setNextPage(null)
+      window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
+      setPage('signin')
+      return
+    }
+    if (resolvedTarget === 'admin' && authenticatedUser?.role !== 'admin') {
+      window.history.replaceState({ page: 'unauthorized' }, '', pageToPath('unauthorized'))
+      setPage('unauthorized')
+      return
+    }
     window.history.pushState({ page: resolvedTarget }, '', pageToPath(resolvedTarget))
     setNextPage(resolvedTarget)
     setTransitioning(true)
@@ -169,21 +214,29 @@ export default function App() {
   }, [transitioning, nextPage])
 
   if (authLoading) return <PageLoader target={page} />
+  if (authError) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 420, textAlign: 'center' }}>
+          <h1>Unable to verify your session</h1>
+          <p>Please check your connection and try again.</p>
+          <button type="button" onClick={() => void restoreSession(pathToPage(window.location.pathname))}>Retry</button>
+        </div>
+      </div>
+    )
+  }
   if (transitioning && nextPage) return <PageLoader target={nextPage} />
   return (
     <Suspense fallback={<PageLoader target={page} />}>
       {page === 'signin' && (
         <SignIn
-          onSuccess={() => navigate('dashboard')}
-          onAdminLogin={() => {
-            void authAPI.me().then(user => {
-              authenticatedUserRef.current = user
-              navigate('admin')
-            }).catch(() => {
-              session.clear()
-              window.history.replaceState(null, '', '/login')
-              setPage('signin')
-            })
+          onSuccess={user => {
+            session.save(user)
+            authenticatedUserRef.current = user
+            setAuthenticatedUser(user)
+            const destination = user.role === 'admin' ? 'admin' : 'dashboard'
+            window.history.replaceState({ page: destination }, '', pageToPath(destination))
+            setPage(destination)
           }}
         />
       )}
@@ -196,8 +249,7 @@ export default function App() {
           onNavigate={navigate}
           onLogout={() => {
             clearAdminCredentials()
-            window.history.replaceState(null, '', '/login')
-            setPage('signin')
+            navigate('signin')
           }}
         />
       )}
@@ -209,7 +261,12 @@ export default function App() {
             <h2>Access Denied</h2>
             <p>You don't have permission to access this area.</p>
             <button type="button" onClick={() => navigate('dashboard')}>Back to Dashboard</button>
-            <button type="button" onClick={() => { session.clear(); window.history.replaceState(null, '', '/login'); setPage('signin') }}>Logout</button>
+            <button type="button" onClick={() => {
+              void authAPI.logout().catch(() => {}).finally(() => {
+                session.clear()
+                navigate('signin')
+              })
+            }}>Logout</button>
           </div>
         </div>
       )}

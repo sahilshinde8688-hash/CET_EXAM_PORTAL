@@ -1,18 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
-import { Chart, registerables } from 'chart.js'
+import { lazy, useEffect, useRef, useState } from 'react'
+import type { Chart as ChartInstance } from 'chart.js'
 import { authAPI, session, usersAPI, questionsAPI, mockTestsAPI, testsAPI, AuthUser, type Question, type MockTest, type TestResult } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
-import { exportStudentsToExcel } from '../lib/exportExcel'
-import StudentProfile from './StudentProfile'
-import TestInterface from './TestInterface'
-import QuestionBank from './QuestionBank'
-import AdminMockTests from './AdminMockTests'
-import AdminAnalysis from './AdminAnalysis'
-import AdminSettings from './AdminSettings'
+const StudentProfile = lazy(() => import('./StudentProfile'))
+const TestInterface = lazy(() => import('./TestInterface'))
+const QuestionBank = lazy(() => import('./QuestionBank'))
+const AdminMockTests = lazy(() => import('./AdminMockTests'))
+const AdminAnalysis = lazy(() => import('./AdminAnalysis'))
+const AdminSettings = lazy(() => import('./AdminSettings'))
 import '../admin.css'
 import '../testInterface.css'
 import '../questionBank.css'
-Chart.register(...registerables)
 
 type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'admin-dashboard'
 type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics' | 'settings'
@@ -86,8 +84,9 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
 
   const distinctBatches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))).sort()
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     try {
+      const { exportStudentsToExcel } = await import('../lib/exportExcel')
       exportStudentsToExcel(filtered, {
         batch: batchFilter === 'All' ? undefined : batchFilter,
         status: 'approved',
@@ -501,8 +500,9 @@ function RegistrationReview() {
     }
   }
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     try {
+      const { exportStudentsToExcel } = await import('../lib/exportExcel')
       exportStudentsToExcel(filtered, {
         batch: batchFilter === 'All' ? undefined : batchFilter,
         status: statusFilter === 'all' ? undefined : statusFilter,
@@ -877,7 +877,7 @@ function RegistrationReview() {
 ───────────────────────────────────────── */
 export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const chartRef = useRef<Chart | null>(null)
+  const chartRef = useRef<ChartInstance<'line'> | null>(null)
   const [view, setView] = useState<AdminView>(() => adminPathToView(window.location.pathname))
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
   const [showTest, setShowTest] = useState(false)
@@ -1036,9 +1036,25 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   useEffect(() => {
     if (view !== 'overview') return
     if (!canvasRef.current) return
-    const ctx = canvasRef.current.getContext('2d')
-    if (!ctx) return
     chartRef.current?.destroy()
+
+    let cancelled = false
+    const renderChart = async () => {
+      const {
+        Chart,
+        CategoryScale,
+        Filler,
+        LineController,
+        LineElement,
+        LinearScale,
+        PointElement,
+        Tooltip,
+      } = await import('chart.js')
+      if (cancelled || !canvasRef.current) return
+      Chart.register(CategoryScale, Filler, LineController, LineElement, LinearScale, PointElement, Tooltip)
+
+      const ctx = canvasRef.current.getContext('2d')
+      if (!ctx) return
 
     const grad = ctx.createLinearGradient(0, 0, 0, 340)
     grad.addColorStop(0, 'rgba(26,115,232,0.35)')
@@ -1063,7 +1079,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       chartData = monthly
     }
 
-    chartRef.current = new Chart(ctx, {
+      chartRef.current = new Chart(ctx, {
       type: 'line',
       data: {
         labels: chartLabels,
@@ -1109,8 +1125,15 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           },
         },
       },
-    })
-    return () => chartRef.current?.destroy()
+      })
+    }
+
+    void renderChart().catch(error => console.error('Failed to load admin chart:', error))
+    return () => {
+      cancelled = true
+      chartRef.current?.destroy()
+      chartRef.current = null
+    }
   }, [view, attemptCounts, chartRange, testResults])
 
   const topbarTitle = view === 'registrations'
@@ -1554,7 +1577,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           <main className="adb-main">
             <header className="adb-topbar">
               <div className="adb-topbar-left">
-                <div className="adb-topbar-brand"><img src="/logo.png" alt="" /> <span>CET NOVA</span></div>
+                <div className="adb-topbar-brand"><img src="/logo.png" alt="" /></div>
                 <div className="adb-topbar-sep" />
                 <span className="adb-topbar-sub">{topbarTitle}</span>
               </div>

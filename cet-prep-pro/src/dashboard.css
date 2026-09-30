@@ -43,14 +43,16 @@
   margin-bottom: 32px;
 }
 .db-sidebar-logo {
-  width: 42px; height: 42px;
-  background: #005bbf;
-  border-radius: 12px;
+  width: 52px; height: 52px;
+  background: #ffffff;
+  border-radius: 16px;
   display: flex; align-items: center; justify-content: center;
   color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 .db-sidebar-logo .material-symbols-outlined { font-size: 22px; }
-.db-sidebar-logo img { width: 30px; height: 30px; object-fit: contain; }
+.db-sidebar-logo img { width: 42px; height: 42px; object-fit: contain; background: #ffffff; border-radius: 12px; padding: 4px; }
 .db-sidebar-title {
   font-size: 20px; font-weight: 700;
   color: #005bbf; letter-spacing: -0.01em;

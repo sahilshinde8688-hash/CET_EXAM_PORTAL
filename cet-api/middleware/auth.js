@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken')
-const { findUserById } = require('../services/dbService')
+const { findUserById, findSessionById } = require('../services/dbService')
 
 /**
  * Authentication middleware
@@ -22,9 +22,14 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid token type.' })
     }
 
+    const session = decoded.sessionId ? await findSessionById(decoded.sessionId) : null
+    if (!session || session.revoked_at || session.user_id !== decoded.id || new Date(session.expires_at) <= new Date()) {
+      return res.status(401).json({ success: false, message: 'Session expired or invalid.' })
+    }
+
     const user = await findUserById(decoded.id)
 
-    if (!user) {
+    if (!user || (user.role === 'student' && user.status === 'pending')) {
       return res.status(401).json({ success: false, message: 'User account not found or deactivated.' })
     }
 
@@ -80,8 +85,12 @@ const optionalAuth = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     if (decoded.type === 'access') {
+      const session = decoded.sessionId ? await findSessionById(decoded.sessionId) : null
+      if (!session || session.revoked_at || session.user_id !== decoded.id || new Date(session.expires_at) <= new Date()) {
+        return next()
+      }
       const user = await findUserById(decoded.id)
-      if (user && user.status !== 'rejected') {
+      if (user && user.status !== 'rejected' && !(user.role === 'student' && user.status === 'pending')) {
         delete user.password
         delete user.mhcetPassword
         req.user = user

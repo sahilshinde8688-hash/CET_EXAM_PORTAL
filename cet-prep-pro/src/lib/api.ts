@@ -21,6 +21,12 @@ const BASE = `${API_URL}/api`
 
 
 let memoryCsrfToken: string | null = null
+const CSRF_REFRESH_AGE_MS = 90 * 60 * 1000
+
+const isCsrfTokenFresh = (token: string): boolean => {
+  const issuedAt = Number(token.split('.')[0])
+  return Number.isFinite(issuedAt) && Date.now() - issuedAt < CSRF_REFRESH_AGE_MS
+}
 
 const getCookieToken = (): string | null => {
   if (typeof document === 'undefined') return null
@@ -55,10 +61,8 @@ const setCsrfToken = (token: string | null) => {
  */
 const getCsrfToken = (): string | null => {
   const cookieToken = getCookieToken()
-  if (cookieToken) {
-    if (memoryCsrfToken !== cookieToken) {
-      memoryCsrfToken = cookieToken
-    }
+  if (cookieToken && isCsrfTokenFresh(cookieToken)) {
+    memoryCsrfToken = cookieToken
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
         window.localStorage.setItem('csrfToken', cookieToken)
@@ -67,11 +71,11 @@ const getCsrfToken = (): string | null => {
     return cookieToken
   }
 
-  if (memoryCsrfToken) return memoryCsrfToken
+  if (memoryCsrfToken && isCsrfTokenFresh(memoryCsrfToken)) return memoryCsrfToken
 
   if (typeof window !== 'undefined' && window.localStorage) {
     const stored = window.localStorage.getItem('csrfToken')
-    if (stored) {
+    if (stored && isCsrfTokenFresh(stored)) {
       memoryCsrfToken = stored
       return stored
     }
@@ -100,44 +104,69 @@ const ensureCsrfToken = async (): Promise<string | null> => {
   return getCsrfToken()
 }
 
-/**
- * Enhanced fetch wrapper with:
- * - Automatic CSRF token injection for state-changing requests
- * - Credential inclusion for cookies
- * - Token refresh on 401 errors
- */
-let isRefreshing = false
-
-// Special error class to signal that token was refreshed and request should be retried
-export class TokenRefreshedError extends Error {
+export class SessionExpiredError extends Error {
   constructor() {
-    super('Token refreshed. Please retry the request.')
-    this.name = 'TokenRefreshedError'
+    super('Your session has expired. Please sign in again.')
+    this.name = 'SessionExpiredError'
   }
 }
 
-async function handle(res: Response, refreshOnUnauthorized = true) {
+const nativeFetch: typeof globalThis.fetch = globalThis.fetch.bind(globalThis)
+const apiOrigin = new URL(BASE).origin
+const apiPath = new URL(BASE).pathname
+let refreshPromise: Promise<void> | null = null
+
+const expireClientSession = () => {
+  session.clear()
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('auth:expired'))
+}
+
+const fetch: typeof globalThis.fetch = async (input, init) => {
+  const requestUrl = new URL(input instanceof Request ? input.url : String(input), BASE)
+  const requestPath = requestUrl.pathname
+  const bypassRefresh = requestUrl.origin !== apiOrigin || [
+    `${apiPath}/auth/login`,
+    `${apiPath}/auth/register`,
+    `${apiPath}/auth/csrf`,
+    `${apiPath}/auth/refresh`,
+    `${apiPath}/auth/logout`,
+  ].includes(requestPath)
+  const requestInit: RequestInit = { ...init, credentials: 'include' }
+  const method = (requestInit.method || (input instanceof Request ? input.method : 'GET')).toUpperCase()
+
+  if (!bypassRefresh && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const headers = new Headers(requestInit.headers || (input instanceof Request ? input.headers : undefined))
+    if (!headers.has('X-CSRF-Token')) {
+      const csrfToken = await ensureCsrfToken()
+      if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+    }
+    requestInit.headers = headers
+  }
+
+  let response = await nativeFetch(input, requestInit)
+  if (response.status !== 401 || bypassRefresh) return response
+
+  try {
+    if (!refreshPromise) {
+      refreshPromise = doRefreshTokens().finally(() => { refreshPromise = null })
+    }
+    await refreshPromise
+  } catch (error) {
+    if (error instanceof SessionExpiredError) expireClientSession()
+    throw error
+  }
+
+  response = await nativeFetch(input, requestInit)
+  if (response.status === 401) {
+    expireClientSession()
+    throw new SessionExpiredError()
+  }
+  return response
+}
+
+async function handle(res: Response) {
   const resCsrf = res.headers.get('X-CSRF-Token')
   if (resCsrf) setCsrfToken(resCsrf)
-
-  // If unauthorized, try to refresh the token once
-  if (res.status === 401 && refreshOnUnauthorized && !isRefreshing) {
-    isRefreshing = true
-    try {
-      await doRefreshTokens()
-      // Token refreshed successfully - signal caller to retry
-      throw new TokenRefreshedError()
-    } catch (error) {
-      if (error instanceof TokenRefreshedError) {
-        throw error // Re-throw to signal retry
-      }
-      // Refresh failed, clear session and throw error
-      session.clear()
-      throw new Error('Session expired. Please log in again.')
-    } finally {
-      isRefreshing = false
-    }
-  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -159,18 +188,18 @@ async function handle(res: Response, refreshOnUnauthorized = true) {
  * Refresh access token using refresh token (internal, doesn't use handle to avoid recursion)
  */
 async function doRefreshTokens(): Promise<void> {
-  const csrfToken = getCsrfToken()
+  const csrfToken = await ensureCsrfToken()
   const headers: Record<string, string> = {}
   if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
-  const res = await fetch(`${BASE}/auth/refresh`, {
+  const res = await nativeFetch(`${BASE}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
     headers,
   })
   if (!res.ok) {
-    session.clear()
-    throw new Error('Refresh failed')
+    if (res.status === 401 || res.status === 403) throw new SessionExpiredError()
+    throw new Error('Unable to verify your session. Please try again.')
   }
 }
 
@@ -242,9 +271,7 @@ export const authAPI = {
   login: async (email: string, password: string, rememberMe = false) => {
     const cleanId = email.trim().toLowerCase()
 
-    // 1. Try the real backend session first so protected API calls get valid cookies.
     let backendError: Error | null = null
-    let backendResponded = false
     try {
       const csrfToken = await ensureCsrfToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -260,7 +287,6 @@ export const authAPI = {
         signal: controller.signal,
         body: JSON.stringify({ email: cleanId, password, rememberMe }),
       }).finally(() => clearTimeout(timeoutId))
-      backendResponded = true
 
       const headerResCsrf = res.headers.get('X-CSRF-Token')
       if (headerResCsrf) setCsrfToken(headerResCsrf)
@@ -281,7 +307,6 @@ export const authAPI = {
               headers,
               body: JSON.stringify({ email: cleanId, password, rememberMe }),
             })
-            backendResponded = true
             const retryCsrf = retryRes.headers.get('X-CSRF-Token')
             if (retryCsrf) setCsrfToken(retryCsrf)
             if (retryRes.ok) {
@@ -306,81 +331,7 @@ export const authAPI = {
       }
     }
 
-    if (backendResponded || import.meta.env.PROD || import.meta.env.VITE_API_URL) {
-      throw backendError || new Error('Unable to reach the login server.')
-    }
-
-    // 2. No default system admin credentials are allowed; only real registered profiles may sign in.
-    // Protected endpoints require a real access token cookie from the API server.
-
-    // 3. Fallback to Supabase Database
-    try {
-      const { data: dbUser } = await supabase
-        .from('users')
-        .select('*')
-        .or(`email.eq.${cleanId},mhcet_id.eq.${email.trim()},id.eq.${cleanId}`)
-        .maybeSingle()
-
-      if (dbUser) {
-        if (dbUser.status === 'pending') {
-          throw new Error('Your registration is pending review by admin. Credentials will be sent after approval.')
-        }
-        if (dbUser.status === 'rejected') {
-          throw new Error('Your registration application was rejected.')
-        }
-
-        const passMatch = (dbUser.mhcet_password && dbUser.mhcet_password === password) ||
-                          (dbUser.password && dbUser.password === password)
-
-        if (passMatch) {
-          const authUser: AuthUser = {
-            _id: dbUser.id,
-            id: dbUser.id,
-            name: dbUser.name,
-            email: dbUser.email,
-            phone: dbUser.phone,
-            branch: dbUser.branch,
-            batch: dbUser.batch,
-            role: dbUser.role || 'student',
-            status: dbUser.status || 'approved',
-            mhcetId: dbUser.mhcet_id,
-            mhcetPassword: dbUser.mhcet_password,
-            mustResetPassword: dbUser.must_reset_password || false,
-            createdAt: dbUser.created_at,
-          }
-          return authUser
-        } else {
-          throw new Error('Invalid email/MHT-CET ID or password.')
-        }
-      }
-    } catch (err: any) {
-      if (err.message && err.message !== 'Failed to fetch' && !err.message.includes('fetch')) {
-        throw err
-      }
-    }
-
-    // 4. Fallback to Local Storage Registrations
-    const localUsers = getLocalRegistrations()
-    const localFound = localUsers.find(u =>
-      u.email?.toLowerCase() === cleanId ||
-      u.mhcetId?.toLowerCase() === cleanId ||
-      u._id === cleanId || u.id === cleanId
-    )
-
-    if (localFound) {
-      if (localFound.status === 'pending') {
-        throw new Error('Your registration is pending review by admin. Credentials will be sent after approval.')
-      }
-      if (localFound.status === 'rejected') {
-        throw new Error('Your registration application was rejected.')
-      }
-      if (localFound.mhcetPassword === password || localFound.password === password) {
-        return localFound
-      }
-      throw new Error('Invalid password.')
-    }
-
-    throw new Error('Invalid Email/MHT-CET ID or password.')
+    throw backendError || new Error('Unable to reach the login server.')
   },
   register: async (name: string, email: string, phone: string, branch: string, batch: string | number) => {
     const numBatch = typeof batch === 'string' ? parseInt(batch.replace(/\D/g, ''), 10) || 1 : Number(batch)
@@ -500,7 +451,7 @@ export const authAPI = {
     return data as AuthUser
   },
   logout: async () => {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = {}
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -561,12 +512,6 @@ function saveLocalRegistrations(list: AuthUser[]) {
       bc.close()
     }
   } catch {}
-}
-
-function addLocalRegistration(user: AuthUser) {
-  const current = getLocalRegistrations()
-  const filtered = current.filter((u) => u.email?.toLowerCase() !== user.email?.toLowerCase())
-  saveLocalRegistrations([user, ...filtered])
 }
 
 /* ── Users ── */
@@ -681,8 +626,6 @@ export const usersAPI = {
     } catch {}
 
     const local = getLocalRegistrations()
-    const targetUser = local.find(u => u._id === id || u.id === id || u.email === id)
-
     const updated = local.map((u) => {
       if (u._id === id || u.id === id || u.email === id) {
         return { ...u, status: 'approved' as const, mhcetId, mhcetPassword: mhcetPwd, approvedAt: new Date().toISOString() }
@@ -856,7 +799,7 @@ export const usersAPI = {
       .eq('id', id)
       .maybeSingle()
     const deletedEmail = existingUser?.email?.toLowerCase()
-    const { data: deletedUsers, error: supabaseError } = await supabase
+    const { error: supabaseError } = await supabase
       .from('users')
       .delete()
       .eq('id', id)
@@ -885,7 +828,7 @@ export const usersAPI = {
       const { error } = await supabase.from('users').delete().eq('id', id)
       if (error) throw error
 
-      const fallbackEmail = deletedUsers?.[0]?.email?.toLowerCase() || deletedEmail
+      const fallbackEmail = deletedEmail
       const local = getLocalRegistrations().filter((u) =>
         u._id !== id && u.id !== id && u.email?.toLowerCase() !== fallbackEmail
       )

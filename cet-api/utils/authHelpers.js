@@ -5,6 +5,7 @@ const { createCsrfToken } = require('../middleware/csrf')
 
 const ACCESS_TOKEN_TTL = '15m'
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 // 30 days in seconds
+const STANDARD_SESSION_TTL = 7 * 24 * 60 * 60 // 7 days in seconds
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 
@@ -21,18 +22,18 @@ const signAccessToken = (userId, sessionId) => {
   )
 }
 
-const signRefreshToken = (userId, sessionId) => {
+const signRefreshToken = (userId, sessionId, rememberMe = false) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET environment variable is missing')
   }
   return jwt.sign(
-    { id: userId, sessionId, type: 'refresh', jti: randomUUID() },
+    { id: userId, sessionId, type: 'refresh', jti: randomUUID(), rememberMe },
     process.env.JWT_SECRET,
-    { expiresIn: REFRESH_TOKEN_TTL }
+    { expiresIn: rememberMe ? REFRESH_TOKEN_TTL : STANDARD_SESSION_TTL }
   )
 }
 
-const setAuthCookies = (res, accessToken, refreshToken, csrfToken) => {
+const setAuthCookies = (res, accessToken, refreshToken, csrfToken, rememberMe = false) => {
   const isProd = process.env.NODE_ENV === 'production'
   const cookieOptions = {
     httpOnly: true,
@@ -48,7 +49,7 @@ const setAuthCookies = (res, accessToken, refreshToken, csrfToken) => {
 
   res.cookie('refreshToken', refreshToken, {
     ...cookieOptions,
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxAge: (rememberMe ? REFRESH_TOKEN_TTL : STANDARD_SESSION_TTL) * 1000,
   })
 
   const csrf = csrfToken || createCsrfToken()
@@ -78,6 +79,7 @@ const clearAuthCookies = (res) => {
 module.exports = {
   ACCESS_TOKEN_TTL,
   REFRESH_TOKEN_TTL,
+  STANDARD_SESSION_TTL,
   hashToken,
   createSessionId,
   signAccessToken,
