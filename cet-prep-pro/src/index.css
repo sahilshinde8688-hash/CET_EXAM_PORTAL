@@ -772,3 +772,338 @@ body {
   font-size: 12px; color: #7c2d12; line-height: 1.5; margin: 2px 0 0 0;
   font-family: 'Inter', sans-serif;
 }
+
+/* ── Sign-in split layout ────────────────── */
+.page:has(.signin-shell) {
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 4vw, 56px);
+  background: linear-gradient(135deg, #003d80 0%, var(--color-primary) 56%, var(--color-tertiary) 100%);
+}
+
+.signin-shell {
+  width: min(1320px, 100%);
+  height: min(780px, calc(100vh - 112px));
+  min-height: 640px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 24px;
+  background: var(--color-surface-lowest);
+  box-shadow: 0 28px 80px rgba(0, 25, 58, 0.24);
+}
+
+.signin-shell .left-panel {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 32px clamp(32px, 5vw, 72px);
+  background: var(--color-surface-lowest);
+}
+
+.signin-shell .dot-pattern {
+  opacity: 0.035;
+}
+
+.signin-shell .form-wrapper {
+  max-width: 430px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.signin-shell .brand-lockup {
+  justify-content: flex-start;
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.signin-shell .brand-logo {
+  width: 54px;
+  height: 54px;
+  padding: 4px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.signin-shell .brand-subtitle {
+  margin: 5px 0 28px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.auth-heading-group {
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.auth-heading {
+  color: var(--color-on-surface);
+  font-family: 'Public Sans', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.auth-intro {
+  margin-top: 7px;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.signin-shell .tabs {
+  justify-content: center;
+  gap: 24px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.signin-shell .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 1 auto;
+  padding: 5px 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+}
+
+.signin-shell .tab-btn::before {
+  width: 14px;
+  height: 14px;
+  content: '';
+  border: 1px solid var(--color-outline);
+  border-radius: 50%;
+}
+
+.signin-shell .tab-btn.active {
+  color: var(--color-primary);
+  background: transparent;
+  box-shadow: none;
+}
+
+.signin-shell .tab-btn.active::before {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  box-shadow: inset 0 0 0 3px var(--color-surface-lowest);
+}
+
+.signin-shell .auth-form {
+  gap: 14px;
+}
+
+.signin-shell .input-label {
+  color: var(--color-on-surface);
+  font-size: 13px;
+}
+
+.input-icon-wrap {
+  position: relative;
+}
+
+.signin-shell .input-icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--color-outline);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.signin-shell .input-icon-wrap .text-input,
+.signin-shell .password-wrapper .text-input {
+  padding-left: 40px;
+}
+
+.signin-shell .password-wrapper .text-input {
+  padding-right: 48px;
+}
+
+.signin-shell .google-btn,
+.signin-shell .text-input,
+.signin-shell .submit-btn {
+  border-radius: 9px;
+}
+
+.signin-shell .right-panel {
+  min-width: 0;
+  padding: 44px clamp(34px, 5vw, 72px) 28px;
+  background: linear-gradient(150deg, var(--color-primary) 0%, #064b91 58%, var(--color-tertiary) 100%);
+}
+
+.signin-shell .blob-1 {
+  width: 220px;
+  height: 220px;
+  top: 8%;
+  right: -72px;
+  background: rgba(255, 255, 255, 0.12);
+  filter: blur(72px);
+}
+
+.signin-shell .blob-2 {
+  width: 280px;
+  height: 280px;
+  bottom: -100px;
+  left: -80px;
+  background: rgba(0, 35, 78, 0.24);
+}
+
+.signin-shell .glass-card {
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  min-height: 620px;
+  padding: 12px 0 0;
+  align-items: stretch;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: none;
+}
+
+.signin-shell .glass-card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.showcase-copy {
+  position: relative;
+  z-index: 1;
+  padding: 10px 4px 0;
+}
+
+.showcase-kicker {
+  display: inline-block;
+  margin-bottom: 15px;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.signin-shell .card-title {
+  max-width: 420px;
+  margin-bottom: 12px;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.12;
+}
+
+.signin-shell .card-desc {
+  max-width: 390px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.signin-shell .stats-grid {
+  position: relative;
+  z-index: 1;
+  gap: 0;
+  margin-top: 30px;
+  padding: 17px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.signin-shell .stat-card {
+  align-items: flex-start;
+  padding: 5px 18px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.signin-shell .stat-card + .stat-card {
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.signin-shell .stat-icon {
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.signin-shell .stat-number {
+  font-size: 23px;
+}
+
+.signin-shell .stat-label {
+  color: rgba(255, 255, 255, 0.68);
+  letter-spacing: 0;
+}
+
+.signin-shell .card-img-wrap {
+  flex: 1;
+  min-height: 220px;
+  height: auto;
+  margin: 18px -12px -12px;
+  align-items: flex-end;
+}
+
+.signin-shell .card-img-wrap img {
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+@media (max-width: 900px) {
+  .signin-shell {
+    grid-template-columns: 1.08fr 0.92fr;
+  }
+
+  .signin-shell .left-panel {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .signin-shell .right-panel {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page:has(.signin-shell) {
+    min-height: 100vh;
+    padding: 0;
+    background: var(--color-surface-lowest);
+  }
+
+  .signin-shell {
+    width: 100%;
+    height: auto;
+    min-height: 100vh;
+    display: block;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .signin-shell .left-panel {
+    min-height: 100vh;
+    padding: 32px 22px;
+  }
+
+  .signin-shell .right-panel {
+    display: none;
+  }
+
+  .signin-shell .form-wrapper {
+    min-height: calc(100vh - 64px);
+  }
+}

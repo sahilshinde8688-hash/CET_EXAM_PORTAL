@@ -11,6 +11,7 @@ import { useFullscreenGuard } from '../lib/useFullscreenGuard'
 import '../testInterface.css'
 
 const QUESTION_ORDER_KEY = 'cet_exam_question_order_v2'
+const EMPTY_QUESTION_IDS: string[] = []
 
 const shuffleQuestionsBySubject = (items: Question[]): Question[] => {
   const grouped = new Map<string, Question[]>()
@@ -80,7 +81,7 @@ export default function TestInterface({
   examName = 'MHT-CET Mock Test',
   durationMinutes = 120,
   questionCount,
-  questionIds = [],
+  questionIds = EMPTY_QUESTION_IDS,
   reviewMode = false, 
   pastAnswers, 
   pastResultData 
@@ -428,7 +429,14 @@ export default function TestInterface({
 
       try {
         console.log('Loading questions from API...')
-        const data = await questionsAPI.getAll({ isActive: true, includeAnswers: true })
+        const reviewQuestionIds = questionIds.length ? questionIds : Object.keys(pastAnswers || {})
+        if (reviewMode && reviewQuestionIds.length === 0) {
+          setQuestions([])
+          return
+        }
+        const data = await questionsAPI.getAll(reviewMode
+          ? { ids: reviewQuestionIds, includeAnswers: true }
+          : { isActive: true, includeAnswers: true })
         console.log('Questions loaded from API:', data.length)
 
         if (!Array.isArray(data) || data.length === 0) {
@@ -437,7 +445,10 @@ export default function TestInterface({
 
         const normalizedQuestions = data.map(normalizeQuestion)
         if (reviewMode) {
-          setQuestions(normalizedQuestions)
+          const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
+          setQuestions(reviewQuestionIds
+            .map(questionId => questionsById.get(questionId))
+            .filter((question): question is Question => Boolean(question)))
         } else {
           const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
           const assignedQuestions = questionIds
@@ -478,7 +489,7 @@ export default function TestInterface({
     }, 100)
 
     return () => clearTimeout(timeout)
-  }, [durationMinutes, examName, questionCount, questionIds, reviewMode])
+  }, [durationMinutes, examName, pastAnswers, questionCount, questionIds, reviewMode])
 
 
   // Timer — pauses automatically when fullscreen/focus warning is active
@@ -647,7 +658,7 @@ export default function TestInterface({
     )
   }
 
-  if (questions.length === 0) {
+  if (questions.length === 0 && !(showResultPage && result)) {
     return (
       <div style={{ 
         position: 'fixed', 

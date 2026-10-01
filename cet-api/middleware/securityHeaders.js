@@ -82,6 +82,26 @@ const sensitiveHeaders = (req, res, next) => {
 const configureCors = (options = {}) => {
   const isProd = process.env.NODE_ENV === 'production'
 
+  const isPrivateNetworkOrigin = (origin) => {
+    let hostname
+    try {
+      const url = new URL(origin)
+      if (url.protocol !== 'http:') return false
+      hostname = url.hostname
+    } catch {
+      return false
+    }
+
+    const octets = hostname.split('.').map(Number)
+    if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+      return false
+    }
+
+    return octets[0] === 10 ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168)
+  }
+
   const devOrigins = [
     'http://localhost:5173',
     'http://localhost:5174',
@@ -118,8 +138,10 @@ const configureCors = (options = {}) => {
       }
 
       if (!isProd) {
-        // In local development, permit localhost ports
         if (/^http:\/\/localhost(:\d+)?$/.test(cleanOrigin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(cleanOrigin)) {
+          return callback(null, true)
+        }
+        if (isPrivateNetworkOrigin(cleanOrigin)) {
           return callback(null, true)
         }
       }

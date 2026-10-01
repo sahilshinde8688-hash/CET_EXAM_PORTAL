@@ -53,6 +53,10 @@ export interface QuestionExplainInput {
 
 const getApiBase = (): string => {
   const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    return window.location.origin
+  }
+
   if (typeof window !== 'undefined') {
     const host = window.location.hostname
     if (host === 'localhost' || host === '127.0.0.1') {

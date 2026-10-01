@@ -157,6 +157,9 @@ export default function Results({ onNavigate }: ResultsProps) {
           correct: reviewingTest.correct || 0,
           incorrect: reviewingTest.incorrect || 0
         }} 
+          questionIds={reviewingTest.questionIds?.length
+            ? reviewingTest.questionIds
+            : Object.keys(reviewingTest.answers || {})}
       />
     )
   }

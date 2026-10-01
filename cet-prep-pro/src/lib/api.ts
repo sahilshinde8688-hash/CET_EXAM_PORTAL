@@ -1,6 +1,10 @@
 import { supabase } from './supabaseClient'
 
 export const getApiUrl = (): string => {
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    return window.location.origin
+  }
+
   if (typeof window !== 'undefined') {
     const host = window.location.hostname
     if (host === 'localhost' || host === '127.0.0.1') {
@@ -961,6 +965,7 @@ export interface TestResult {
     percentage: number
   }>
   answers?: Record<string, number>
+  questionIds?: string[]
   correct?: number
   incorrect?: number
   unanswered?: number
@@ -1017,6 +1022,7 @@ export const testsAPI = {
         totalQuestions: row.total_questions,
         subjectWiseScores: row.subject_wise_scores || [],
         answers: row.answers || {},
+        questionIds: row.question_ids || [],
       }))
     } catch (fallbackError) {
       console.error('Failed to load admin results from fallback query:', fallbackError)
@@ -1057,6 +1063,7 @@ export const testsAPI = {
         totalQuestions: row.total_questions,
         subjectWiseScores: row.subject_wise_scores || [],
         answers: row.answers || {},
+        questionIds: row.question_ids || [],
       }))
     }
   },
@@ -1116,6 +1123,7 @@ export const testsAPI = {
         total_questions: payload.totalQuestions,
         subject_wise_scores: payload.subjectWiseScores || [],
         answers: payload.answers || {},
+        question_ids: payload.questionIds || [],
       }).select().single()
       if (error) throw error
       const result: TestResult = {
@@ -1134,6 +1142,7 @@ export const testsAPI = {
         totalQuestions: data.total_questions,
         subjectWiseScores: data.subject_wise_scores || [],
         answers: data.answers || {},
+        questionIds: data.question_ids || [],
       }
       testsAPI.updateDashboardCache(result)
       return result
@@ -1217,9 +1226,11 @@ export interface Question {
 }
 
 export const questionsAPI = {
-  async getAll(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean }) {
+  async getAll(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean; ids?: string[] }) {
     const qs = new URLSearchParams()
-    Object.entries(filters || {}).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)) })
+    Object.entries(filters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, Array.isArray(v) ? v.join(',') : String(v))
+    })
     const url = qs.toString() ? `${BASE}/questions?${qs.toString()}` : `${BASE}/questions`
     const res = await fetch(url, { credentials: 'include' })
     const data = await handle(res).then(() => res.json())

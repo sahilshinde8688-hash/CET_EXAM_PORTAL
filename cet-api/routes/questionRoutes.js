@@ -30,12 +30,13 @@ const upload = multer({
 // GET /api/questions
 // Withholds answer keys and solutions from students and anonymous users
 router.get('/', requireAdminQuery, optionalAuth, apiLimiter, async (req, res) => {
-  const { subject, topic, difficulty, isActive, includeAnswers } = req.query
+  const { subject, topic, difficulty, isActive, includeAnswers, ids } = req.query
   const filter = {}
   if (subject) filter.subject = subject
   if (topic) filter.topic = topic
   if (difficulty) filter.difficulty = difficulty
   if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true'
+  if (ids) filter.ids = String(ids).split(',').filter(Boolean)
 
   const shouldIncludeAnswers = includeAnswers === 'true' || req.user?.role === 'admin'
 

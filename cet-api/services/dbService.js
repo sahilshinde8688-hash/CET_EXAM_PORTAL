@@ -102,6 +102,7 @@ const testResultToCamel = (row) => {
     totalQuestions: row.total_questions,
     subjectWiseScores: row.subject_wise_scores || [],
     answers: row.answers || {},
+    questionIds: row.question_ids || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -651,6 +652,7 @@ const createTestResult = async (resultData) => {
     total_questions: resultData.totalQuestions ? Number(resultData.totalQuestions) : 0,
     subject_wise_scores: resultData.subjectWiseScores || [],
     answers: resultData.answers || {},
+    question_ids: resultData.questionIds || [],
   }
   const { data, error } = await supabase.from('test_results').insert(payload).select().single()
   if (error) throw error
@@ -745,6 +747,7 @@ const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, du
     totalQuestions: allQuestions.length,
     subjectWiseScores,
     answers,
+    questionIds: allQuestions.map((question) => String(question._id || question.id)),
   }
 
   return await createTestResult(payload)
