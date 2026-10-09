@@ -2,23 +2,20 @@ const crypto = require('crypto')
 const jwt = require('jsonwebtoken')
 const { randomUUID } = require('crypto')
 const { createCsrfToken } = require('../middleware/csrf')
-
-const ACCESS_TOKEN_TTL = '15m'
-const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 // 30 days in seconds
-const STANDARD_SESSION_TTL = 7 * 24 * 60 * 60 // 7 days in seconds
+const { ACCESS_TOKEN_MAX_AGE_SECONDS } = require('../config/auth')
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 
 const createSessionId = () => randomUUID()
 
-const signAccessToken = (userId, sessionId) => {
+const signAccessToken = (userId, sessionId, expiresInSeconds = ACCESS_TOKEN_MAX_AGE_SECONDS) => {
   if (!process.env.JWT_SECRET) {
     throw new Error('JWT_SECRET environment variable is missing')
   }
   return jwt.sign(
     { id: userId, sessionId, type: 'access' },
     process.env.JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_TTL }
+    { expiresIn: Math.max(1, Math.min(ACCESS_TOKEN_MAX_AGE_SECONDS, Math.floor(expiresInSeconds))) }
   )
 }
 
@@ -28,13 +25,16 @@ const signRefreshToken = (userId, sessionId, rememberMe = false) => {
   }
   return jwt.sign(
     { id: userId, sessionId, type: 'refresh', jti: randomUUID(), rememberMe },
-    process.env.JWT_SECRET,
-    { expiresIn: rememberMe ? REFRESH_TOKEN_TTL : STANDARD_SESSION_TTL }
+    process.env.JWT_SECRET
   )
 }
 
-const setAuthCookies = (res, accessToken, refreshToken, csrfToken, rememberMe = false) => {
+const setAuthCookies = (res, accessToken, refreshToken, csrfToken, sessionExpiresAt) => {
   const isProd = process.env.NODE_ENV === 'production'
+  const remainingMs = Date.parse(sessionExpiresAt) - Date.now()
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+    throw new Error('Cannot set authentication cookies for an expired session.')
+  }
   const cookieOptions = {
     httpOnly: true,
     secure: isProd,
@@ -44,12 +44,12 @@ const setAuthCookies = (res, accessToken, refreshToken, csrfToken, rememberMe = 
 
   res.cookie('accessToken', accessToken, {
     ...cookieOptions,
-    maxAge: 15 * 60 * 1000, // 15 mins
+    maxAge: Math.min(ACCESS_TOKEN_MAX_AGE_SECONDS * 1000, remainingMs),
   })
 
   res.cookie('refreshToken', refreshToken, {
     ...cookieOptions,
-    maxAge: (rememberMe ? REFRESH_TOKEN_TTL : STANDARD_SESSION_TTL) * 1000,
+    maxAge: remainingMs,
   })
 
   const csrf = csrfToken || createCsrfToken()
@@ -58,32 +58,40 @@ const setAuthCookies = (res, accessToken, refreshToken, csrfToken, rememberMe = 
     secure: isProd,
     sameSite: isProd ? 'none' : 'lax',
     path: '/',
-    maxAge: 2 * 60 * 60 * 1000,
+    maxAge: remainingMs,
   })
 
   res.setHeader('X-CSRF-Token', csrf)
 }
 
-const clearAuthCookies = (res) => {
+const getCookieClearOptions = () => {
   const isProd = process.env.NODE_ENV === 'production'
-  const clearOptions = {
+  return {
     path: '/',
     secure: isProd,
     sameSite: isProd ? 'none' : 'lax',
   }
+}
+
+const clearSessionCookies = (res) => {
+  const clearOptions = getCookieClearOptions()
   res.clearCookie('accessToken', clearOptions)
   res.clearCookie('refreshToken', clearOptions)
+}
+
+const clearAuthCookies = (res) => {
+  const clearOptions = getCookieClearOptions()
+  clearSessionCookies(res)
   res.clearCookie('csrfToken', clearOptions)
 }
 
 module.exports = {
-  ACCESS_TOKEN_TTL,
-  REFRESH_TOKEN_TTL,
-  STANDARD_SESSION_TTL,
+  ACCESS_TOKEN_MAX_AGE_SECONDS,
   hashToken,
   createSessionId,
   signAccessToken,
   signRefreshToken,
   setAuthCookies,
+  clearSessionCookies,
   clearAuthCookies,
 }

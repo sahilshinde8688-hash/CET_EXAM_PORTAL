@@ -4,6 +4,7 @@ import TestInterface from './TestInterface'
 import ExamInstructions from './ExamInstructions'
 import UserAvatar from './UserAvatar'
 import { mockTestsAPI, testsAPI, session, MockTest, TestResult, type AuthUser } from '../lib/api'
+import AssignedMockTests from './AssignedMockTests'
 
 type TabType = 'Full Length' | 'Subject-wise' | 'Chapter-wise' | 'Previous Year'
 type DiffFilter = 'All Levels' | 'Easy' | 'Medium' | 'Hard'
@@ -147,6 +148,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
   const [selectedTestName, setSelectedTestName] = useState(() => localStorage.getItem('cet_selected_test_name') || 'MHT-CET Mock Test')
+  const [selectedMockTestId, setSelectedMockTestId] = useState(() => localStorage.getItem('cet_selected_mock_test_id') || '')
   const [selectedTestDuration, setSelectedTestDuration] = useState<number>(() => {
     const saved = localStorage.getItem('cet_selected_test_duration')
     return saved ? Number(saved) : 120
@@ -164,17 +166,27 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     return saved ? Number(saved) : 150
   })
   const bypassBackGuard = useRef(false)
+  const mockTestsRequestInProgress = useRef(false)
 
   // ── Restore exam state on reload ─────────────────────────────────────────
   const EXAM_STATE_KEY = 'cet_exam_state'
   const savedState = localStorage.getItem(EXAM_STATE_KEY)
-  const [testActive, setTestActive] = useState(savedState === 'test')
-  const [startingTest, setStartingTest] = useState(savedState === 'instructions')
+  const currentUserId = String(user?.id || user?._id || '')
+  const examBelongsToUser = Boolean(currentUserId && localStorage.getItem('cet_exam_owner_id') === currentUserId)
+  const [testActive, setTestActive] = useState(savedState === 'test' && examBelongsToUser)
+  const [startingTest, setStartingTest] = useState(savedState === 'instructions' && examBelongsToUser)
 
   const hasActiveInProgressExam = () => {
-    const examState = localStorage.getItem(EXAM_STATE_KEY)
+    const ownedExam = localStorage.getItem('cet_exam_owner_id') === currentUserId
+    const examState = ownedExam ? localStorage.getItem(EXAM_STATE_KEY) : null
     const inProgressTest = localStorage.getItem('cet_inProgressTest')
-    return examState === 'test' || examState === 'instructions' || Boolean(inProgressTest)
+    try {
+      const progressOwnerId = inProgressTest ? JSON.parse(inProgressTest).userId : null
+      return examState === 'test' || examState === 'instructions' || Boolean(currentUserId && progressOwnerId === currentUserId)
+    } catch {
+      localStorage.removeItem('cet_inProgressTest')
+      return examState === 'test' || examState === 'instructions'
+    }
   }
 
   const enterExamInstructions = () => {
@@ -184,6 +196,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     }
 
     localStorage.setItem(EXAM_STATE_KEY, 'instructions')
+    localStorage.setItem('cet_exam_owner_id', currentUserId)
     setStartingTest(true)
   }
 
@@ -196,6 +209,9 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
 
   const exitExam = () => {
     localStorage.removeItem(EXAM_STATE_KEY)
+    localStorage.removeItem('cet_exam_owner_id')
+    localStorage.removeItem('cet_selected_mock_test_id')
+    setSelectedMockTestId('')
     setTestActive(false)
     setStartingTest(false)
   }
@@ -223,6 +239,13 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   useEffect(() => {
     loadMockTests()
     loadTestResults()
+    const refreshInterval = window.setInterval(() => void loadMockTests(true), 15000)
+    const refreshOnFocus = () => void loadMockTests(true)
+    window.addEventListener('focus', refreshOnFocus)
+    return () => {
+      window.clearInterval(refreshInterval)
+      window.removeEventListener('focus', refreshOnFocus)
+    }
   }, [])
 
   const loadTestResults = async () => {
@@ -234,14 +257,17 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     }
   }
 
-  const loadMockTests = async () => {
+  const loadMockTests = async (background = false) => {
+    if (mockTestsRequestInProgress.current) return
+    mockTestsRequestInProgress.current = true
     try {
-      const data = await mockTestsAPI.getAll()
+      const data = await mockTestsAPI.getAll({ background })
       setMockTests(data)
     } catch (error) {
       console.error('Failed to load mock tests:', error)
     } finally {
       setLoading(false)
+      mockTestsRequestInProgress.current = false
     }
   }
 
@@ -272,10 +298,13 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     questions: test.questions,
     mins: test.duration,
     questionIds: test.questionIds || [],
+    maxAttempts: test.maxAttempts || 1,
+    attemptsUsed: testResults.filter(result => result.mockTestId
+      ? result.mockTestId === test._id
+      : result.testName.trim().toLowerCase() === test.title.trim().toLowerCase()).length,
     difficulty: getDifficulty(test.difficulty),
     subject: getSubject(test.subject),
     tab: getTabType(test.status),
-    questionIds: test.questionIds || [],
     recommended: test.status === 'active',
     primary: test.status === 'active',
   })).filter(t => {
@@ -444,6 +473,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
       <TestInterface
         onClose={exitExam}
         examName={selectedTestName}
+        mockTestId={selectedMockTestId || undefined}
         durationMinutes={selectedTestDuration}
         questionCount={selectedQuestionCount}
         questionIds={selectedQuestionIds}
@@ -509,7 +539,13 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
               Quick Start Mock
             </button>
+            <button className="mt-quick-btn" onClick={() => document.getElementById('assigned-mock-tests')?.scrollIntoView({ behavior: 'smooth' })}>
+              <span className="material-symbols-outlined">assignment_turned_in</span>
+              Assigned Mock Tests
+            </button>
           </div>
+
+          <AssignedMockTests embedded />
 
           <div className="mt-grid">
 
@@ -557,7 +593,9 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                     <p>No tests match your filters.</p>
                   </div>
                 )}
-                {filtered.map(test => (
+                {filtered.map(test => {
+                  const attemptLimitReached = test.attemptsUsed >= test.maxAttempts
+                  return (
                   <div key={test.id} className="mt-glass-card mt-test-card">
                     {test.recommended && <div className="mt-recommended-badge">Recommended</div>}
                     <div className={`mt-card-icon ${iconColors[test.iconColor]}`}>
@@ -574,29 +612,35 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                         <span className="material-symbols-outlined">schedule</span>
                         {test.mins} Mins
                       </span>
+                      <span className="mt-meta-item">
+                        {Math.max(0, test.maxAttempts - test.attemptsUsed)} / {test.maxAttempts} attempts left
+                      </span>
                       <span className={`mt-diff-badge ${diffColors[test.difficulty]}`}>{test.difficulty}</span>
                     </div>
-                    <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} onClick={() => {
+                    <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} disabled={attemptLimitReached} onClick={() => {
                       if (hasActiveInProgressExam()) {
                         setBlockedMessage('Please complete the first test before starting a new one.')
                         return
                       }
 
+                      localStorage.setItem('cet_selected_mock_test_id', test.id)
                       localStorage.setItem('cet_selected_test_name', test.title)
                       localStorage.setItem('cet_selected_test_duration', String(test.mins))
                       localStorage.setItem('cet_selected_question_ids', JSON.stringify(test.questionIds))
                       localStorage.setItem('cet_selected_question_count', String(test.questions))
                       setSelectedTestName(test.title)
+                      setSelectedMockTestId(test.id)
                       setSelectedTestDuration(test.mins)
                       setSelectedQuestionCount(test.questions)
                       setSelectedQuestionIds(test.questionIds)
                       setStartingTest(true)
                     }}>
-                      Start Now
-                      <span className="material-symbols-outlined">arrow_forward</span>
+                      {attemptLimitReached ? 'Attempt Limit Reached' : 'Start Now'}
+                      {!attemptLimitReached && <span className="material-symbols-outlined">arrow_forward</span>}
                     </button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 

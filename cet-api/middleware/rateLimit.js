@@ -1,5 +1,6 @@
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 
+const API_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
 let RedisStore = null
 let redisClient = null
 
@@ -92,9 +93,26 @@ const refreshLimiter = createLimiter({
  * General API rate limiter: 200 requests per 15 minutes
  */
 const apiLimiter = createLimiter({
-  windowMs: 15 * 60 * 1000,
+  windowMs: API_RATE_LIMIT_WINDOW_MS,
   max: 200,
   message: 'API rate limit exceeded. Please slow down.',
+})
+
+/**
+ * Test submission rate limiter: 15 submissions per 15 minutes per user.
+ * More generous than the general limiter so a normal test-taking session
+ * (load questions → submit → review) never triggers it.
+ */
+const testSubmitLimiter = createLimiter({
+  windowMs: API_RATE_LIMIT_WINDOW_MS,
+  max: 15,
+  message: 'Too many test submissions. Please wait a moment before trying again.',
+  keyGenerator: (req, res) => {
+    // Key by user ID when authenticated, fall back to an IPv6-safe IP key
+    const userId = req.user?.id || req.user?._id
+    const ip = ipKeyGenerator(req, res)
+    return userId ? `test_submit:${userId}` : `test_submit:ip:${ip}`
+  },
 })
 
 /**
@@ -112,6 +130,14 @@ module.exports = {
   passwordResetLimiter,
   refreshLimiter,
   apiLimiter,
+  testSubmitLimiter,
+  API_RATE_LIMIT_WINDOW_MS,
   uploadLimiter,
   createLimiter,
+  getRedisStatus: () => {
+    if (!process.env.REDIS_URL) return { status: 'unavailable', reason: 'Redis is not configured' }
+    return redisClient?.isReady
+      ? { status: 'running' }
+      : { status: 'unknown', reason: 'Redis is configured but not connected' }
+  },
 }

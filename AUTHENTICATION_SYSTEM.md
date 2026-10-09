@@ -2,14 +2,14 @@
 
 ## Overview
 
-This authentication system implements industry-standard security practices for a React + Node.js/Express + MongoDB application. It provides secure session management with JWT tokens, refresh tokens, and comprehensive protection against common web vulnerabilities.
+This authentication system uses the React frontend, Node.js/Express API, and Supabase Postgres. JWTs are held in HttpOnly cookies and checked against server-side session records; browser storage is not proof of authentication.
 
 ## Architecture
 
 ### Backend (Node.js + Express)
-- **JWT-based authentication** with short-lived access tokens (15 minutes)
-- **Refresh token rotation** with secure HTTP-only cookies
-- **Session tracking** with device info and IP address logging
+- **JWT-based authentication** with short-lived access tokens (up to 15 minutes)
+- **Refresh tokens** with secure HTTP-only cookies bound to a revocable server-side session
+- **Session tracking** with device info, IP address, last activity, and inactivity validation
 - **CSRF protection** using double-submit cookie pattern
 - **Rate limiting** to prevent brute-force attacks
 - **Security headers** via Helmet.js
@@ -17,25 +17,26 @@ This authentication system implements industry-standard security practices for a
 ### Frontend (React + TypeScript)
 - **Automatic token refresh** when access tokens expire
 - **CSRF token injection** for all state-changing requests
-- **Session persistence** with automatic restoration on app load
-- **Redirect guards** for authenticated/unauthenticated users
+- **Server-verified session restoration** on app load, navigation, browser history, and tab visibility
+- **Redirect guards** that wait for the API session check before rendering protected pages
 
 ## Security Features
 
 ### 1. Cookie Security
 ```javascript
-// All auth cookies use these flags:
+// Authentication cookies use these flags:
 {
   httpOnly: true,      // Prevents XSS attacks
   secure: production,  // HTTPS only in production
-  sameSite: 'lax',     // CSRF protection
+  sameSite: production ? 'none' : 'lax', // Cross-origin production frontend/API
   path: '/',          // Available across entire app
 }
 ```
 
-**Access Token**: 15-minute expiry, stored in HttpOnly cookie
-**Refresh Token**: 7 days (30 days if "Remember me" checked), stored in HttpOnly cookie
-**CSRF Token**: 24-hour expiry, NOT HttpOnly (JavaScript needs to read it)
+**Access Token**: up to 15 minutes; active users transparently refresh it.
+**Refresh Token**: has no independent fixed JWT lifetime; it is bound to a persisted, revocable session and can only be used while that session remains active.
+**Session**: expires after the configured period of inactivity, 30 minutes by default. The server validates the persisted `last_activity` timestamp on protected requests. Administrators can change the inactivity timeout from Security settings (1–1440 minutes); `SESSION_INACTIVITY_TIMEOUT_MINUTES` supplies the server fallback.
+**CSRF Token**: separate from authentication; readable by JavaScript for the double-submit header and rolled with the session cookies.
 
 ### 2. CSRF Protection
 
@@ -94,15 +95,16 @@ Implemented via Helmet.js:
   operatingSystem: "Windows 11",
   ipAddress: "192.168.1.1",
   country: "India",
-  loginAt: "2024-01-01T00:00:00Z",
+  createdAt: "2024-01-01T00:00:00Z",
   lastActivity: "2024-01-01T00:00:00Z",
-  expiresAt: "2024-01-01T00:30:00Z", // 30 minutes
+  expiresAt: "2024-01-01T00:30:00Z", // Inactivity deadline; extended as activity is recorded
   revokedAt: null
 }
 ```
 
 **Features:**
-- Automatic expiration after 30 minutes of inactivity
+- Expiration only after the configured period without recorded activity
+- Persisted activity timestamp is authoritative; refreshing or navigating does not reset the session
 - Device tracking for security monitoring
 - Login history for audit trails
 - Support for multiple concurrent sessions
@@ -120,7 +122,7 @@ Implemented via Helmet.js:
 }
 ```
 
-**Refresh Token (7/30 days):**
+**Refresh Token (bound to the persisted session):**
 ```javascript
 {
   id: "userId",
@@ -128,7 +130,7 @@ Implemented via Helmet.js:
   type: "refresh",
   jti: "uniqueTokenId",
   iat: 1234567890,
-  exp: 1234567890 + (7 * 24 * 60 * 60)
+  exp: 1234567890 + 7200
 }
 ```
 
@@ -143,7 +145,7 @@ Implemented via Helmet.js:
 
 ### CSRF (Cross-Site Request Forgery)
 ✅ **Protected by:**
-- SameSite=Lax cookies
+- SameSite=Lax in development; SameSite=None with Secure in cross-origin production
 - Double-submit CSRF token pattern
 - CSRF token validation on all state-changing requests
 - Constant-time token comparison (prevents timing attacks)
@@ -151,7 +153,7 @@ Implemented via Helmet.js:
 ### Session Fixation
 ✅ **Protected by:**
 - New session ID created on every login
-- New session ID created on every token refresh
+- Refresh tokens remain bound to their original session ID and server-side inactivity deadline
 - Session IDs are UUIDs (unpredictable)
 
 ### Brute-Force Attacks
@@ -179,11 +181,11 @@ Implemented via Helmet.js:
 **Routes:**
 - `routes/authRoutes.js` - Login, logout, register, refresh, me
 
-**Models:**
-- `models/User.js` - User schema with password hashing
-- `models/Session.js` - Session tracking
-- `models/RefreshToken.js` - Refresh token storage
-- `models/LoginHistory.js` - Audit logging
+**Supabase tables:**
+- `users` - User records
+- `sessions` - Server-validated session lifetime and revocation state
+- `refresh_tokens` - Hashed refresh-token records
+- `login_history` - Authentication audit logging
 
 **Utils:**
 - `utils/authHelpers.js` - Token signing, cookie management, hashing
@@ -198,9 +200,10 @@ Implemented via Helmet.js:
 - `src/App.tsx` - Route guards and session restoration
 
 **Session Management:**
-- `session.get()` - Retrieve stored user from localStorage
-- `session.save(user)` - Persist user data
-- `session.clear()` - Clear on logout
+- `GET /api/auth/session` validates the HttpOnly cookie and returns the user plus `expiresAt`.
+- `session.get()` reads display data only; it never grants access.
+- `session.save(user)` caches display data after server verification.
+- `session.clear()` removes the cached user on logout or expiry.
 
 ## Usage Examples
 
@@ -217,22 +220,23 @@ Implemented via Helmet.js:
    - Access token (JWT)
    - Refresh token (JWT)
 7. Backend sets three cookies:
-   - `accessToken` (HttpOnly, 15min)
-   - `refreshToken` (HttpOnly, 7/30 days)
-   - `csrfToken` (Not HttpOnly, 24 hours)
+  - `accessToken` (HttpOnly, up to 15 minutes)
+  - `refreshToken` (HttpOnly, rolled forward with active use)
+  - `csrfToken` (readable by JavaScript, rolled forward with the session cookies)
 8. Frontend saves user to localStorage
 9. Frontend redirects to dashboard
 
-### Token Refresh Flow
+### Session Check and Refresh Flow
 
 1. User makes API request with expired access token
 2. Backend returns 401 Unauthorized
-3. Frontend calls `/api/auth/refresh` with refresh token
-4. Backend validates refresh token
-5. Backend creates new access token
-6. Backend sets new `accessToken` cookie
-7. Frontend retries original request with new token
-8. If refresh fails, user is redirected to login
+3. Frontend calls `/api/auth/refresh` once with the refresh cookie
+4. Backend validates the JWT, refresh-token record, and persisted inactivity deadline
+5. Backend records activity and rolls the session deadline and cookies forward
+6. Frontend retries the original request once
+7. If the inactivity deadline has passed, backend revokes the session and returns `401` with `code: SESSION_EXPIRED`; the client clears auth state and redirects to `/login`
+
+The frontend tracks meaningful interaction locally and periodically sends a throttled activity heartbeat. Near the inactivity deadline it displays a warning with a **Stay Signed In** action. These client timers are only a user-experience aid; protected API requests and refreshes are validated against server-persisted activity.
 
 ### Logout Flow
 
@@ -240,9 +244,9 @@ Implemented via Helmet.js:
 2. Frontend reads CSRF token
 3. Frontend sends POST to `/api/auth/logout` with CSRF token
 4. Backend validates CSRF token
-5. Backend marks refresh token as revoked in database
+5. Backend marks the session and refresh token as revoked in the database
 6. Backend clears all cookies
-7. Frontend clears localStorage
+7. Frontend clears only authentication-related local state (exam progress is preserved)
 8. Frontend redirects to login page
 
 ## Environment Variables Required
@@ -251,9 +255,11 @@ Implemented via Helmet.js:
 # Server (.env)
 NODE_ENV=production|development
 PORT=5000
-MONGO_URI=mongodb://localhost:27017/cet-portal
+SESSION_INACTIVITY_TIMEOUT_MINUTES=30
 JWT_SECRET=your-super-secret-jwt-key-min-32-chars
-CLIENT_URL=https://your-frontend-domain.com
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=server-only-secret
+FRONTEND_URL=https://your-frontend-domain.com
 # Optional: comma-separated list of additional frontend origins
 CORS_ORIGINS=https://your-frontend-domain.com,https://preview.example.com
 
@@ -276,13 +282,15 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 - [ ] User is redirected to dashboard after login
 - [ ] User is redirected to login if not authenticated
 - [ ] Session persists on page refresh
-- [ ] Session expires after 30 minutes inactivity
+- [ ] Session expires at the absolute configured lifetime (default 2 hours)
+- [ ] An expired session returns `401` with `code: SESSION_EXPIRED`
+- [ ] Old sessions created before deployment are capped from their server creation time
 - [ ] Access token auto-refreshes before expiry
 
 **Security:**
 - [ ] Cookies are HttpOnly (check DevTools)
 - [ ] Cookies have Secure flag in production
-- [ ] Cookies have SameSite=Lax
+- [ ] Cookies have the configured SameSite policy (`None` + `Secure` for cross-origin production)
 - [ ] CSRF token is present in cookies
 - [ ] CSRF token is sent in headers for POST/PUT/DELETE
 - [ ] Rate limiting works (5 failed logins = blocked)
@@ -291,7 +299,7 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 **Logout:**
 - [ ] User can logout
 - [ ] Cookies are cleared
-- [ ] localStorage is cleared
+- [ ] Authentication-related local state is cleared without deleting exam progress
 - [ ] User is redirected to login
 - [ ] User cannot access protected routes after logout
 
@@ -306,8 +314,8 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 **Issue**: CSRF token missing errors
 **Solution**: Ensure frontend reads cookie before making requests. Add small delay if needed.
 
-**Issue**: Token refresh loop
-**Solution**: Check that refresh endpoint returns valid tokens and cookies are being set.
+**Issue**: Session expired message appears after returning to the app
+**Solution**: The session expires after the configured inactivity timeout. If the user was continuously active, verify the activity heartbeat and protected API requests are reaching the API server.
 
 **Issue**: Rate limit too strict in development
 **Solution**: Add `?skipRateLimit=true` to URLs or adjust limits in `rateLimit.js`.
@@ -320,9 +328,10 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 - [ ] Set `NODE_ENV=production`
 - [ ] Use strong `JWT_SECRET` (minimum 32 characters, random)
 - [ ] Enable HTTPS (Secure cookies require it)
-- [ ] Set `CLIENT_URL` to production frontend URL
+- [ ] Set `FRONTEND_URL` to production frontend URL
+- [ ] Set `SESSION_INACTIVITY_TIMEOUT_MINUTES` (default: `30` minutes) or configure the value in Admin → Security
 - [ ] Configure Redis for distributed rate limiting
-- [ ] Set up MongoDB with authentication
+- [ ] Set up Supabase service-role access only on the API server
 - [ ] Enable CSP in production mode
 - [ ] Remove `'unsafe-inline'` and `'unsafe-eval'` from CSP if possible
 - [ ] Configure proper log rotation
@@ -332,17 +341,17 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 
 ## Performance Considerations
 
-- **JWT verification**: Fast, no database lookup needed
-- **Refresh token lookup**: Database query (indexed by tokenHash)
+- **JWT verification**: Followed by a database session lookup on every protected request
+- **Refresh token lookup**: Database query (indexed by token hash)
 - **Session lookup**: Database query (indexed by sessionId)
 - **Rate limiting**: In-memory (single server) or Redis (multi-server)
-- **CSRF tokens**: In-memory with hourly cleanup
+- **CSRF tokens**: Signed stateless values with a bounded lifetime
 
 ## Maintenance
 
 **Regular Tasks:**
 - Monitor login history for suspicious activity
-- Review and clean up expired sessions (TTL index handles this)
+- Review and clean up expired sessions and refresh-token records
 - Rotate JWT_SECRET periodically (requires all users to re-login)
 - Update dependencies regularly (especially security-related)
 
@@ -355,9 +364,9 @@ REDIS_URL=redis://localhost:6379  # For distributed rate limiting
 
 1. ✅ Never store passwords in cookies or localStorage
 2. ✅ Use HttpOnly cookies for tokens
-3. ✅ Implement token expiration and rotation
+3. ✅ Enforce absolute token/session expiry and revoke on logout
 4. ✅ Validate all user input
-5. ✅ Use parameterized queries (Mongoose)
+5. ✅ Use parameterized Supabase queries
 6. ✅ Implement rate limiting
 7. ✅ Log security events
 8. ✅ Use HTTPS in production

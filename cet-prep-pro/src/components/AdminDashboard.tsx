@@ -1,6 +1,6 @@
-import { lazy, useEffect, useRef, useState } from 'react'
+import { lazy, startTransition, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { Chart as ChartInstance } from 'chart.js'
-import { authAPI, session, usersAPI, questionsAPI, mockTestsAPI, testsAPI, AuthUser, type Question, type MockTest, type TestResult } from '../lib/api'
+import { adminDashboardAPI, authAPI, session, usersAPI, AuthUser, type TestResult } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
 const StudentProfile = lazy(() => import('./StudentProfile'))
 const TestInterface = lazy(() => import('./TestInterface'))
@@ -8,12 +8,13 @@ const QuestionBank = lazy(() => import('./QuestionBank'))
 const AdminMockTests = lazy(() => import('./AdminMockTests'))
 const AdminAnalysis = lazy(() => import('./AdminAnalysis'))
 const AdminSettings = lazy(() => import('./AdminSettings'))
+const SuperAdminPanel = lazy(() => import('./SuperAdminPanel'))
 import '../admin.css'
 import '../testInterface.css'
 import '../questionBank.css'
 
 type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'admin-dashboard'
-type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics' | 'settings'
+type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics' | 'settings' | 'superadmin'
 
 const adminPathToView = (pathname: string): AdminView => {
   if (pathname === '/admin/mock-tests') return 'mocktests'
@@ -22,10 +23,11 @@ const adminPathToView = (pathname: string): AdminView => {
   if (pathname === '/admin/question-bank') return 'questions'
   if (pathname === '/admin/analytics') return 'analytics'
   if (pathname === '/admin/settings') return 'settings'
+  if (pathname === '/admin/super-admin') return 'superadmin'
   return 'overview'
 }
 
-const adminViewToPath = (view: AdminView) => `/admin/${view === 'overview' ? 'dashboard' : view === 'mocktests' ? 'mock-tests' : view === 'questions' ? 'question-bank' : view}`
+const adminViewToPath = (view: AdminView) => `/admin/${view === 'overview' ? 'dashboard' : view === 'mocktests' ? 'mock-tests' : view === 'questions' ? 'question-bank' : view === 'superadmin' ? 'super-admin' : view}`
 
 interface AdminDashboardProps {
   onNavigate?: (page: Page | string) => void
@@ -36,17 +38,6 @@ interface AdminDashboardProps {
   Dashboard Data
 ───────────────────────────────────────── */
 type DashboardActivity = { icon: string; cls: string; title: string; sub: string; time: string }
-const getAttemptsToday = (results: TestResult[]) => {
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000)
-
-  return results.filter(result => {
-    const attemptedAt = new Date(result.attemptedAt)
-    return attemptedAt >= startOfToday && attemptedAt < endOfToday
-  }).length
-}
-
 const QUICK = [
   { icon: 'assignment_ind', label: 'Manage Faculty' },
   { icon: 'backup', label: 'Upload Data' },
@@ -880,13 +871,20 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const chartRef = useRef<ChartInstance<'line'> | null>(null)
   const [view, setView] = useState<AdminView>(() => adminPathToView(window.location.pathname))
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
+  const [questionIdsForTest, setQuestionIdsForTest] = useState<string[]>([])
   const [showTest, setShowTest] = useState(false)
-  const [students, setStudents] = useState<AuthUser[]>([])
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [mockTests, setMockTests] = useState<MockTest[]>([])
+  const [overviewStats, setOverviewStats] = useState({
+    totalStudents: 0,
+    totalMockTests: 0,
+    activeMockTests: 0,
+    questionCount: 0,
+    attemptsToday: 0,
+  })
   const [testResults, setTestResults] = useState<TestResult[]>([])
+  const [overviewLoadFailed, setOverviewLoadFailed] = useState(false)
   const [activities, setActivities] = useState<DashboardActivity[]>([])
   const [attemptCounts, setAttemptCounts] = useState<number[]>(() => Array(30).fill(0))
+  const [yearlyAttemptCounts, setYearlyAttemptCounts] = useState<number[]>(() => Array(12).fill(0))
   const [chartRange, setChartRange] = useState<'30d' | 'yearly'>('30d')
   const [showAlertComposer, setShowAlertComposer] = useState(false)
   const [showServerSettings, setShowServerSettings] = useState(false)
@@ -906,15 +904,25 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const [adminPhotoError, setAdminPhotoError] = useState('')
   const [adminPhotoUploading, setAdminPhotoUploading] = useState(false)
   const [adminPhotoRemoving, setAdminPhotoRemoving] = useState(false)
+  const isSuperAdmin = currentAdmin?.role === 'admin'
+    && currentAdmin.adminRole === 'Super Admin'
 
   const changeView = (nextView: AdminView) => {
+    if (nextView === 'superadmin' && !isSuperAdmin) return
     if (nextView === view) return
     window.history.pushState({ adminView: nextView }, '', adminViewToPath(nextView))
-    setView(nextView)
+    startTransition(() => setView(nextView))
   }
+  const clearQuestionIdsForTest = useCallback(() => setQuestionIdsForTest([]), [])
 
   useEffect(() => {
-    const handleAdminPopState = () => setView(adminPathToView(window.location.pathname))
+    if (view !== 'superadmin' || isSuperAdmin) return
+    window.history.replaceState({ adminView: 'overview' }, '', adminViewToPath('overview'))
+    setView('overview')
+  }, [view, isSuperAdmin])
+
+  useEffect(() => {
+    const handleAdminPopState = () => startTransition(() => setView(adminPathToView(window.location.pathname)))
     window.addEventListener('popstate', handleAdminPopState)
     return () => window.removeEventListener('popstate', handleAdminPopState)
   }, [])
@@ -960,7 +968,6 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     }
   }, [currentAdmin])
 
-  const attemptsToday = getAttemptsToday(testResults)
   const normalizeAdminName = (value?: string | null) => {
     const name = value?.trim()
     if (!name || name === 'System Administrator') return 'Administrator'
@@ -973,63 +980,50 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   useEffect(() => {
     if (view !== 'overview') return
     let cancelled = false
+    let requestInFlight = false
 
     const loadOverview = async () => {
+      if (cancelled || requestInFlight) return
+      requestInFlight = true
       try {
-        const [studentData, questionData, mockTestData, resultData] = await Promise.all([
-          usersAPI.getAll('approved'),
-          questionsAPI.getAllAdmin({ isActive: true }),
-          mockTestsAPI.getAllAdmin(),
-          testsAPI.getAllAdmin(),
-        ])
+        const overview = await adminDashboardAPI.getOverview()
         if (cancelled) return
-        setStudents(studentData)
-        setQuestions(questionData)
-        setMockTests(mockTestData)
-        setTestResults(resultData)
+        setOverviewStats(overview.stats)
+        setTestResults(overview.testResults)
+        setAttemptCounts(overview.dailyAttemptCounts)
+        setYearlyAttemptCounts(overview.yearlyAttemptCounts)
+        setOverviewLoadFailed(false)
 
         const now = Date.now()
-        const recentResults = resultData.filter(result => now - new Date(result.attemptedAt).getTime() <= 24 * 60 * 60 * 1000)
-        const nextActivities: DashboardActivity[] = recentResults.slice(0, 8).map(result => ({
+        const recentResults = overview.testResults.filter(result => now - new Date(result.attemptedAt).getTime() <= 24 * 60 * 60 * 1000)
+        setActivities(recentResults.slice(0, 8).map(result => ({
           icon: 'check_circle',
           cls: 'adb-act-purple',
           title: `${result.testName || 'Mock Test'} completed`,
           sub: `${typeof result.userId === 'object' && result.userId?.name ? result.userId.name : 'A student'} scored ${Math.round(result.score)}/${result.totalMarks}`,
           time: new Date(result.attemptedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-        }))
-        setActivities(nextActivities)
-
-        const counts = Array(30).fill(0)
-        resultData.forEach(result => {
-          const age = Math.floor((now - new Date(result.attemptedAt).getTime()) / (24 * 60 * 60 * 1000))
-          if (age >= 0 && age < 30) counts[29 - age] += 1
-        })
-        setAttemptCounts(counts)
+        })))
       } catch (error) {
-        console.error('Failed to load admin overview:', error)
+        if (!cancelled) {
+          setOverviewLoadFailed(true)
+          console.error('Failed to load admin dashboard overview:', error)
+        }
+      } finally {
+        requestInFlight = false
       }
     }
 
-    loadOverview()
-
-    const channel = supabase
-      .channel('realtime_admin_dashboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'test_results' }, () => {
-        loadOverview()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-        loadOverview()
-      })
-      .subscribe()
+    void loadOverview()
 
     const expiryTimer = window.setInterval(() => {
       setActivities(current => current.filter(activity => activity.time !== 'RECENTLY'))
     }, 60 * 60 * 1000)
+    const refreshTimer = window.setInterval(() => { void loadOverview() }, 15_000)
 
     return () => {
       cancelled = true
-      supabase.removeChannel(channel)
       window.clearInterval(expiryTimer)
+      window.clearInterval(refreshTimer)
     }
   }, [view])
 
@@ -1071,12 +1065,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       chartData = attemptCounts
     } else {
       chartLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      const monthly = Array(12).fill(0)
-      testResults.forEach(r => {
-        const m = new Date(r.attemptedAt).getMonth()
-        if (m >= 0 && m < 12) monthly[m]++
-      })
-      chartData = monthly
+      chartData = yearlyAttemptCounts
     }
 
       chartRef.current = new Chart(ctx, {
@@ -1134,7 +1123,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       chartRef.current?.destroy()
       chartRef.current = null
     }
-  }, [view, attemptCounts, chartRange, testResults])
+  }, [view, attemptCounts, chartRange, yearlyAttemptCounts])
 
   const topbarTitle = view === 'registrations'
     ? 'Student Approval & Registrations'
@@ -1148,6 +1137,8 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     ? 'Analysis Dashboard'
     : view === 'settings'
     ? 'System Settings'
+    : view === 'superadmin'
+    ? 'Super Admin Control Center'
     : 'Admin Console'
 
   const handleQuickAction = (label: string) => {
@@ -1529,6 +1520,8 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
 
       {showTest ? (
         <TestInterface onClose={() => setShowTest(false)} />
+      ) : view === 'superadmin' && isSuperAdmin ? (
+        <SuperAdminPanel onExitSuperAdmin={() => changeView('overview')} />
       ) : (
         <div className={`adb-root${viewProfileId ? ' adb-root--profile' : ''}`}>
 
@@ -1644,7 +1637,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                       <div className="adb-notif-item">
                         <span className="material-symbols-outlined" style={{ color: '#8b5cf6' }}>quiz</span>
                         <div>
-                          <strong>{mockTests.length} Active Mock Exams</strong>
+                          <strong>{overviewStats.totalMockTests} Active Mock Exams</strong>
                           <p style={{ margin: '2px 0 0', color: '#64748b' }}>Platform ready for incoming candidate attempts.</p>
                         </div>
                       </div>
@@ -1655,6 +1648,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
             </header>
 
             <div className="adb-content">
+              <Suspense fallback={null}>
               {view === 'overview' && (
                 <>
                   {/* Welcome */}
@@ -1662,6 +1656,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                     <div>
                       <h1 className="adb-page-title">Dashboard Overview</h1>
                       <p className="adb-page-sub">Performance metrics and platform health for the last 30 days.</p>
+                      {overviewLoadFailed && <p role="alert" className="adb-page-sub">Some dashboard data could not be loaded. Available metrics are shown.</p>}
                     </div>
                     <button
                       type="button"
@@ -1678,10 +1673,10 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   {/* Stats */}
                   <div className="adb-stats">
                     {[
-                      { icon: 'group', cls: 'adb-si-blue', badge: 'Live', bcls: 'adb-badge-green', label: 'TOTAL STUDENTS', val: students.length.toLocaleString() },
-                      { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active', bcls: 'adb-badge-green', label: 'ACTIVE EXAMS', val: mockTests.filter(test => test.status === 'active').length.toLocaleString() },
-                      { icon: 'database', cls: 'adb-si-teal', badge: 'Live', bcls: 'adb-badge-blue', label: 'QUESTION COUNT', val: questions.length.toLocaleString() },
-                      { icon: 'today', cls: 'adb-si-green', badge: 'Today', bcls: 'adb-badge-green', label: 'ATTEMPTS TODAY', val: attemptsToday.toLocaleString() },
+                      { icon: 'group', cls: 'adb-si-blue', badge: 'Live', bcls: 'adb-badge-green', label: 'TOTAL STUDENTS', val: overviewStats.totalStudents.toLocaleString() },
+                      { icon: 'rocket_launch', cls: 'adb-si-purple', badge: 'Active', bcls: 'adb-badge-green', label: 'ACTIVE EXAMS', val: overviewStats.activeMockTests.toLocaleString() },
+                      { icon: 'database', cls: 'adb-si-teal', badge: 'Live', bcls: 'adb-badge-blue', label: 'QUESTION COUNT', val: overviewStats.questionCount.toLocaleString() },
+                      { icon: 'today', cls: 'adb-si-green', badge: 'Today', bcls: 'adb-badge-green', label: 'ATTEMPTS TODAY', val: overviewStats.attemptsToday.toLocaleString() },
                     ].map(s => (
                       <div key={s.label} className="adb-stat-card">
                         <div className="adb-stat-top">
@@ -1789,10 +1784,17 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   ? <StudentProfile studentId={viewProfileId} onBack={() => setViewProfileId(null)} />
                   : <RegisteredStudents onViewProfile={setViewProfileId} />
               )}
-              {view === 'questions' && <QuestionBank />}
-              {view === 'mocktests' && <AdminMockTests />}
+              {view === 'questions' && <QuestionBank onCreateTest={(ids) => {
+                setQuestionIdsForTest(ids)
+                changeView('mocktests')
+              }} />}
+              {view === 'mocktests' && <AdminMockTests
+                initialQuestionIds={questionIdsForTest}
+                onInitialQuestionSelectionConsumed={clearQuestionIdsForTest}
+              />}
               {view === 'analytics' && <AdminAnalysis />}
               {view === 'settings' && <AdminSettings />}
+              </Suspense>
             </div>
           </main>
         </div>

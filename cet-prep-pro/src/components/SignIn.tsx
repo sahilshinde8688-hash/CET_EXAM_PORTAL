@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Lottie } from 'lottie-react'
 import { authAPI, usersAPI, session, type AuthUser } from '../lib/api'
 import '../signin.css'
 
@@ -7,9 +8,19 @@ type SubmitState = 'idle' | 'loading' | 'success' | 'error' | 'pending'
 
 interface Props {
   onSuccess?: (user: AuthUser) => void
+  sessionExpired?: boolean
+  sessionExpiredMessage?: string
+  sessionCheckError?: string | null
+  onRetrySession?: () => void
 }
 
-export default function SignIn({ onSuccess }: Props) {
+export default function SignIn({
+  onSuccess,
+  sessionExpired = false,
+  sessionExpiredMessage = 'Your session expired because you were inactive. Please sign in again.',
+  sessionCheckError,
+  onRetrySession,
+}: Props) {
   const [activeTab, setActiveTab]             = useState<Tab>('login')
   const [submitState, setSubmitState]         = useState<SubmitState>('idle')
   const [errorMsg, setErrorMsg]               = useState('')
@@ -33,18 +44,29 @@ export default function SignIn({ onSuccess }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitState === 'loading') return
     setSubmitState('loading')
     setErrorMsg('')
 
     try {
       if (mustResetPassword) {
-        if (!resetPassword || resetPassword.length < 6)
-          return setErrorMsg('Password must be at least 6 characters')
-        if (resetPassword !== resetConfirm)
-          return setErrorMsg('Passwords do not match')
+        if (!resetPassword || resetPassword.length < 6) {
+          setErrorMsg('Password must be at least 6 characters')
+          setSubmitState('error')
+          return
+        }
+        if (resetPassword !== resetConfirm) {
+          setErrorMsg('Passwords do not match')
+          setSubmitState('error')
+          return
+        }
 
         const existing = session.get()
-        if (!existing) return setErrorMsg('Session expired. Please login again.')
+        if (!existing) {
+          setErrorMsg('Session expired. Please login again.')
+          setSubmitState('error')
+          return
+        }
 
         await usersAPI.resetPassword(resetPassword)
         const updated = await usersAPI.me()
@@ -90,83 +112,248 @@ export default function SignIn({ onSuccess }: Props) {
 
   return (
     <div className="signin-page-root">
-      {/* Background Matrix & Dynamic Lights */}
-      <div className="signin-bg-grid" />
-      <div className="signin-floating-orb orb-primary" />
-      <div className="signin-floating-orb orb-secondary" />
-      <div className="signin-floating-orb orb-tertiary" />
+      {/* ── Background Ambient Blobs & Subtle Waves ── */}
+      <div className="signin-bg-decorations" aria-hidden="true">
+        <div className="signin-blob-left" />
+        <div className="signin-blob-center" />
+        <div className="signin-blob-right" />
+        <svg className="signin-bg-wave-svg" viewBox="0 0 1440 320" fill="none" preserveAspectRatio="none">
+          <path
+            d="M0,192L48,197.3C96,203,192,213,288,192C384,171,480,117,576,122.7C672,128,768,192,864,208C960,224,1056,192,1152,176C1248,160,1344,160,1392,160L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
+            fill="#EAF2FC"
+            fillOpacity="0.7"
+          />
+          <path
+            d="M0,256L60,240C120,224,240,192,360,197.3C480,203,600,245,720,256C840,267,960,245,1080,224C1200,203,1320,181,1380,170.7L1440,160L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"
+            fill="#F0F6FD"
+            fillOpacity="0.85"
+          />
+        </svg>
+      </div>
 
-      {/* Main Glass Shell */}
-      <main className="signin-glass-shell">
-        
-        {/* ── AUTHENTICATION PANEL ── */}
-        <section className="signin-left-console">
-          <div className="signin-account-prompt">
-            <span>{activeTab === 'login' ? "Don't have an account?" : 'Already have an account?'}</span>
+      {/* ── Sign-in Header ── */}
+      <header className="signin-top-nav">
+        <div className="signin-nav-container">
+          <button
+            type="button"
+            className="signin-nav-brand"
+            onClick={() => switchTab('login')}
+            aria-label="CETNova home"
+          >
+            <div className="signin-nav-logo-wrap">
+              <img className="signin-brand-logo" src="/logo.png" alt="" />
+            </div>
+            <span className="signin-brand-subtag">CET EXAM PORTAL</span>
+          </button>
+
+          <div className="signin-nav-auth">
+            <span className="signin-nav-prompt-text">
+              {activeTab === 'login' ? "Don't have an account?" : "Already enrolled?"}
+            </span>
             <button
               type="button"
+              className="signin-nav-signup-btn"
               onClick={() => switchTab(activeTab === 'login' ? 'register' : 'login')}
             >
               {activeTab === 'login' ? 'Sign Up' : 'Sign In'}
             </button>
           </div>
-          <div className="signin-form-wrapper">
+        </div>
+      </header>
 
-            {/* Brand Header */}
-            <div className="signin-brand-lockup">
-              <span className="material-symbols-outlined signin-brand-cap" aria-hidden="true">school</span>
-              <h1 className="signin-brand-title">CET<span>Nova</span></h1>
-              <span className="signin-brand-caption">CET EXAM PORTAL</span>
+      {/* ── Main Two-Column Layout ── */}
+      <main className="signin-main-layout">
+
+        {/* ── LEFT HERO SECTION ── */}
+        <section className="signin-left-hero">
+          {/* Gold Badge */}
+          <div className="hero-badge">
+            <span className="material-symbols-outlined hero-badge-icon">school</span>
+            <span>YOUR CET JOURNEY STARTS HERE</span>
+          </div>
+
+          {/* Heading with golden accent swoosh */}
+          <h1 className="hero-heading">
+            Prepare with<br />
+            <span className="hero-purpose-text">
+              purpose.
+              <svg className="hero-swoosh" viewBox="0 0 200 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 11C45 3 145 3 196 9C145 15 55 14 4 11Z" fill="#D99A16"/>
+              </svg>
+            </span>
+          </h1>
+
+          <p className="hero-description">
+            Practice focused questions, track your progress, and build confidence for exam day.
+          </p>
+
+          {/* Body Content: 3 Feature Rows + Integrated Floating Illustration */}
+          <div className="hero-body-content">
+            <div className="hero-features-list">
+              <div className="hero-feature-card">
+                <div className="feature-icon-box box-blue">
+                  <span className="material-symbols-outlined">menu_book</span>
+                </div>
+                <div className="feature-info">
+                  <h3 className="feature-title">Focused Practice</h3>
+                  <p className="feature-subtitle">Topic-wise and full mock tests</p>
+                </div>
+              </div>
+
+              <div className="hero-feature-card">
+                <div className="feature-icon-box box-amber">
+                  <span className="material-symbols-outlined">bar_chart</span>
+                </div>
+                <div className="feature-info">
+                  <h3 className="feature-title">Track Progress</h3>
+                  <p className="feature-subtitle">Detailed analysis and performance insights</p>
+                </div>
+              </div>
+
+              <div className="hero-feature-card">
+                <div className="feature-icon-box box-cyan">
+                  <span className="material-symbols-outlined">trending_up</span>
+                </div>
+                <div className="feature-info">
+                  <h3 className="feature-title">Improve with Analytics</h3>
+                  <p className="feature-subtitle">Identify strengths and work on weaknesses</p>
+                </div>
+              </div>
             </div>
-            <h2 className="signin-card-heading">{mustResetPassword ? 'Set a New Password' : activeTab === 'login' ? 'Sign In' : 'Create Account'}</h2>
-            <p className="signin-card-subtitle">
-              {mustResetPassword ? 'Choose a new password to secure your account.' : activeTab === 'login' ? 'Welcome back! Continue your CET journey.' : 'Join CET Nova and start preparing for your exam.'}
+
+            <div className="hero-illustration-wrap">
+              <div className="illustration-organic-backdrop" aria-hidden="true">
+                <svg viewBox="0 0 540 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M460 260C500 370 420 470 300 485C180 500 80 430 45 320C10 210 70 120 180 80C290 40 420 150 460 260Z" fill="url(#hero-wave-grad-1)" />
+                  <path d="M420 220C450 320 370 430 260 450C150 470 80 380 55 280C30 180 100 100 200 70C300 40 390 120 420 220Z" fill="url(#hero-wave-grad-2)" opacity="0.65" />
+                  <defs>
+                    <linearGradient id="hero-wave-grad-1" x1="40" y1="70" x2="480" y2="490" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#DBEAFE" stopOpacity="0.85" />
+                      <stop stopColor="#EFF6FF" stopOpacity="0.45" />
+                    </linearGradient>
+                    <linearGradient id="hero-wave-grad-2" x1="60" y1="80" x2="440" y2="460" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#BFDBFE" stopOpacity="0.6" />
+                      <stop stopColor="#E0F2FE" stopOpacity="0.3" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <Lottie
+                className="hero-lottie-anim"
+                src="/education.json"
+                loop
+                autoplay
+                aria-hidden="true"
+                rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* ── RIGHT LOGIN / AUTH CARD ── */}
+        <section className="signin-right-console">
+          <div className="signin-auth-card">
+
+            {/* Card Centered Brand Logo */}
+            <div className="auth-card-logo-wrap">
+              <img
+                src="/logo.png"
+                alt="CET NOVA SINCE 2026"
+                className="auth-card-logo"
+              />
+            </div>
+
+            <h2 className="auth-card-title">
+              {mustResetPassword
+                ? 'Set New Password'
+                : activeTab === 'login'
+                  ? 'Sign In'
+                  : 'Create Account'}
+            </h2>
+            <p className="auth-card-subtitle">
+              {mustResetPassword
+                ? 'Choose a new password to secure your account.'
+                : activeTab === 'login'
+                  ? 'Welcome back! Continue your CET journey.'
+                  : 'Join CET Nova and start preparing for your exam.'}
             </p>
 
-            {/* ── 1. LOGIN FORM ── */}
+            {sessionCheckError && (
+              <div className="signin-connection-warning" role="alert">
+                <span className="material-symbols-outlined">wifi_off</span>
+                <span>{sessionCheckError}</span>
+                {onRetrySession && (
+                  <button type="button" onClick={onRetrySession}>
+                    Retry
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Session Expired Banner */}
+            {sessionExpired && (
+              <div className="signin-session-expired" role="alert">
+                <span className="material-symbols-outlined">schedule</span>
+                <span>{sessionExpiredMessage}</span>
+              </div>
+            )}
+
+            {/* Error Banner */}
+            {submitState === 'error' && errorMsg && (
+              <div className="signin-alert-banner" role="alert">
+                <span className="material-symbols-outlined">error</span>
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* ── 1. SIGN IN FORM ── */}
             {activeTab === 'login' && !mustResetPassword && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
-                
-                {/* Email / User ID Input */}
-                <div className="signin-field-group">
-                  <label className="signin-field-label" htmlFor="auth-email">
+                {/* Email Field */}
+                <div className="form-field-group">
+                  <label className="visually-hidden" htmlFor="auth-email">
                     Email address or Student ID
                   </label>
-                  <div className="signin-input-box">
-                    <span className="material-symbols-outlined signin-input-leading-icon">mail</span>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">mail</span>
                     <input
                       id="auth-email"
                       type="text"
-                      className="signin-native-input"
-                      placeholder="Email address"
-                      required
+                      className="form-text-input"
+                      placeholder="Email address or Student ID"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       autoComplete="username"
+                      required
+                      disabled={submitState === 'loading'}
                     />
                   </div>
                 </div>
 
-                {/* Password Input */}
-                <div className="signin-field-group">
-                  <label className="signin-field-label signin-password-label" htmlFor="auth-password">Password</label>
-                  <div className="signin-input-box has-trailing-btn">
-                    <span className="material-symbols-outlined signin-input-leading-icon">lock</span>
+                {/* Password Field */}
+                <div className="form-field-group">
+                  <label className="visually-hidden" htmlFor="auth-password">
+                    Password
+                  </label>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">lock</span>
                     <input
                       id="auth-password"
                       type={showPassword ? 'text' : 'password'}
-                      className="signin-native-input"
+                      className="form-text-input"
                       placeholder="••••••••••••"
-                      required
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       autoComplete="current-password"
+                      required
+                      disabled={submitState === 'loading'}
                     />
                     <button
                       type="button"
-                      className="signin-trailing-action-btn"
+                      className="input-trailing-action"
                       onClick={() => setShowPassword(v => !v)}
                       title={showPassword ? 'Hide password' : 'Show password'}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       <span className="material-symbols-outlined">
                         {showPassword ? 'visibility_off' : 'visibility'}
@@ -175,40 +362,36 @@ export default function SignIn({ onSuccess }: Props) {
                   </div>
                 </div>
 
-                {/* Options Row (Remember Me) */}
-                <div className="signin-options-row">
-                  <label className="signin-checkbox-label" onClick={() => setRemember(r => !r)}>
-                    <div className={`signin-custom-checkbox${remember ? ' checked' : ''}`}>
-                      {remember && <span className="material-symbols-outlined">check</span>}
-                    </div>
+                {/* Meta Options: Remember Me & Forgot Password */}
+                <div className="form-meta-row">
+                  <label className="form-remember-label">
+                    <input
+                      type="checkbox"
+                      className="form-remember-checkbox"
+                      checked={remember}
+                      onChange={e => setRemember(e.target.checked)}
+                      disabled={submitState === 'loading'}
+                    />
                     <span>Remember me</span>
                   </label>
                   <button
                     type="button"
-                    className="signin-forgot-btn"
+                    className="form-forgot-link"
                     onClick={() => setShowForgotModal(true)}
                   >
                     Forgot password?
                   </button>
                 </div>
 
-                {/* Error Banner */}
-                {submitState === 'error' && (
-                  <div className="signin-alert-banner">
-                    <span className="material-symbols-outlined">error</span>
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-
-                {/* Submit Action */}
+                {/* Primary Button */}
                 <button
                   type="submit"
                   disabled={submitState === 'loading' || submitState === 'success'}
-                  className={`signin-action-btn${submitState === 'success' ? ' success-state' : ''}`}
+                  className={`form-submit-btn${submitState === 'success' ? ' is-success' : ''}`}
                 >
                   {submitState === 'loading' && (
                     <>
-                      <div className="signin-btn-spinner" />
+                      <span className="btn-spinner" aria-hidden="true" />
                       <span>Authenticating…</span>
                     </>
                   )}
@@ -221,63 +404,33 @@ export default function SignIn({ onSuccess }: Props) {
                   {(submitState === 'idle' || submitState === 'error') && (
                     <>
                       <span>Sign In</span>
-                      <span className="material-symbols-outlined">arrow_forward</span>
+                      <span className="material-symbols-outlined btn-arrow">arrow_forward</span>
                     </>
                   )}
                 </button>
 
-                <div className="signin-divider-wrap">
-                  <div className="signin-divider-line" />
-                  <span className="signin-divider-text">OR CONTINUE WITH</span>
-                  <div className="signin-divider-line" />
-                </div>
-
-                <div className="signin-social-row">
-                  <button type="button" className="signin-google-btn">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                    </svg>
-                    <span>Continue with Google</span>
-                  </button>
-                  <button type="button" className="signin-google-btn signin-microsoft-btn">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M13 1h10v10H13z"/>
-                      <path fill="#00a4ef" d="M1 13h10v10H1z"/><path fill="#ffb900" d="M13 13h10v10H13z"/>
-                    </svg>
-                    <span>Continue with Microsoft</span>
-                  </button>
-                </div>
-
-                <div className="signin-trust-row">
-                  <div><span className="material-symbols-outlined">verified_user</span><p><strong>Secure Login</strong><small>Your data is safe</small></p></div>
-                  <div><span className="material-symbols-outlined">bolt</span><p><strong>Fast Access</strong><small>Start learning instantly</small></p></div>
-                  <div><span className="material-symbols-outlined">devices</span><p><strong>Access Anywhere</strong><small>On web & mobile</small></p></div>
-                </div>
               </form>
             )}
 
-            {/* ── 2. MANDATORY PASSWORD RESET FORM ── */}
+            {/* ── 2. MANDATORY FIRST LOGIN PASSWORD RESET ── */}
             {mustResetPassword && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
                 <div className="signin-reset-notice-card">
-                  <span className="material-symbols-outlined">lock_reset</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 24 }}>lock_reset</span>
                   <div>
                     <h4>Initial Setup Required</h4>
-                    <p>You have logged in using temporary credentials. Please establish a secure personal password.</p>
+                    <p>You have signed in using temporary credentials. Please set your secure personal password.</p>
                   </div>
                 </div>
 
-                <div className="signin-field-group">
-                  <label className="signin-field-label" htmlFor="reset-pwd">New Password</label>
-                  <div className="signin-input-box has-trailing-btn">
-                    <span className="material-symbols-outlined signin-input-leading-icon">key</span>
+                <div className="form-field-group">
+                  <label className="form-field-label" htmlFor="reset-pwd">New Password</label>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">key</span>
                     <input
                       id="reset-pwd"
                       type={showPassword ? 'text' : 'password'}
-                      className="signin-native-input"
+                      className="form-text-input"
                       placeholder="Minimum 6 characters"
                       required
                       value={resetPassword}
@@ -285,23 +438,25 @@ export default function SignIn({ onSuccess }: Props) {
                     />
                     <button
                       type="button"
-                      className="signin-trailing-action-btn"
+                      className="input-trailing-action"
                       onClick={() => setShowPassword(v => !v)}
                     >
-                      <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                      <span className="material-symbols-outlined">
+                        {showPassword ? 'visibility_off' : 'visibility'}
+                      </span>
                     </button>
                   </div>
                 </div>
 
-                <div className="signin-field-group">
-                  <label className="signin-field-label" htmlFor="reset-pwd-conf">Confirm New Password</label>
-                  <div className="signin-input-box">
-                    <span className="material-symbols-outlined signin-input-leading-icon">check</span>
+                <div className="form-field-group">
+                  <label className="form-field-label" htmlFor="reset-pwd-conf">Confirm New Password</label>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">check</span>
                     <input
                       id="reset-pwd-conf"
                       type={showPassword ? 'text' : 'password'}
-                      className="signin-native-input"
-                      placeholder="Repeat password"
+                      className="form-text-input"
+                      placeholder="Repeat new password"
                       required
                       value={resetConfirm}
                       onChange={e => setResetConfirm(e.target.value)}
@@ -309,21 +464,14 @@ export default function SignIn({ onSuccess }: Props) {
                   </div>
                 </div>
 
-                {submitState === 'error' && (
-                  <div className="signin-alert-banner">
-                    <span className="material-symbols-outlined">error</span>
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-
                 <button
                   type="submit"
                   disabled={submitState === 'loading' || submitState === 'success'}
-                  className={`signin-action-btn${submitState === 'success' ? ' success-state' : ''}`}
+                  className={`form-submit-btn${submitState === 'success' ? ' is-success' : ''}`}
                 >
                   {submitState === 'loading' ? (
                     <>
-                      <div className="signin-btn-spinner" />
+                      <span className="btn-spinner" aria-hidden="true" />
                       <span>Updating Credentials…</span>
                     </>
                   ) : submitState === 'success' ? (
@@ -334,7 +482,7 @@ export default function SignIn({ onSuccess }: Props) {
                   ) : (
                     <>
                       <span>Save & Continue</span>
-                      <span className="material-symbols-outlined">arrow_forward</span>
+                      <span className="material-symbols-outlined btn-arrow">arrow_forward</span>
                     </>
                   )}
                 </button>
@@ -344,16 +492,16 @@ export default function SignIn({ onSuccess }: Props) {
             {/* ── 3. REGISTRATION FORM ── */}
             {activeTab === 'register' && submitState !== 'pending' && !mustResetPassword && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
-                {/* Full Name */}
-                <div className="signin-field-group">
-                  <label className="signin-field-label" htmlFor="reg-name">Full Student Name</label>
-                  <div className="signin-input-box">
-                    <span className="material-symbols-outlined signin-input-leading-icon">person</span>
+                {/* Full Student Name */}
+                <div className="form-field-group">
+                  <label className="visually-hidden" htmlFor="reg-name">Full Student Name</label>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">person</span>
                     <input
                       id="reg-name"
                       type="text"
-                      className="signin-native-input"
-                      placeholder="e.g. Rahul Sharma"
+                      className="form-text-input"
+                      placeholder="Full Student Name"
                       required
                       value={name}
                       onChange={e => setName(e.target.value)}
@@ -361,16 +509,16 @@ export default function SignIn({ onSuccess }: Props) {
                   </div>
                 </div>
 
-                {/* Email */}
-                <div className="signin-field-group">
-                  <label className="signin-field-label" htmlFor="reg-email">Email Address</label>
-                  <div className="signin-input-box">
-                    <span className="material-symbols-outlined signin-input-leading-icon">mail</span>
+                {/* Email Address */}
+                <div className="form-field-group">
+                  <label className="visually-hidden" htmlFor="reg-email">Email Address</label>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">mail</span>
                     <input
                       id="reg-email"
                       type="email"
-                      className="signin-native-input"
-                      placeholder="name@university.edu"
+                      className="form-text-input"
+                      placeholder="Email Address"
                       required
                       value={regEmail}
                       onChange={e => setRegEmail(e.target.value)}
@@ -378,16 +526,16 @@ export default function SignIn({ onSuccess }: Props) {
                   </div>
                 </div>
 
-                {/* Phone */}
-                <div className="signin-field-group">
-                  <label className="signin-field-label" htmlFor="reg-phone">WhatsApp / Phone Number</label>
-                  <div className="signin-input-box">
-                    <span className="material-symbols-outlined signin-input-leading-icon">call</span>
+                {/* WhatsApp Phone */}
+                <div className="form-field-group">
+                  <label className="visually-hidden" htmlFor="reg-phone">Phone Number</label>
+                  <div className="form-input-container">
+                    <span className="material-symbols-outlined input-leading-icon">call</span>
                     <input
                       id="reg-phone"
                       type="tel"
-                      className="signin-native-input"
-                      placeholder="e.g. 9876543210"
+                      className="form-text-input"
+                      placeholder="WhatsApp / Phone Number"
                       required
                       value={regPhone}
                       onChange={e => setRegPhone(e.target.value)}
@@ -395,76 +543,68 @@ export default function SignIn({ onSuccess }: Props) {
                   </div>
                 </div>
 
-                {/* Branch & Batch Row */}
+                {/* Center Branch & Batch */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
-                  <div className="signin-field-group">
-                    <label className="signin-field-label" htmlFor="reg-branch">Center Branch</label>
-                    <div className="signin-input-box signin-select-wrap">
-                      <span className="material-symbols-outlined signin-input-leading-icon">location_on</span>
+                  <div className="form-field-group">
+                    <div className="form-input-container form-select-wrap">
+                      <span className="material-symbols-outlined input-leading-icon">location_on</span>
                       <select
                         id="reg-branch"
-                        className="signin-native-select"
+                        className="form-native-select"
                         required
                         value={branch}
                         onChange={e => setBranch(e.target.value)}
                       >
-                        <option value="" disabled>Select Center</option>
+                        <option value="" disabled>Center Branch</option>
                         <option value="Byculla">Byculla Campus</option>
                         <option value="Worli">Worli Hub</option>
                         <option value="Prabhadevi">Prabhadevi Branch</option>
                       </select>
-                      <span className="material-symbols-outlined signin-select-chevron">expand_more</span>
+                      <span className="material-symbols-outlined form-select-chevron">expand_more</span>
                     </div>
                   </div>
 
-                  <div className="signin-field-group">
-                    <label className="signin-field-label" htmlFor="reg-batch">Batch</label>
-                    <div className="signin-input-box signin-select-wrap">
-                      <span className="material-symbols-outlined signin-input-leading-icon">groups</span>
+                  <div className="form-field-group">
+                    <div className="form-input-container form-select-wrap">
+                      <span className="material-symbols-outlined input-leading-icon">groups</span>
                       <select
                         id="reg-batch"
-                        className="signin-native-select"
+                        className="form-native-select"
                         required
                         value={batch}
                         onChange={e => setBatch(e.target.value)}
                       >
                         <option value="" disabled>Batch</option>
-                        <option value="1">Batch 1 (Morning)</option>
-                        <option value="2">Batch 2 (Evening)</option>
+                        <option value="1">Batch 1 (M)</option>
+                        <option value="2">Batch 2 (E)</option>
                       </select>
-                      <span className="material-symbols-outlined signin-select-chevron">expand_more</span>
+                      <span className="material-symbols-outlined form-select-chevron">expand_more</span>
                     </div>
                   </div>
                 </div>
 
-                {submitState === 'error' && (
-                  <div className="signin-alert-banner">
-                    <span className="material-symbols-outlined">error</span>
-                    <span>{errorMsg}</span>
-                  </div>
-                )}
-
+                {/* Submit Action */}
                 <button
                   type="submit"
                   disabled={submitState === 'loading'}
-                  className="signin-action-btn"
+                  className="form-submit-btn"
                 >
                   {submitState === 'loading' ? (
                     <>
-                      <div className="signin-btn-spinner" />
+                      <span className="btn-spinner" aria-hidden="true" />
                       <span>Submitting Registration…</span>
                     </>
                   ) : (
                     <>
                       <span>Apply for Student Access</span>
-                      <span className="material-symbols-outlined">arrow_forward</span>
+                      <span className="material-symbols-outlined btn-arrow">arrow_forward</span>
                     </>
                   )}
                 </button>
               </form>
             )}
 
-            {/* ── 4. PENDING REGISTRATION BANNER ── */}
+            {/* ── 4. PENDING REGISTRATION CONFIRMATION ── */}
             {activeTab === 'register' && submitState === 'pending' && (
               <div className="signin-pending-card">
                 <div className="signin-pending-icon-circle">
@@ -472,16 +612,16 @@ export default function SignIn({ onSuccess }: Props) {
                 </div>
                 <h3 className="signin-pending-title">Registration Transmitted!</h3>
                 <p className="signin-pending-description">
-                  Your admission request has been logged. Our administration desk verifies center enrollments within 2 to 4 business hours.
-                  Your <strong>MHT-CET ID & password</strong> will be dispatched to:
+                  Your admission request has been logged. Our administration verifies center enrollments within 2 to 4 business hours.
+                  Your credentials will be dispatched to:
                 </p>
                 <div className="signin-pending-email-badge">
-                  <span className="material-symbols-outlined">outgoing_mail</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#1677FF' }}>outgoing_mail</span>
                   <span>{regEmail}</span>
                 </div>
                 <button
                   type="button"
-                  className="signin-action-btn"
+                  className="form-submit-btn"
                   onClick={() => switchTab('login')}
                 >
                   <span className="material-symbols-outlined">arrow_back</span>
@@ -490,19 +630,27 @@ export default function SignIn({ onSuccess }: Props) {
               </div>
             )}
 
-            {/* Bottom Navigation Hint */}
-              <div className="signin-footer-hint">
+            {/* Bottom Card Footer Hint */}
+            <div className="card-footer-switch">
               {activeTab === 'login' ? (
                 <>
-                  <span>New to the CET Nova program? </span>
-                  <button type="button" className="signin-footer-hint-btn" onClick={() => switchTab('register')}>
+                  <span>New to the CET Nova program?</span>
+                  <button
+                    type="button"
+                    className="card-footer-switch-btn"
+                    onClick={() => switchTab('register')}
+                  >
                     Create an account
                   </button>
                 </>
               ) : submitState !== 'pending' && !mustResetPassword ? (
                 <>
-                  <span>Already enrolled with an ID? </span>
-                  <button type="button" className="signin-footer-hint-btn" onClick={() => switchTab('login')}>
+                  <span>Already enrolled with an ID?</span>
+                  <button
+                    type="button"
+                    className="card-footer-switch-btn"
+                    onClick={() => switchTab('login')}
+                  >
                     Sign in here
                   </button>
                 </>
@@ -511,60 +659,9 @@ export default function SignIn({ onSuccess }: Props) {
 
           </div>
         </section>
-
-        {/* ── PREPARATION SHOWCASE ── */}
-        <section className="signin-right-showcase">
-          <div className="signin-showcase-grid-overlay" />
-          <header className="signin-showcase-brand">
-            <span className="material-symbols-outlined">school</span>
-            <span>CET<span>Nova</span></span>
-            <small>CET EXAM PORTAL</small>
-            <nav aria-label="CET Nova sections">
-              <a href="#practice">Practice</a><i />
-              <a href="#analysis">Analyze</a><i />
-              <a href="#improve">Improve</a>
-            </nav>
-          </header>
-
-          <div className="signin-showcase-header">
-            <h2 className="signin-showcase-heading">
-              Your Path to a<br /><span className="gradient-text">Brighter Future</span>
-            </h2>
-            <p className="signin-showcase-description">
-              Mock Tests · Previous Year Papers · Detailed Analysis<br />All in one place for your CET Preparation
-            </p>
-          </div>
-
-          <div className="signin-showcase-footer">
-            <div className="signin-feature-grid">
-              <div className="signin-feature-card" id="practice">
-                <span className="material-symbols-outlined">quiz</span>
-                <div><strong>Topic-wise Tests</strong><small>Practice by subject & topic</small></div>
-              </div>
-              <div className="signin-feature-card" id="analysis">
-                <span className="material-symbols-outlined">bar_chart</span>
-                <div><strong>Detailed Analysis</strong><small>Track your performance</small></div>
-              </div>
-              <div className="signin-feature-card">
-                <span className="material-symbols-outlined">description</span>
-                <div><strong>Previous Year Papers</strong><small>Real exam experience</small></div>
-              </div>
-              <div className="signin-feature-card" id="improve">
-                <span className="material-symbols-outlined">groups</span>
-                <div><strong>Personalised Dashboard</strong><small>Plan and improve</small></div>
-              </div>
-            </div>
-            <blockquote className="signin-quote">
-              <span aria-hidden="true">“</span>
-              <p>Consistent practice today,<br />a brighter tomorrow.</p>
-              <cite>— CETNova</cite>
-            </blockquote>
-          </div>
-
-        </section>
       </main>
 
-      {/* ── FORGOT PASSWORD RECOVERY MODAL ── */}
+      {/* ── Forgot Password Modal ── */}
       {showForgotModal && (
         <div className="signin-modal-backdrop" onClick={() => setShowForgotModal(false)}>
           <div className="signin-modal-card" onClick={e => e.stopPropagation()}>
@@ -576,9 +673,9 @@ export default function SignIn({ onSuccess }: Props) {
               Your MHT-CET portal access is tied to your center branch registration.
             </p>
             <div className="signin-modal-steps-box">
-              <div><strong>1. Check your email:</strong> Search your inbox for "CET Nova Credentials" with your initial admit letter.</div>
+              <div><strong>1. Check your email:</strong> Search your inbox for &quot;CET Nova Credentials&quot; with your initial admit letter.</div>
               <div><strong>2. Center Support:</strong> Visit or contact Byculla, Worli, or Prabhadevi desk with your provisional student roll number.</div>
-              <div><strong>3. Password Reset:</strong> Once unlocked by center faculty, you'll be prompted to set a new password on your next login.</div>
+              <div><strong>3. Password Reset:</strong> Once unlocked by center faculty, you will be prompted to set a new password on your next login.</div>
             </div>
             <button
               type="button"

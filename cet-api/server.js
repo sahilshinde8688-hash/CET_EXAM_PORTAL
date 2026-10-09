@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser')
 const dns = require('dns')
 const { applySecurityHeaders, configureCors } = require('./middleware/securityHeaders')
 const { generateCsrfToken } = require('./middleware/csrf')
+const { maintenanceMode } = require('./middleware/maintenanceMode')
 
 // Startup Environment Validation
 const requiredEnv = ['JWT_SECRET', 'SUPABASE_URL']
@@ -49,15 +50,25 @@ app.use(cookieParser())
 // Generate CSRF token for all requests
 app.use(generateCsrfToken)
 
+// API Usage Tracking and security metrics
+const apiUsageLogger = require('./middleware/apiUsageLogger')
+app.use('/api', apiUsageLogger)
+app.use('/api', maintenanceMode)
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'))
+app.use('/api/admin/dashboard', require('./routes/adminDashboardRoutes'))
+app.use('/api/admin/settings', require('./routes/adminSettingsRoutes'))
+app.use('/api/super-admin', require('./routes/superAdminRoutes'))
 app.use('/api/users', require('./routes/userRoutes'))
 app.use('/api/tests', require('./routes/testRoutes'))
 app.use('/api/upload', require('./routes/uploadRoutes'))
 app.use('/api/questions', require('./routes/questionRoutes'))
 app.use('/api/mock-tests', require('./routes/mockTestRoutes'))
+const mockTestAssignmentRoutes = require('./routes/mockTestAssignmentRoutes')
+app.use('/api/admin/mock-tests', mockTestAssignmentRoutes.adminRouter)
+app.use('/api/student/mock-tests', mockTestAssignmentRoutes.studentRouter)
 app.use('/api/ai', require('./routes/aiRoutes'))
-
 // Standard Health Checks
 app.get('/health', (req, res) => {
   res.json({
@@ -120,6 +131,7 @@ const startServer = (port) => {
 
 // Run bootstrap & listen only when executed directly
 if (require.main === module) {
+  require('./services/systemMetrics').startSystemMetricsCollection()
   startServer(DEFAULT_PORT)
 
   // Graceful shutdown handling

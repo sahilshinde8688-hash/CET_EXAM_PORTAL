@@ -307,6 +307,13 @@
 }
 .mt-start-btn--primary:hover { background: rgba(0,91,191,0.88); }
 .mt-start-btn:active { transform: scale(0.98); }
+.mt-start-btn:disabled,
+.mt-start-btn:disabled:hover {
+  background: #e7e8e9;
+  color: #727785;
+  box-shadow: none;
+  cursor: not-allowed;
+}
 
 /* ── Right Col ───────────────────────────── */
 .mt-right-col { display: flex; flex-direction: column; gap: 20px; }

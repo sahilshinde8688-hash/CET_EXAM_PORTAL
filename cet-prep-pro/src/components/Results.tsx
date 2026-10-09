@@ -144,6 +144,7 @@ export default function Results({ onNavigate }: ResultsProps) {
       <TestInterface 
         onClose={() => setReviewingTest(null)} 
         examName={reviewingTest.testName || 'MHT-CET Mock Test'}
+        reviewResultId={reviewingTest._id}
         reviewMode={true} 
         pastAnswers={reviewingTest.answers || {}} 
         pastResultData={{
@@ -156,10 +157,7 @@ export default function Results({ onNavigate }: ResultsProps) {
           marked: 0,
           correct: reviewingTest.correct || 0,
           incorrect: reviewingTest.incorrect || 0
-        }} 
-          questionIds={reviewingTest.questionIds?.length
-            ? reviewingTest.questionIds
-            : Object.keys(reviewingTest.answers || {})}
+        }}
       />
     )
   }

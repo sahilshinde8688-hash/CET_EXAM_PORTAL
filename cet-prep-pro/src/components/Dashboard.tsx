@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import Sidebar from './Sidebar'
 import TestInterface from './TestInterface'
 import UserAvatar from './UserAvatar'
-import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
+import AssignedMockTests from './AssignedMockTests'
+import { session, testsAPI, mockTestsAPI, mockTestAssignmentsAPI, type AuthUser, type MockTestAssignment, type TestResult } from '../lib/api'
 
 interface DashboardProps {
   onNavigate?: (page: 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard') => void
@@ -22,6 +23,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [activeNav, setActiveNav] = useState('Home')
   const [showTest, setShowTest] = useState(false)
+  const [showAssignedMockTests, setShowAssignedMockTests] = useState(false)
+  const [assignedTests, setAssignedTests] = useState<MockTestAssignment[]>([])
+  const [assignedTestsLoading, setAssignedTestsLoading] = useState(true)
+  const [assignedTestsError, setAssignedTestsError] = useState('')
   const [inProgressTest, setInProgressTest] = useState<any>(null)
   const [testHistory, setTestHistory] = useState<TestResult[]>(() => testsAPI.getCachedDashboardResults() || [])
   const [dashboardLoading, setDashboardLoading] = useState(() => !testsAPI.getCachedDashboardResults())
@@ -31,14 +36,22 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [unreadNotifs, setUnreadNotifs] = useState(3)
   const [shareToast, setShareToast] = useState(false)
   const user = session.get<AuthUser>()
+  const currentUserId = String(user?.id || user?._id || '')
 
   useEffect(() => {
     const inProgress = localStorage.getItem('cet_inProgressTest')
     if (inProgress) {
       try {
-        setInProgressTest(JSON.parse(inProgress))
-      } catch (e) {
-        setInProgressTest(true)
+        const progress = JSON.parse(inProgress)
+        if (currentUserId && progress.userId === currentUserId) {
+          setInProgressTest(progress)
+        } else {
+          localStorage.removeItem('cet_inProgressTest')
+          setInProgressTest(null)
+        }
+      } catch {
+        localStorage.removeItem('cet_inProgressTest')
+        setInProgressTest(null)
       }
     }
 
@@ -58,8 +71,105 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     }).finally(() => {
       if (!cancelled) setDashboardLoading(false)
     })
-    return () => { cancelled = true }
-  }, [])
+    const loadAssignedTests = () => {
+      mockTestAssignmentsAPI.getStudentAssignments().then(response => {
+        if (!cancelled) {
+          setAssignedTests(response.assignments)
+          setAssignedTestsError('')
+        }
+      }).catch(error => {
+        if (!cancelled) {
+          console.error('Failed to load assigned mock tests:', error)
+          setAssignedTestsError(error instanceof Error ? error.message : 'Assigned mock tests could not be loaded.')
+        }
+      }).finally(() => {
+        if (!cancelled) setAssignedTestsLoading(false)
+      })
+    }
+    loadAssignedTests()
+    const assignmentRefresh = window.setInterval(loadAssignedTests, 30000)
+    window.addEventListener('focus', loadAssignedTests)
+    return () => {
+      cancelled = true
+      window.clearInterval(assignmentRefresh)
+      window.removeEventListener('focus', loadAssignedTests)
+    }
+  }, [currentUserId])
+
+  useEffect(() => {
+    let cancelled = false
+    let checkingTest = false
+
+    const refreshInProgressTest = async () => {
+      const saved = localStorage.getItem('cet_inProgressTest')
+      if (!saved) {
+        setInProgressTest(null)
+        return
+      }
+
+      let progress: { userId?: string | null; title?: string; mockTestId?: string | null; durationMinutes?: number; questionCount?: number; questionIds?: string[] }
+      try {
+        progress = JSON.parse(saved)
+      } catch {
+        localStorage.removeItem('cet_inProgressTest')
+        setInProgressTest(null)
+        return
+      }
+
+      if (!currentUserId || progress.userId !== currentUserId) {
+        localStorage.removeItem('cet_inProgressTest')
+        setInProgressTest(null)
+        return
+      }
+
+      const mockTestId = progress.mockTestId || localStorage.getItem('cet_selected_mock_test_id')
+      if (!mockTestId || checkingTest) {
+        setInProgressTest(progress)
+        return
+      }
+
+      checkingTest = true
+      try {
+        const availableTests = await mockTestsAPI.getAll({ background: true })
+        if (cancelled) return
+        if (!availableTests.some(test => test._id === mockTestId)) {
+          localStorage.removeItem('cet_inProgressTest')
+          localStorage.removeItem('cet_exam_state')
+          localStorage.removeItem('cet_exam_owner_id')
+          localStorage.removeItem('cet_selected_mock_test_id')
+          localStorage.removeItem('cet_exam_current_index')
+          localStorage.removeItem('cet_exam_answers')
+          localStorage.removeItem('cet_exam_marked')
+          localStorage.removeItem('cet_exam_time_remaining')
+          localStorage.removeItem('cet_exam_time_elapsed')
+          localStorage.removeItem('cet_exam_duration_minutes')
+          localStorage.removeItem('cet_exam_name')
+          localStorage.removeItem('cet_selected_test_name')
+          localStorage.removeItem('cet_selected_test_duration')
+          localStorage.removeItem('cet_selected_question_ids')
+          localStorage.removeItem('cet_selected_question_count')
+          setInProgressTest(null)
+          return
+        }
+        setInProgressTest({ ...progress, mockTestId })
+      } catch (error) {
+        if (!cancelled) console.error('Failed to verify in-progress test:', error)
+      } finally {
+        checkingTest = false
+      }
+    }
+
+    refreshInProgressTest()
+    const refreshInterval = window.setInterval(refreshInProgressTest, 15000)
+    window.addEventListener('focus', refreshInProgressTest)
+    window.addEventListener('storage', refreshInProgressTest)
+    return () => {
+      cancelled = true
+      window.clearInterval(refreshInterval)
+      window.removeEventListener('focus', refreshInProgressTest)
+      window.removeEventListener('storage', refreshInProgressTest)
+    }
+  }, [currentUserId])
 
   const performance = useMemo(() => {
     const testsCount = testHistory.length
@@ -117,10 +227,17 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
   return (
     <>
-      {showTest ? (
+      {showAssignedMockTests ? (
+        <AssignedMockTests onBack={() => setShowAssignedMockTests(false)} />
+      ) : showTest ? (
         <TestInterface
           onClose={() => setShowTest(false)}
           onBackRequest={() => setShowTest(false)}
+          examName={inProgressTest?.title || 'MHT-CET Mock Test'}
+          mockTestId={inProgressTest?.mockTestId || undefined}
+          durationMinutes={inProgressTest?.durationMinutes}
+          questionCount={inProgressTest?.questionCount}
+          questionIds={inProgressTest?.questionIds || []}
           onResultSaved={(result) => {
             setInProgressTest(null)
             setTestHistory(current => [result, ...current.filter(item => item._id !== result._id)])
@@ -358,6 +475,33 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               </div>}
             </div>
           </div>
+
+          <section className="db-glass-card db-results-card" aria-labelledby="assigned-mock-tests-title">
+            <div className="db-results-header">
+              <div>
+                <h4 id="assigned-mock-tests-title" className="db-results-title">Assigned Mock Tests</h4>
+                <p className="db-chart-sub">Tests assigned to your student account.</p>
+              </div>
+              <button type="button" className="db-results-link" onClick={() => setShowAssignedMockTests(true)}>Open assigned tests</button>
+            </div>
+            {assignedTestsLoading ? <p>Loading assigned tests…</p> : assignedTestsError ? <p role="alert">{assignedTestsError}</p> : assignedTests.length ? (
+              <div className="db-results-list">
+                {assignedTests.slice(0, 3).map(assignment => (
+                  <div key={assignment._id} className="db-result-row">
+                    <div className="db-result-left">
+                      <div className="db-result-icon-wrap"><span className="material-symbols-outlined">assignment_turned_in</span></div>
+                      <div>
+                        <h5 className="db-result-name">{assignment.mockTestName}</h5>
+                        <p className="db-result-meta">{assignment.subject || assignment.examType || 'Mock Test'} · {assignment.questionCount ?? '—'} questions · {assignment.duration} min</p>
+                        <p className="db-result-meta">Start {new Date(assignment.startDateTime).toLocaleString('en-IN')} · End {new Date(assignment.endDateTime).toLocaleString('en-IN')}</p>
+                      </div>
+                    </div>
+                    <div className="db-result-right"><span className="db-result-percentile">{assignment.status}</span></div>
+                  </div>
+                ))}
+              </div>
+            ) : <p>No mock tests have been assigned yet.</p>}
+          </section>
 
           {/* ── Recent Mock Results ──────────────── */}
           {displayRecentTests.length > 0 && (

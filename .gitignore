@@ -26,3 +26,8 @@ supabase/.temp/
 .idea/
 .DS_Store
 *.local
+
+# Local authentication artifacts and credential-testing scripts
+auth.cookies
+csrf.cookies
+cet-api/test_pg.js

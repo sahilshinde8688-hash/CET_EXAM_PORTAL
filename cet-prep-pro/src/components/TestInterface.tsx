@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { questionsAPI, usersAPI, testsAPI, Question } from '../lib/api'
+import { questionsAPI, usersAPI, testsAPI, mockTestsAPI, session, Question, type AuthUser } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
@@ -79,9 +79,11 @@ export default function TestInterface({
   onBackToAnalysis,
   onResultSaved,
   examName = 'MHT-CET Mock Test',
+  mockTestId,
   durationMinutes = 120,
   questionCount,
   questionIds = EMPTY_QUESTION_IDS,
+  reviewResultId,
   reviewMode = false, 
   pastAnswers, 
   pastResultData 
@@ -91,9 +93,11 @@ export default function TestInterface({
   onBackToAnalysis?: () => void;
   onResultSaved?: (result: any) => void;
   examName?: string;
+  mockTestId?: string;
   durationMinutes?: number;
   questionCount?: number;
   questionIds?: string[];
+  reviewResultId?: string;
   reviewMode?: boolean;
   pastAnswers?: Record<string, number>;
   pastResultData?: any;
@@ -135,14 +139,22 @@ export default function TestInterface({
       : 0
   }) // Track actual elapsed time
 
+  const [submitted, setSubmitted] = useState(reviewMode)
+
   // Set ongoing test indicator in localStorage for Dashboard resume card
   useEffect(() => {
-    if (reviewMode) return
+    if (reviewMode || submitted) return
+    const user = session.get<AuthUser>()
     localStorage.setItem('cet_inProgressTest', JSON.stringify({
-      title: 'MHT-CET Mock Test',
+      userId: user?.id || user?._id || null,
+      title: examName,
+      mockTestId: mockTestId || null,
+      durationMinutes,
+      questionCount: questionCount ?? questions.length,
+      questionIds,
       message: 'Exam in progress. Resume to continue.'
     }))
-  }, [reviewMode])
+  }, [durationMinutes, examName, mockTestId, questionCount, questionIds, questions.length, reviewMode, submitted])
 
   // Sync state changes to localStorage to handle page reload and cross-page access
   useEffect(() => {
@@ -178,7 +190,6 @@ export default function TestInterface({
       : 0)
   }, [questions.length])
 
-  const [submitted, setSubmitted] = useState(reviewMode)
   const [result, setResult] = useState<{
     total: number
     answered: number
@@ -196,6 +207,7 @@ export default function TestInterface({
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [showSubmissionAnimation, setShowSubmissionAnimation] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [showResultPage, setShowResultPage] = useState(reviewMode)
   const [confirmationId, setConfirmationId] = useState<string>('')
   const [user, setUser] = useState<{ name: string; mhcetId?: string; email: string } | null>(null)
@@ -323,21 +335,9 @@ export default function TestInterface({
   const submitTest = async () => {
     if (isSubmitting) return
     setIsSubmitting(true)
+    setSubmitError(null)
     const resultData = calculateResult()
     setResult(resultData)
-    setSubmitted(true)
-
-    // Clear saved progress on submission
-    localStorage.removeItem('cet_exam_state')
-    localStorage.removeItem('cet_exam_current_index')
-    localStorage.removeItem('cet_exam_answers')
-    localStorage.removeItem('cet_exam_marked')
-    clearQuestionOrder()
-    localStorage.removeItem('cet_exam_time_remaining')
-    localStorage.removeItem('cet_exam_duration_minutes')
-    localStorage.removeItem('cet_exam_name')
-    localStorage.removeItem('cet_exam_time_elapsed')
-    localStorage.removeItem('cet_inProgressTest')
     
     // Calculate percentile (simple implementation based on score percentage)
     const percentile = resultData.maxScore > 0 ? ((resultData.score / resultData.maxScore) * 100) : 0
@@ -372,6 +372,7 @@ export default function TestInterface({
     try {
       const savedResult = await testsAPI.submitResult({
         testName: examName,
+        mockTestId,
         subject: 'Mock Test',
         score: resultData.score,
         totalMarks: resultData.maxScore,
@@ -385,9 +386,50 @@ export default function TestInterface({
         unanswered: resultData.notAnswered,
         totalQuestions: resultData.total,
       })
+      setSubmitted(true)
+
+      // Keep the in-progress state until the server confirms the submission.
+      localStorage.removeItem('cet_exam_state')
+      localStorage.removeItem('cet_exam_owner_id')
+      localStorage.removeItem('cet_exam_current_index')
+      localStorage.removeItem('cet_exam_answers')
+      localStorage.removeItem('cet_exam_marked')
+      clearQuestionOrder()
+      localStorage.removeItem('cet_exam_time_remaining')
+      localStorage.removeItem('cet_exam_duration_minutes')
+      localStorage.removeItem('cet_exam_name')
+      localStorage.removeItem('cet_exam_time_elapsed')
+      localStorage.removeItem('cet_inProgressTest')
+
+      setResult({
+        total: Number(savedResult.totalQuestions ?? resultData.total),
+        answered: Number(savedResult.correct ?? resultData.correct) + Number(savedResult.incorrect ?? resultData.incorrect),
+        marked: resultData.marked,
+        notAnswered: Number(savedResult.unanswered ?? resultData.notAnswered),
+        correct: Number(savedResult.correct ?? resultData.correct),
+        incorrect: Number(savedResult.incorrect ?? resultData.incorrect),
+        score: Number(savedResult.score ?? resultData.score),
+        maxScore: Number(savedResult.totalMarks ?? resultData.maxScore),
+        duration: Number(savedResult.duration ?? resultData.duration),
+      })
+      try {
+        const review = await testsAPI.getReview(savedResult._id)
+        if (Array.isArray(review.questions)) {
+          setQuestions(review.questions.map(normalizeQuestion))
+        }
+      } catch (reviewError) {
+        console.error('Failed to load submitted test review:', reviewError)
+      }
       onResultSaved?.(savedResult)
     } catch (error) {
       console.error('Failed to save test result:', error)
+      setResult(null)
+      setSubmitted(false)
+      setSubmitError(error instanceof Error ? error.message : 'Your test could not be submitted. Please try again.')
+      setIsSubmitting(false)
+      // Re-open the confirm modal so the user can see the error and retry
+      setShowSubmitConfirm(true)
+      return
     }
     
     // Exit fullscreen when test is submitted
@@ -429,14 +471,15 @@ export default function TestInterface({
 
       try {
         console.log('Loading questions from API...')
-        const reviewQuestionIds = questionIds.length ? questionIds : Object.keys(pastAnswers || {})
-        if (reviewMode && reviewQuestionIds.length === 0) {
-          setQuestions([])
-          return
+        if (reviewMode && !reviewResultId) {
+          throw new Error('This result is not available for review.')
         }
-        const data = await questionsAPI.getAll(reviewMode
-          ? { ids: reviewQuestionIds, includeAnswers: true }
-          : { isActive: true, includeAnswers: true })
+        if (!reviewMode && mockTestId) {
+          await mockTestsAPI.getById(mockTestId)
+        }
+        const data = reviewMode
+          ? (await testsAPI.getReview(reviewResultId as string)).questions
+          : await questionsAPI.getAll({ isActive: true })
         console.log('Questions loaded from API:', data.length)
 
         if (!Array.isArray(data) || data.length === 0) {
@@ -445,10 +488,7 @@ export default function TestInterface({
 
         const normalizedQuestions = data.map(normalizeQuestion)
         if (reviewMode) {
-          const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
-          setQuestions(reviewQuestionIds
-            .map(questionId => questionsById.get(questionId))
-            .filter((question): question is Question => Boolean(question)))
+          setQuestions(normalizedQuestions)
         } else {
           const questionsById = new Map(normalizedQuestions.map(question => [question._id, question]))
           const assignedQuestions = questionIds
@@ -489,7 +529,7 @@ export default function TestInterface({
     }, 100)
 
     return () => clearTimeout(timeout)
-  }, [durationMinutes, examName, pastAnswers, questionCount, questionIds, reviewMode])
+  }, [durationMinutes, examName, questionCount, questionIds, reviewMode, reviewResultId])
 
 
   // Timer — pauses automatically when fullscreen/focus warning is active
@@ -1169,12 +1209,17 @@ export default function TestInterface({
               You have answered {Object.keys(answers).filter(id => questions.some(question => question._id === id)).length} of {questions.length} questions.
             </p>
             <p className="test-submit-confirm-warning">Once submitted, you cannot change your answers.</p>
+            {submitError && (
+              <p role="alert" style={{ color: '#dc2626', fontSize: '14px', marginTop: '8px', marginBottom: '4px' }}>
+                {submitError}
+              </p>
+            )}
             <div className="test-submit-confirm-actions">
               <button type="button" onClick={() => setShowSubmitConfirm(false)} disabled={isSubmitting}>
                 Go Back
               </button>
               <button type="button" onClick={() => { setShowSubmitConfirm(false); void submitTest() }} disabled={isSubmitting}>
-                {isSubmitting ? 'Submitting...' : 'Submit Test'}
+                {isSubmitting ? 'Submitting...' : submitError ? 'Retry Submission' : 'Submit Test'}
               </button>
             </div>
           </div>

@@ -11,6 +11,8 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
+      - key: SESSION_INACTIVITY_TIMEOUT_MINUTES
+        value: 30
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
@@ -32,4 +34,17 @@ services:
       - key: CLOUDINARY_UPLOAD_PRESET
         sync: false
       - key: EMAIL_SERVICE_URL
+        sync: false
+  - type: worker
+    name: cet-portal-scheduler
+    runtime: node
+    rootDir: cet-api
+    buildCommand: npm install
+    startCommand: npm run scheduler
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false

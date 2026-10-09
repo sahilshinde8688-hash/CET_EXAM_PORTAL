@@ -2,14 +2,44 @@ const express = require('express')
 const router = express.Router()
 const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
-const { apiLimiter } = require('../middleware/rateLimit')
+const { apiLimiter, testSubmitLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
 
+const assignedResultVisibility = async (studentId) => {
+  const assignments = (await db.getMockTestAssignments())
+    .filter(assignment => assignment.studentIds.includes(String(studentId)))
+  const visibilityByResultId = new Map()
+  for (const assignment of assignments) {
+    const attempts = await db.getMockTestAttempts(assignment._id, String(studentId))
+    const visible = assignment.resultVisibility === 'immediate'
+      || assignment.resultVisibility === 'after_close' && Date.now() >= new Date(assignment.endDateTime).getTime()
+    for (const attempt of attempts) {
+      if (attempt.resultId) visibilityByResultId.set(attempt.resultId, visible)
+    }
+  }
+  return visibilityByResultId
+}
+
 // POST /api/tests — Save and authoritatively score a test result
-router.post('/', protect, validateCsrfToken, apiLimiter, async (req, res) => {
-  const { testName, answers, duration, questionIds } = req.body
+router.post('/', protect, validateCsrfToken, testSubmitLimiter, async (req, res) => {
+  const { testName, answers, duration, questionIds, mockTestId } = req.body
   try {
     const userId = req.user.id || req.user._id
+    const requestedMockTestId = typeof mockTestId === 'string' ? mockTestId : null
+    const matchingTest = requestedMockTestId || typeof testName !== 'string'
+      ? null
+      : await db.getActiveMockTestByTitle(testName)
+    const assignedMockTestId = requestedMockTestId || matchingTest?._id
+    if (assignedMockTestId) {
+      const hasAssignment = (await db.getMockTestAssignments()).some(assignment =>
+        assignment.status === 'active' && assignment.mockTestId === assignedMockTestId)
+      if (hasAssignment) {
+        return res.status(403).json({
+          success: false,
+          message: 'This test must be started and submitted through its student assignment.',
+        })
+      }
+    }
 
     // Server-side authoritative score calculation
     const result = await db.calculateAndCreateTestResult({
@@ -18,10 +48,38 @@ router.post('/', protect, validateCsrfToken, apiLimiter, async (req, res) => {
       answers: answers || {},
       duration: Number(duration) || 0,
       questionIds: Array.isArray(questionIds) ? questionIds : [],
+      mockTestId: requestedMockTestId || matchingTest?._id || null,
     })
 
     res.status(201).json(result)
   } catch (err) {
+    if (err.code === 'P0001' && err.message.includes('attempt limit')) {
+      return res.status(409).json({
+        success: false,
+        message: 'You have used all attempts allowed for this mock test.',
+      })
+    }
+    if (['P0002', 'MOCK_TEST_NOT_AVAILABLE'].includes(err.code)) {
+      return res.status(404).json({ success: false, message: 'This mock test is no longer available.' })
+    }
+    if (err.code === 'MOCK_TEST_QUESTION_MISMATCH') {
+      return res.status(400).json({ success: false, message: 'The submitted questions do not match this mock test.' })
+    }
+    if (err.code === 'MOCK_TEST_ID_REQUIRED') {
+      return res.status(400).json({ success: false, message: 'The mock test could not be identified. Reload the test list and start the test again.' })
+    }
+    if (err.code === 'PGRST202') {
+      return res.status(503).json({
+        success: false,
+        message: 'Mock-test attempt limits are not installed in the database yet. Apply all Supabase migrations, including 20261008_mock_test_attempt_limits.sql.',
+      })
+    }
+    if (['42703', 'PGRST204'].includes(err.code) && /question_ids/i.test(err.message || '')) {
+      return res.status(503).json({
+        success: false,
+        message: 'The database is missing the question_ids field required to save test submissions. Apply supabase/migrations/20261001_test_result_question_ids.sql in the Supabase SQL Editor, then retry.',
+      })
+    }
     res.status(500).json({ success: false, message: 'Failed to record test submission: ' + err.message })
   }
 })
@@ -31,7 +89,8 @@ router.get('/my', protect, apiLimiter, async (req, res) => {
   try {
     const userId = req.user.id || req.user._id
     const results = await db.getTestResultsByUserId(userId)
-    res.json(results)
+    const visibility = await assignedResultVisibility(userId)
+    res.json(results.filter(result => !visibility.has(result._id) || visibility.get(result._id)))
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }
@@ -50,9 +109,25 @@ router.get('/:id/review', protect, apiLimiter, async (req, res) => {
     if (result.userId !== currentUserId && req.user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Access denied to this test review.' })
     }
+    if (req.user.role !== 'admin') {
+      const visibility = await assignedResultVisibility(currentUserId)
+      if (visibility.has(result._id) && !visibility.get(result._id)) {
+        return res.status(403).json({ success: false, message: 'This result is not visible yet.' })
+      }
+    }
 
-    // In review mode, fetch questions with solutions for student learning
-    const questions = await db.getQuestions({ isActive: true }, { isAdmin: true })
+    // Answer keys are available only through the owner-checked review endpoint.
+    const savedQuestionIds = Array.isArray(result.questionIds) ? result.questionIds.map(String) : []
+    const reviewQuestionIds = savedQuestionIds.length
+      ? savedQuestionIds
+      : Object.keys(result.answers || {})
+    const questionsById = reviewQuestionIds.length
+      ? await db.getQuestions({ ids: reviewQuestionIds }, { isAdmin: true })
+      : []
+    const questionsByIdMap = new Map(questionsById.map(question => [String(question._id), question]))
+    const questions = reviewQuestionIds
+      .map(questionId => questionsByIdMap.get(questionId))
+      .filter(Boolean)
 
     res.json({
       result,
@@ -66,26 +141,24 @@ router.get('/:id/review', protect, apiLimiter, async (req, res) => {
 // GET /api/tests — ADMIN ONLY: all results across all students
 router.get('/', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const users = await db.getAllUsers()
-    const allResults = []
-
-    for (const u of users) {
-      const userResults = await db.getTestResultsByUserId(u.id)
-      for (const r of userResults) {
-        allResults.push({
-          ...r,
-          userId: {
-            _id: u.id,
-            id: u.id,
-            name: u.name,
-            email: u.email,
-            branch: u.branch,
-          },
-        })
+    const [users, results] = await Promise.all([
+      db.getAllUsers(),
+      db.getAllTestResults({ summaryOnly: req.query.summary === 'true' }),
+    ])
+    const usersById = new Map(users.map(user => [String(user.id || user._id), user]))
+    const allResults = results.map(result => {
+      const user = usersById.get(String(result.userId))
+      return {
+        ...result,
+        userId: user ? {
+          _id: user.id || user._id,
+          id: user.id || user._id,
+          name: user.name,
+          email: user.email,
+          branch: user.branch,
+        } : result.userId,
       }
-    }
-
-    allResults.sort((a, b) => new Date(b.attemptedAt) - new Date(a.attemptedAt))
+    })
     res.json(allResults)
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })

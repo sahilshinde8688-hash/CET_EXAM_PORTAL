@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, startTransition, Suspense, useEffect, useRef, useState } from 'react'
 import SignIn from './components/SignIn'
 import { clearAdminCredentials } from './adminAuth'
-import { authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
+import { ApiResponseError, authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
 import './dashboard.css'
 import './mocktests.css'
 import './results.css'
@@ -16,6 +16,17 @@ const Settings = lazy(() => import('./components/Settings'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 
 export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'unauthorized'
+
+const getLoginDestination = (user: AuthUser): { page: Page; path: string } => {
+  if (user.role === 'admin') {
+    const isSuperAdmin = user.adminRole === 'Super Admin'
+    return {
+      page: 'admin',
+      path: isSuperAdmin ? '/admin/super-admin' : '/admin/dashboard',
+    }
+  }
+  return { page: 'dashboard', path: '/dashboard' }
+}
 
 const pathToPage = (pathname: string): Page => {
   if (pathname.startsWith('/admin')) return 'admin'
@@ -33,6 +44,19 @@ const pageToPath = (page: Page) => {
   if (page === 'signin') return '/login'
   if (page === 'unauthorized') return '/unauthorized'
   return `/${page === 'mocktests' ? 'mock-tests' : page}`
+}
+
+const getSessionCheckErrorMessage = (error: unknown): string => {
+  if (error instanceof ApiResponseError) {
+    return `Authentication service returned HTTP ${error.status}: ${error.message}`
+  }
+  if (error instanceof TypeError) {
+    return `Could not reach the authentication service (${error.message}). Check that the API server is running and the /api proxy is configured.`
+  }
+  if (error instanceof Error) {
+    return `Session check failed: ${error.message}`
+  }
+  return 'Session check failed because of an unexpected error. Check the API server and retry.'
 }
 
   const PAGE_ICONS: Record<string, string> = {
@@ -97,72 +121,184 @@ function PageLoader({ target }: { target: Page }) {
 export default function App() {
   const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
   const [authLoading, setAuthLoading] = useState(true)
-  const [authError, setAuthError] = useState(false)
-  const [authenticatedUser, setAuthenticatedUser] = useState<AuthUser | null>(null)
-  const authenticatedUserRef = useRef<AuthUser | null>(null)
-  const [transitioning, setTransitioning] = useState(false)
-  const [nextPage, setNextPage] = useState<Page | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionCheckError, setSessionCheckError] = useState<string | null>(null)
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null)
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<string | null>(null)
+  const [sessionInactivityTimeoutSeconds, setSessionInactivityTimeoutSeconds] = useState<number | null>(null)
+  const [sessionExpiredMessage, setSessionExpiredMessage] = useState('Your session expired because you were inactive. Please sign in again.')
+  const [showSessionWarning, setShowSessionWarning] = useState(false)
+  const lastClientActivityRef = useRef(Date.now())
+  const lastActivityProjectionRef = useRef(0)
+  const activityRequestInProgressRef = useRef(false)
+  const restoreSessionRef = useRef<(requestedPage: Page) => Promise<void>>(async () => {})
 
-  const restoreSession = async (requestedPage: Page) => {
-    setAuthLoading(true)
-    setAuthError(false)
+  const restoreSession = async (requestedPage: Page, showLoader = true) => {
+    const hadClientSession = Boolean(session.get())
+    if (showLoader) setAuthLoading(true)
+    setSessionExpired(false)
+    setSessionCheckError(null)
     try {
-      const user = await authAPI.me()
+      const checkedSession = await authAPI.checkSession()
+      if (!checkedSession.authenticated || !checkedSession.user) throw new SessionExpiredError()
+      const user = checkedSession.user
       session.save(user)
-      authenticatedUserRef.current = user
-      setAuthenticatedUser(user)
+      setSessionExpiresAt(checkedSession.expiresAt)
+      setSessionInactivityTimeoutSeconds(checkedSession.inactivityTimeoutSeconds)
+      lastClientActivityRef.current = Date.now()
+      setShowSessionWarning(false)
 
-      const destination = requestedPage === 'signin'
-        ? user.role === 'admin' ? 'admin' : 'dashboard'
+      const loginDestination = requestedPage === 'signin' ? getLoginDestination(user) : null
+      const destination = loginDestination
+        ? loginDestination.page
         : requestedPage === 'admin' && user.role !== 'admin'
           ? 'unauthorized'
           : requestedPage
 
       if (destination !== requestedPage) {
-        window.history.replaceState({ page: destination }, '', pageToPath(destination))
+        window.history.replaceState(
+          { page: destination },
+          '',
+          loginDestination?.path ?? pageToPath(destination),
+        )
       }
-      setPage(destination)
+      startTransition(() => setPage(destination))
     } catch (error) {
       if (!(error instanceof SessionExpiredError)) {
-        setAuthError(true)
-        setAuthLoading(false)
+        setSessionCheckError(getSessionCheckErrorMessage(error))
+        if (requestedPage !== 'signin') {
+          window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
+        }
+        setPage('signin')
         return
       }
 
+      setSessionExpired(hadClientSession)
+      setSessionExpiredMessage(error instanceof SessionExpiredError ? error.message : 'Your session expired because you were inactive. Please sign in again.')
+      setSessionCheckError(null)
+      setSessionExpiresAt(null)
+      setSessionInactivityTimeoutSeconds(null)
       session.clear()
-      authenticatedUserRef.current = null
-      setAuthenticatedUser(null)
       if (requestedPage !== 'signin') {
         window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
       }
       setPage('signin')
     } finally {
-      setAuthLoading(false)
+      if (showLoader) setAuthLoading(false)
     }
   }
+  restoreSessionRef.current = restoreSession
 
   useEffect(() => {
-    const handlePopState = () => { void restoreSession(pathToPage(window.location.pathname)) }
+    if (!sessionExpiresAt || !sessionInactivityTimeoutSeconds) return
+    const expiresAt = Date.parse(sessionExpiresAt)
+    if (!Number.isFinite(expiresAt)) return
+    const warningLeadMs = Math.min(2 * 60 * 1000, sessionInactivityTimeoutSeconds * 1000 / 3)
+    let validationRetryTimer: number | null = null
+    const validateExpiry = () => {
+      void authAPI.checkSession().then(checkedSession => {
+        if (!checkedSession.authenticated) throw new SessionExpiredError()
+        if (Date.parse(checkedSession.expiresAt) <= Date.now()) {
+          validationRetryTimer = window.setTimeout(validateExpiry, 1000)
+          return
+        }
+        setSessionExpiresAt(checkedSession.expiresAt)
+        setSessionInactivityTimeoutSeconds(checkedSession.inactivityTimeoutSeconds)
+        setShowSessionWarning(false)
+      }).catch(error => {
+        if (!(error instanceof SessionExpiredError)) {
+          setSessionCheckError(getSessionCheckErrorMessage(error))
+          window.setTimeout(() => {
+            void restoreSessionRef.current(pathToPage(window.location.pathname), false)
+          }, 15000)
+        }
+      })
+    }
+    const warningTimer = window.setTimeout(
+      () => setShowSessionWarning(true),
+      Math.max(0, expiresAt - Date.now() - warningLeadMs),
+    )
+    const expiryTimer = window.setTimeout(validateExpiry, Math.max(0, expiresAt - Date.now()))
+    return () => {
+      window.clearTimeout(warningTimer)
+      window.clearTimeout(expiryTimer)
+      if (validationRetryTimer !== null) window.clearTimeout(validationRetryTimer)
+    }
+  }, [sessionExpiresAt, sessionInactivityTimeoutSeconds])
+
+  useEffect(() => {
+    if (!session.get() || !sessionInactivityTimeoutSeconds || page === 'signin') return
+
+    const recordLocalActivity = () => {
+      const now = Date.now()
+      lastClientActivityRef.current = now
+      setShowSessionWarning(false)
+      if (now - lastActivityProjectionRef.current >= 5000) {
+        lastActivityProjectionRef.current = now
+        setSessionExpiresAt(new Date(now + sessionInactivityTimeoutSeconds * 1000).toISOString())
+      }
+    }
+    const activityEvents: Array<keyof DocumentEventMap> = [
+      'click', 'keydown', 'input', 'change', 'submit', 'scroll', 'wheel',
+      'pointerdown', 'touchstart', 'mousemove',
+    ]
+    activityEvents.forEach(eventName => document.addEventListener(eventName, recordLocalActivity, { passive: true }))
+    window.addEventListener('auth:activity', recordLocalActivity)
+    window.addEventListener('popstate', recordLocalActivity)
+
+    const heartbeatMs = Math.min(60 * 1000, Math.max(15 * 1000, sessionInactivityTimeoutSeconds * 1000 / 3))
+    const heartbeat = window.setInterval(() => {
+      const now = Date.now()
+      if (now - lastClientActivityRef.current > heartbeatMs || activityRequestInProgressRef.current) return
+      activityRequestInProgressRef.current = true
+      void authAPI.recordActivity().then(result => {
+        setSessionExpiresAt(result.expiresAt)
+        setSessionInactivityTimeoutSeconds(result.inactivityTimeoutSeconds)
+        setSessionCheckError(null)
+        setShowSessionWarning(false)
+      }).catch(error => {
+        if (!(error instanceof SessionExpiredError)) setSessionCheckError(getSessionCheckErrorMessage(error))
+      }).finally(() => {
+        activityRequestInProgressRef.current = false
+      })
+    }, heartbeatMs)
+
+    return () => {
+      activityEvents.forEach(eventName => document.removeEventListener(eventName, recordLocalActivity))
+      window.removeEventListener('auth:activity', recordLocalActivity)
+      window.removeEventListener('popstate', recordLocalActivity)
+      window.clearInterval(heartbeat)
+    }
+  }, [page, sessionInactivityTimeoutSeconds])
+
+  useEffect(() => {
+    const handlePopState = () => { void restoreSession(pathToPage(window.location.pathname), false) }
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) void restoreSession(pathToPage(window.location.pathname))
+      if (event.persisted) void restoreSession(pathToPage(window.location.pathname), false)
     }
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === session.KEY) void restoreSession(pathToPage(window.location.pathname))
+      if (event.key === session.KEY) void restoreSession(pathToPage(window.location.pathname), false)
     }
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && pathToPage(window.location.pathname) !== 'signin') {
-        void restoreSession(pathToPage(window.location.pathname))
+        void restoreSession(pathToPage(window.location.pathname), false)
       }
     }
-    const handleSessionExpired = () => {
-      authenticatedUserRef.current = null
-      setAuthenticatedUser(null)
-      setAuthError(false)
+    const handleSessionExpired = (event: Event) => {
+      const detail = (event as CustomEvent<{ hadSession?: boolean; message?: string }>).detail
+      setSessionExpired(Boolean(detail?.hadSession))
+      setSessionExpiredMessage(detail?.message || 'Your session expired because you were inactive. Please sign in again.')
+      setSessionExpiresAt(null)
+      setSessionInactivityTimeoutSeconds(null)
+      setShowSessionWarning(false)
+      clearAdminCredentials()
       setAuthLoading(false)
-      setTransitioning(false)
-      setNextPage(null)
       window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
       setPage('signin')
+    }
+    const handleMaintenanceActive = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail
+      setMaintenanceMessage(detail?.message || 'The system is under maintenance. Please check back later.')
     }
 
     void restoreSession(pathToPage(window.location.pathname))
@@ -170,12 +306,14 @@ export default function App() {
     window.addEventListener('pageshow', handlePageShow)
     window.addEventListener('storage', handleStorage)
     window.addEventListener('auth:expired', handleSessionExpired)
+    window.addEventListener('maintenance:active', handleMaintenanceActive)
     document.addEventListener('visibilitychange', handleVisibility)
     return () => {
       window.removeEventListener('popstate', handlePopState)
       window.removeEventListener('pageshow', handlePageShow)
       window.removeEventListener('storage', handleStorage)
       window.removeEventListener('auth:expired', handleSessionExpired)
+      window.removeEventListener('maintenance:active', handleMaintenanceActive)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
@@ -184,60 +322,80 @@ export default function App() {
     const resolvedTarget = (target === 'admin-dashboard' ? 'admin' : target) as Page
     if (resolvedTarget === page) return
     if (resolvedTarget === 'signin') {
-      authenticatedUserRef.current = null
-      setAuthenticatedUser(null)
-      setAuthError(false)
-      setTransitioning(false)
-      setNextPage(null)
+      setSessionExpiresAt(null)
+      setSessionExpired(false)
+      setSessionCheckError(null)
+      setSessionInactivityTimeoutSeconds(null)
+      setShowSessionWarning(false)
       window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
       setPage('signin')
       return
     }
-    if (resolvedTarget === 'admin' && authenticatedUser?.role !== 'admin') {
-      window.history.replaceState({ page: 'unauthorized' }, '', pageToPath('unauthorized'))
-      setPage('unauthorized')
-      return
-    }
-    window.history.pushState({ page: resolvedTarget }, '', pageToPath(resolvedTarget))
-    setNextPage(resolvedTarget)
-    setTransitioning(true)
+    setSessionCheckError(null)
+    void authAPI.checkSession().then(checkedSession => {
+      if (!checkedSession.authenticated || !checkedSession.user) throw new SessionExpiredError()
+      const user = checkedSession.user
+      session.save(user)
+      setSessionExpiresAt(checkedSession.expiresAt)
+      setSessionInactivityTimeoutSeconds(checkedSession.inactivityTimeoutSeconds)
+
+      if (resolvedTarget === 'admin' && user.role !== 'admin') {
+        window.history.replaceState({ page: 'unauthorized' }, '', pageToPath('unauthorized'))
+        startTransition(() => setPage('unauthorized'))
+        return
+      }
+      window.history.pushState({ page: resolvedTarget }, '', pageToPath(resolvedTarget))
+      startTransition(() => setPage(resolvedTarget))
+    }).catch(error => {
+      if (error instanceof SessionExpiredError) {
+        setSessionExpired(Boolean(session.get()))
+        setSessionExpiredMessage(error.message)
+        setSessionExpiresAt(null)
+        setSessionInactivityTimeoutSeconds(null)
+        setSessionCheckError(null)
+        session.clear()
+        clearAdminCredentials()
+      } else {
+        setSessionCheckError(getSessionCheckErrorMessage(error))
+      }
+      window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
+      setPage('signin')
+    })
   }
 
-  useEffect(() => {
-    if (!transitioning || !nextPage) return
-    const t = setTimeout(() => {
-      setPage(nextPage)
-      setNextPage(null)
-      setTransitioning(false)
-    }, 250)
-    return () => clearTimeout(t)
-  }, [transitioning, nextPage])
-
-  if (authLoading) return <PageLoader target={page} />
-  if (authError) {
+  if (maintenanceMessage !== null) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
-        <div style={{ maxWidth: 420, textAlign: 'center' }}>
-          <h1>Unable to verify your session</h1>
-          <p>Please check your connection and try again.</p>
-          <button type="button" onClick={() => void restoreSession(pathToPage(window.location.pathname))}>Retry</button>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
+        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16 }}>
+          <h1>System Maintenance</h1>
+          <p>{maintenanceMessage}</p>
+          <button type="button" onClick={() => window.location.reload()}>Check again</button>
         </div>
       </div>
     )
   }
-  if (transitioning && nextPage) return <PageLoader target={nextPage} />
+  if (authLoading) return <PageLoader target={page} />
   return (
+    <>
     <Suspense fallback={<PageLoader target={page} />}>
       {page === 'signin' && (
         <SignIn
+          sessionExpired={sessionExpired}
+          sessionExpiredMessage={sessionExpiredMessage}
           onSuccess={user => {
             session.save(user)
-            authenticatedUserRef.current = user
-            setAuthenticatedUser(user)
-            const destination = user.role === 'admin' ? 'admin' : 'dashboard'
-            window.history.replaceState({ page: destination }, '', pageToPath(destination))
-            setPage(destination)
+            setSessionExpired(false)
+            setSessionCheckError(null)
+            setSessionExpiresAt(user.expiresAt || null)
+            setSessionInactivityTimeoutSeconds(user.inactivityTimeoutSeconds || null)
+            setShowSessionWarning(false)
+            lastClientActivityRef.current = Date.now()
+            const destination = getLoginDestination(user)
+            window.history.replaceState({ page: destination.page }, '', destination.path)
+            setPage(destination.page)
           }}
+          sessionCheckError={sessionCheckError}
+          onRetrySession={() => void restoreSession(pathToPage(window.location.pathname))}
         />
       )}
       {page === 'mocktests' && <MockTests onNavigate={navigate} />}
@@ -271,5 +429,25 @@ export default function App() {
         </div>
       )}
     </Suspense>
+    {showSessionWarning && page !== 'signin' && (
+      <div className="session-inactivity-overlay" role="presentation">
+        <section className="session-inactivity-dialog" role="dialog" aria-modal="true" aria-labelledby="session-inactivity-title">
+          <div className="session-inactivity-icon" aria-hidden="true">!</div>
+          <h2 id="session-inactivity-title">Still there?</h2>
+          <p>You have been inactive for a while. Move or interact with the website to remain signed in.</p>
+          <button type="button" onClick={() => {
+            void authAPI.recordActivity().then(result => {
+              setSessionExpiresAt(result.expiresAt)
+              setSessionInactivityTimeoutSeconds(result.inactivityTimeoutSeconds)
+              setSessionCheckError(null)
+              setShowSessionWarning(false)
+            }).catch(error => {
+              if (!(error instanceof SessionExpiredError)) setSessionCheckError(getSessionCheckErrorMessage(error))
+            })
+          }}>Stay Signed In</button>
+        </section>
+      </div>
+    )}
+    </>
   )
 }

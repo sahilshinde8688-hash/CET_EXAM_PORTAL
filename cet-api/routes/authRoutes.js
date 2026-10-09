@@ -10,13 +10,15 @@ const {
   signAccessToken,
   signRefreshToken,
   setAuthCookies,
+  clearSessionCookies,
   clearAuthCookies,
   hashToken,
 } = require('../utils/authHelpers')
 const { validateCsrfToken } = require('../middleware/csrf')
 const { sensitiveHeaders } = require('../middleware/securityHeaders')
 const { loginLimiter, registerLimiter, refreshLimiter } = require('../middleware/rateLimit')
-const { protect } = require('../middleware/auth')
+const { protect, protectWithoutActivity } = require('../middleware/auth')
+const { getSessionExpiresAt, sendSessionExpired } = require('../config/auth')
 
 const getUserPayload = (user) => ({
   _id: user.id || user._id,
@@ -58,10 +60,12 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
   const sessionId = createSessionId()
   const deviceInfo = getDeviceInfo(req)
   const userId = user.id || user._id
+  const inactivityTimeoutSeconds = await db.getSessionInactivityTimeoutSeconds()
+  const lastActivity = new Date()
+  const sessionExpiresAt = new Date(lastActivity.getTime() + inactivityTimeoutSeconds * 1000).toISOString()
   const accessToken = signAccessToken(userId, sessionId)
   const refreshTokenValue = signRefreshToken(userId, sessionId, rememberMe)
   const refreshTokenHash = hashToken(refreshTokenValue)
-  const refreshExpiry = new Date(Date.now() + (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000).toISOString()
 
   const session = await db.createSession({
     sessionId,
@@ -71,7 +75,8 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
     operatingSystem: deviceInfo.operatingSystem,
     ipAddress: deviceInfo.ipAddress,
     country: deviceInfo.country,
-    expiresAt: refreshExpiry,
+    expiresAt: sessionExpiresAt,
+    lastActivity: lastActivity.toISOString(),
     isCurrent: true,
   })
   if (!session?.session_id) throw new Error('Unable to persist the authentication session.')
@@ -86,7 +91,7 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
       operatingSystem: deviceInfo.operatingSystem,
       ipAddress: deviceInfo.ipAddress,
       country: deviceInfo.country,
-      expiresAt: refreshExpiry,
+      expiresAt: sessionExpiresAt,
     })
     if (!refreshRecord?.id) throw new Error('Unable to persist the refresh token.')
   } catch (err) {
@@ -114,66 +119,94 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
     console.warn('LoginHistory log notice:', err.message)
   }
 
-  setAuthCookies(res, accessToken, refreshTokenValue, req.csrfToken, rememberMe)
+  setAuthCookies(res, accessToken, refreshTokenValue, req.csrfToken, sessionExpiresAt)
 
   return {
     ...getUserPayload(user),
     sessionId: session.session_id || sessionId,
     rememberMe,
+    expiresAt: sessionExpiresAt,
+    inactivityTimeoutSeconds,
   }
 }
 
-const refreshUserSession = async (req, res) => {
+const refreshUserSession = async (req, res, recordRefreshHistory = false) => {
   const refreshToken = req.cookies?.refreshToken
   if (!refreshToken) {
-    return res.status(401).json({ success: false, message: 'No refresh token found.' })
+    clearSessionCookies(res)
+    return sendSessionExpired(res)
   }
 
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET)
     if (decoded.type !== 'refresh') {
-      return res.status(401).json({ success: false, message: 'Invalid token type.' })
+      clearSessionCookies(res)
+      return sendSessionExpired(res)
     }
 
     const tokenHash = hashToken(refreshToken)
     const storedToken = await db.findRefreshTokenByHash(tokenHash)
 
-    if (!storedToken || storedToken.revoked_at || new Date(storedToken.expires_at) <= new Date()) {
-      return res.status(401).json({ success: false, message: 'Refresh token expired or revoked.' })
+    if (!storedToken || storedToken.revoked_at || storedToken.session_id !== decoded.sessionId || storedToken.user_id !== decoded.id) {
+      clearSessionCookies(res)
+      return sendSessionExpired(res)
+    }
+
+    const session = await db.findSessionById(storedToken.session_id)
+    const inactivityTimeoutSeconds = await db.getSessionInactivityTimeoutSeconds()
+    const inactivityDeadline = getSessionExpiresAt(session, inactivityTimeoutSeconds)
+    if (!session || session.revoked_at || session.user_id !== storedToken.user_id || !inactivityDeadline) {
+      clearSessionCookies(res)
+      return sendSessionExpired(res)
+    }
+    if (inactivityDeadline <= Date.now()) {
+      const expiredAt = new Date().toISOString()
+      await db.updateSession(storedToken.session_id, { revoked_at: expiredAt, expires_at: expiredAt, is_current: false })
+      await db.updateRefreshToken(storedToken.id, { revoked_at: expiredAt })
+      clearSessionCookies(res)
+      return sendSessionExpired(res)
     }
 
     const user = await db.findUserById(storedToken.user_id)
     if (!user || user.status === 'rejected' || (user.role === 'student' && user.status === 'pending')) {
-      return res.status(401).json({ success: false, message: 'User not found.' })
-    }
-
-    const session = await db.findSessionById(storedToken.session_id)
-    if (!session || session.revoked_at || session.user_id !== storedToken.user_id) {
-      return res.status(401).json({ success: false, message: 'Session not active.' })
+      clearSessionCookies(res)
+      return sendSessionExpired(res)
     }
 
     const rememberMe = decoded.rememberMe === true
-      || (new Date(storedToken.expires_at).getTime() - new Date(storedToken.created_at).getTime()) > 8 * 24 * 60 * 60 * 1000
+    const now = new Date()
+    const sessionExpiresAt = new Date(now.getTime() + inactivityTimeoutSeconds * 1000).toISOString()
     await db.updateSession(storedToken.session_id, {
-      expires_at: storedToken.expires_at,
-      last_activity: new Date().toISOString(),
+      last_activity: now.toISOString(),
+      expires_at: sessionExpiresAt,
+      is_current: true,
     })
+    await db.updateRefreshToken(storedToken.id, { expires_at: sessionExpiresAt })
 
     const accessToken = signAccessToken(user.id, storedToken.session_id)
-    setAuthCookies(res, accessToken, refreshToken, req.csrfToken, rememberMe)
+    setAuthCookies(res, accessToken, refreshToken, req.csrfToken, sessionExpiresAt)
 
-    await db.createLoginHistory({
-      userId: user.id,
+    if (recordRefreshHistory) {
+      await db.createLoginHistory({
+        userId: user.id,
+        sessionId: storedToken.session_id,
+        event: 'refresh_success',
+        ipAddress: getDeviceInfo(req).ipAddress,
+        userAgent: req.headers['user-agent'],
+      })
+    }
+
+    return res.json({
+      success: true,
+      user: getUserPayload(user),
       sessionId: storedToken.session_id,
-      event: 'refresh_success',
-      ipAddress: getDeviceInfo(req).ipAddress,
-      userAgent: req.headers['user-agent'],
+      expiresAt: sessionExpiresAt,
+      inactivityTimeoutSeconds,
     })
-
-    return res.json({ success: true, user: getUserPayload(user), sessionId: storedToken.session_id })
   } catch (err) {
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError' || err.name === 'NotBeforeError') {
-      return res.status(401).json({ success: false, message: 'Refresh token invalid or expired.' })
+      clearSessionCookies(res)
+      return sendSessionExpired(res)
     }
     console.error('Session refresh failed:', err.message || err)
     return res.status(500).json({ success: false, message: 'Unable to refresh your session.' })
@@ -205,8 +238,8 @@ router.post('/register', sensitiveHeaders, registerLimiter, async (req, res) => 
     }
 
     const numBatch = Number(batch)
-    if (isNaN(numBatch) || numBatch < 2020 || numBatch > 2040) {
-      return res.status(400).json({ success: false, message: 'Invalid batch year.' })
+    if (!Number.isInteger(numBatch) || ![1, 2].includes(numBatch)) {
+      return res.status(400).json({ success: false, message: 'Select a valid batch.' })
     }
 
     let createdUser = null
@@ -316,7 +349,9 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
   }
 })
 
-router.post('/refresh', validateCsrfToken, refreshLimiter, async (req, res) => refreshUserSession(req, res))
+router.post('/refresh', validateCsrfToken, refreshLimiter, async (req, res) => refreshUserSession(req, res, true))
+
+router.post('/activity', validateCsrfToken, async (req, res) => refreshUserSession(req, res))
 
 router.post('/logout', validateCsrfToken, sensitiveHeaders, async (req, res) => {
   try {
@@ -335,14 +370,30 @@ router.post('/logout', validateCsrfToken, sensitiveHeaders, async (req, res) => 
       } catch {}
     }
 
+    let sessionUserId = tokenRecord?.user_id
     if (sessionId) {
-      const session = await db.findSessionById(sessionId)
-      if (session && !session.revoked_at) {
+      const storedSession = await db.findSessionById(sessionId)
+      if (storedSession) sessionUserId = storedSession.user_id || sessionUserId
+      if (storedSession && !storedSession.revoked_at) {
         await db.updateSession(sessionId, { revoked_at: now, expires_at: now, is_current: false })
       }
     }
     if (tokenRecord && !tokenRecord.revoked_at) {
       await db.updateRefreshToken(tokenRecord.id, { revoked_at: now })
+    }
+
+    if (sessionUserId) {
+      try {
+        await db.createLoginHistory({
+          userId: sessionUserId,
+          sessionId: sessionId || '',
+          event: 'logout',
+          ipAddress: getDeviceInfo(req).ipAddress,
+          userAgent: req.headers['user-agent'],
+        })
+      } catch (historyError) {
+        console.error('Logout activity record failed:', historyError.message || historyError)
+      }
     }
 
     clearAuthCookies(res)
@@ -360,6 +411,15 @@ router.get('/csrf', (req, res) => {
 
 router.get('/me', sensitiveHeaders, protect, async (req, res) => {
   return res.json(getUserPayload(req.user))
+})
+
+router.get('/session', sensitiveHeaders, protectWithoutActivity, async (req, res) => {
+  return res.json({
+    authenticated: true,
+    expiresAt: req.sessionExpiresAt,
+    inactivityTimeoutSeconds: req.sessionInactivityTimeoutSeconds,
+    user: getUserPayload(req.user),
+  })
 })
 
 module.exports = router

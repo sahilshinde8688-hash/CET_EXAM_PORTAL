@@ -7,13 +7,45 @@ const { protect, adminOnly } = require('../middleware/auth')
 const { apiLimiter, passwordResetLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
 
-// Generate unique MHT-CET ID: MHC-YYYY-NNNNN
+// Generate the next MHT-CET ID from the highest assigned number, not total
+// users, because IDs can remain after users are deleted.
 const generateMhcetId = async () => {
   const year = new Date().getFullYear()
   const users = await db.getAllUsers()
-  const count = users.filter((u) => Boolean(u.mhcetId)).length
-  const num = String(count + 1).padStart(5, '0')
+  const prefix = `MHC-${year}-`
+  const maxNumber = users.reduce((max, user) => {
+    const match = String(user.mhcetId || '').match(new RegExp(`^${prefix}(\\d+)$`))
+    return match ? Math.max(max, Number(match[1])) : max
+  }, 0)
+  const num = String(maxNumber + 1).padStart(5, '0')
   return `MHC-${year}-${num}`
+}
+
+const isMhcetIdConflict = (error) => error?.code === '23505'
+  && /users_mhcet_id_key|mhcet_id/i.test(String(error?.message || error?.details || ''))
+
+const approveStudent = async (user) => {
+  const mhcetPwd = generatePassword()
+  const hashedPassword = await bcrypt.hash(mhcetPwd, 10)
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const mhcetId = await generateMhcetId()
+    try {
+      const approvedUser = await db.updateUser(user.id, {
+        status: 'approved',
+        mhcetId,
+        password: hashedPassword,
+        mhcetPassword: mhcetPwd,
+        mustResetPassword: true,
+        approvedAt: new Date().toISOString(),
+      })
+      return { user: approvedUser, mhcetId, mhcetPwd }
+    } catch (error) {
+      if (!isMhcetIdConflict(error) || attempt === 4) throw error
+    }
+  }
+
+  throw new Error('Unable to assign a unique MHT-CET ID.')
 }
 
 // Generate secure random temporary password (8 characters)
@@ -33,7 +65,7 @@ router.get('/me', protect, apiLimiter, (req, res) => {
 // PUT /api/users/profile — Update user profile
 router.put('/profile', protect, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
-    const { name, email, phone, branch, batch } = req.body
+    const { name, email, phone, branch, batch, examType } = req.body
     const userId = req.user.id || req.user._id
 
     const user = await db.findUserById(userId)
@@ -61,6 +93,12 @@ router.put('/profile', protect, validateCsrfToken, apiLimiter, async (req, res) 
     if (name) updates.name = String(name).trim().slice(0, 100)
     if (branch && ['Byculla', 'Worli', 'Prabhadevi'].includes(branch)) updates.branch = branch
     if (batch) updates.batch = Number(batch)
+    if (examType !== undefined) {
+      if (examType !== null && !['PCM', 'PCB', 'PCMB'].includes(examType)) {
+        return res.status(400).json({ success: false, message: 'Exam category must be PCM, PCB, or PCMB.' })
+      }
+      updates.examType = examType
+    }
 
     const updatedUser = await db.updateUser(user.id, updates)
     delete updatedUser.password
@@ -148,18 +186,7 @@ router.post('/:id/approve', protect, adminOnly, validateCsrfToken, apiLimiter, a
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
     if (user.status === 'approved') return res.status(400).json({ success: false, message: 'Already approved' })
 
-    const mhcetId = await generateMhcetId()
-    const mhcetPwd = generatePassword()
-    const hashedPassword = await bcrypt.hash(mhcetPwd, 10)
-
-    const updatedUser = await db.updateUser(user.id, {
-      status: 'approved',
-      mhcetId,
-      password: hashedPassword,
-      mhcetPassword: mhcetPwd,
-      mustResetPassword: true,
-      approvedAt: new Date().toISOString(),
-    })
+    const { user: updatedUser, mhcetId, mhcetPwd } = await approveStudent(user)
 
     const sanitizedUser = { ...updatedUser }
     delete sanitizedUser.password
@@ -281,18 +308,7 @@ router.post('/bulk-approve', protect, adminOnly, validateCsrfToken, apiLimiter, 
         const user = await db.findUserById(id)
         if (!user || user.status === 'approved') continue
 
-        const mhcetId = await generateMhcetId()
-        const mhcetPwd = generatePassword()
-        const hashedPassword = await bcrypt.hash(mhcetPwd, 10)
-
-        const updatedUser = await db.updateUser(user.id, {
-          status: 'approved',
-          mhcetId,
-          password: hashedPassword,
-          mhcetPassword: mhcetPwd,
-          mustResetPassword: true,
-          approvedAt: new Date().toISOString(),
-        })
+        const { user: updatedUser, mhcetId, mhcetPwd } = await approveStudent(user)
 
         const sanitized = { ...updatedUser }
         delete sanitized.password

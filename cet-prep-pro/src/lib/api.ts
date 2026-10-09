@@ -1,5 +1,3 @@
-import { supabase } from './supabaseClient'
-
 export const getApiUrl = (): string => {
   if (import.meta.env.DEV && typeof window !== 'undefined') {
     return window.location.origin
@@ -109,9 +107,18 @@ const ensureCsrfToken = async (): Promise<string | null> => {
 }
 
 export class SessionExpiredError extends Error {
-  constructor() {
-    super('Your session has expired. Please sign in again.')
+  readonly code = 'SESSION_EXPIRED'
+
+  constructor(message = 'Your session expired because you were inactive. Please sign in again.') {
+    super(message)
     this.name = 'SessionExpiredError'
+  }
+}
+
+export class ApiResponseError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'ApiResponseError'
   }
 }
 
@@ -119,10 +126,14 @@ const nativeFetch: typeof globalThis.fetch = globalThis.fetch.bind(globalThis)
 const apiOrigin = new URL(BASE).origin
 const apiPath = new URL(BASE).pathname
 let refreshPromise: Promise<void> | null = null
+let sessionCheckPromise: Promise<AuthenticatedSession> | null = null
 
-const expireClientSession = () => {
+const expireClientSession = (message?: string) => {
+  const hadSession = Boolean(session.get())
   session.clear()
-  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('auth:expired'))
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth:expired', { detail: { hadSession, message } }))
+  }
 }
 
 const fetch: typeof globalThis.fetch = async (input, init) => {
@@ -148,7 +159,13 @@ const fetch: typeof globalThis.fetch = async (input, init) => {
   }
 
   let response = await nativeFetch(input, requestInit)
-  if (response.status !== 401 || bypassRefresh) return response
+  if (response.status !== 401 || bypassRefresh) {
+    const isBackgroundRequest = requestUrl.searchParams.get('_background') === '1'
+    if (response.ok && !bypassRefresh && !isBackgroundRequest && requestPath !== `${apiPath}/auth/session` && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth:activity'))
+    }
+    return response
+  }
 
   try {
     if (!refreshPromise) {
@@ -156,14 +173,20 @@ const fetch: typeof globalThis.fetch = async (input, init) => {
     }
     await refreshPromise
   } catch (error) {
-    if (error instanceof SessionExpiredError) expireClientSession()
+    if (error instanceof SessionExpiredError) expireClientSession(error.message)
     throw error
   }
 
   response = await nativeFetch(input, requestInit)
   if (response.status === 401) {
-    expireClientSession()
-    throw new SessionExpiredError()
+    const body = await response.clone().json().catch(() => ({}))
+    const error = new SessionExpiredError(body.message)
+    expireClientSession(error.message)
+    throw error
+  }
+  const isBackgroundRequest = requestUrl.searchParams.get('_background') === '1'
+  if (response.ok && !bypassRefresh && !isBackgroundRequest && requestPath !== `${apiPath}/auth/session` && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth:activity'))
   }
   return response
 }
@@ -180,9 +203,12 @@ async function handle(res: Response) {
       const body = JSON.parse(text)
       msg = body.message || msg
       details = body.details
+      if (body.code === 'MAINTENANCE_MODE' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('maintenance:active', { detail: { message: msg } }))
+      }
     } catch {}
-    const error = new Error(msg)
-    ;(error as any).details = details
+    const error = new ApiResponseError(msg, res.status)
+    if (details !== undefined) Object.assign(error, { details })
     throw error
   }
   return res
@@ -202,8 +228,19 @@ async function doRefreshTokens(): Promise<void> {
     headers,
   })
   if (!res.ok) {
-    if (res.status === 401 || res.status === 403) throw new SessionExpiredError()
-    throw new Error('Unable to verify your session. Please try again.')
+    const text = await res.text().catch(() => '')
+    let message = text || `HTTP ${res.status}`
+    let code = ''
+    try {
+      const body = JSON.parse(text)
+      message = body.message || message
+      code = body.code || ''
+    } catch {}
+    if (res.status === 401 || res.status === 403) {
+      if (code === 'SESSION_EXPIRED') throw new SessionExpiredError(message)
+      throw new SessionExpiredError(message)
+    }
+    throw new ApiResponseError(message, res.status)
   }
 }
 
@@ -224,13 +261,23 @@ export interface AuthUser {
   status?: 'pending' | 'approved' | 'rejected'
   phone?: string
   branch?: string
+  examType?: string | null
   mhcetId?: string
   createdAt?: string
   mustResetPassword?: boolean
+  expiresAt?: string
+  inactivityTimeoutSeconds?: number
   batch?: number
   photo?: string
   password?: string
   mhcetPassword?: string
+}
+
+export interface AuthenticatedSession {
+  authenticated: boolean
+  expiresAt: string
+  inactivityTimeoutSeconds: number
+  user: AuthUser
 }
 
 /* ── Auth ── */
@@ -338,70 +385,15 @@ export const authAPI = {
     throw backendError || new Error('Unable to reach the login server.')
   },
   register: async (name: string, email: string, phone: string, branch: string, batch: string | number) => {
-    const numBatch = typeof batch === 'string' ? parseInt(batch.replace(/\D/g, ''), 10) || 1 : Number(batch)
+    const numBatch = Number(batch)
     const cleanEmail = email.trim().toLowerCase()
     const cleanPhone = phone.trim()
-
-    const { data: existingUser, error: lookupError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', cleanEmail)
-      .maybeSingle()
-    if (!lookupError && existingUser) throw new Error('Email already registered')
-
-    const pendingStudent: AuthUser = {
-      _id: '',
-      name: name.trim(),
-      email: cleanEmail,
-      phone: cleanPhone,
-      branch: branch,
-      batch: numBatch,
-      role: 'student',
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    }
-
-    try {
-      const res = await fetch(`${BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: cleanEmail, phone: cleanPhone, branch, batch: numBatch }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        return data
-      }
-    } catch {}
-
-    // Keep the pending application in the shared database when the API is unavailable.
-    try {
-      const { data, error } = await supabase.from('users').insert({
-        name: name.trim(),
-        email: cleanEmail,
-        phone: cleanPhone,
-        branch,
-        batch: numBatch,
-        role: 'student',
-        status: 'pending',
-      }).select().single()
-
-      if (error) throw error
-
-      const user = {
-        ...pendingStudent,
-        _id: data.id,
-        id: data.id,
-        createdAt: data.created_at,
-      }
-      return {
-        message: 'Registration submitted! Your account is under review. You will receive your MHT-CET credentials via email once approved.',
-        status: 'pending',
-        user,
-      }
-    } catch (error: any) {
-      if (error?.code === '23505') throw new Error('Email already registered')
-      throw new Error('Unable to submit registration. Please try again.')
-    }
+    const res = await fetch(`${BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), email: cleanEmail, phone: cleanPhone, branch, batch: numBatch }),
+    })
+    return await handle(res).then(response => response.json())
   },
   refresh: async () => {
     // Don't use handle() here to avoid infinite recursion
@@ -426,6 +418,30 @@ export const authAPI = {
     }
     const data = await res.json()
     return data
+  },
+  recordActivity: async (): Promise<{ expiresAt: string; inactivityTimeoutSeconds: number }> => {
+    const res = await fetch(`${BASE}/auth/activity`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    const data = await handle(res).then(response => response.json())
+    return {
+      expiresAt: data.expiresAt,
+      inactivityTimeoutSeconds: data.inactivityTimeoutSeconds,
+    }
+  },
+  checkSession: async (): Promise<AuthenticatedSession> => {
+    if (!sessionCheckPromise) {
+      sessionCheckPromise = (async () => {
+        const res = await fetch(`${BASE}/auth/session`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-store',
+        })
+        return await handle(res).then(response => response.json() as Promise<AuthenticatedSession>)
+      })().finally(() => { sessionCheckPromise = null })
+    }
+    return sessionCheckPromise
   },
   me: async () => {
     const res = await fetch(`${BASE}/auth/me`, {
@@ -486,38 +502,6 @@ export const session = {
   },
 }
 
-const LOCAL_REGISTRATIONS_KEY = 'cet_pending_registrations'
-const REMOVED_LOCAL_USERS = new Set(['sahilshinde1947@gmail.com'])
-
-function getLocalRegistrations(): AuthUser[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(LOCAL_REGISTRATIONS_KEY)
-    const users: AuthUser[] = raw ? JSON.parse(raw) : []
-    const activeUsers = users.filter((user) => !REMOVED_LOCAL_USERS.has(user.email?.toLowerCase() || ''))
-    if (activeUsers.length !== users.length) {
-      localStorage.setItem(LOCAL_REGISTRATIONS_KEY, JSON.stringify(activeUsers))
-    }
-    return activeUsers
-  } catch {
-    return []
-  }
-}
-
-function saveLocalRegistrations(list: AuthUser[]) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(LOCAL_REGISTRATIONS_KEY, JSON.stringify(list))
-  try {
-    window.dispatchEvent(new CustomEvent('cet:registration', { detail: list }))
-    window.dispatchEvent(new Event('storage'))
-    if (typeof BroadcastChannel !== 'undefined') {
-      const bc = new BroadcastChannel('cet_registrations_channel')
-      bc.postMessage({ type: 'registration_updated', list })
-      bc.close()
-    }
-  } catch {}
-}
-
 /* ── Users ── */
 export const usersAPI = {
   async me() {
@@ -529,75 +513,10 @@ export const usersAPI = {
     return data as AuthUser
   },
   async getAll(status?: string) {
-    let apiUsers: AuthUser[] = []
-    try {
-      const url = status ? `${BASE}/users?status=${status}` : `${BASE}/users`
-      const res = await fetch(url, { method: 'GET', credentials: 'include' })
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data)) apiUsers = data
-      }
-    } catch {}
-
-    let sbUsers: AuthUser[] = []
-    try {
-      let q = supabase.from('users').select('*')
-      q = q.eq('role', 'student')
-      if (status) q = q.eq('status', status)
-      const { data } = await q
-      if (data) {
-        sbUsers = data.map((r: any) => ({
-          _id: r.id,
-          id: r.id,
-          name: r.name,
-          email: r.email,
-          phone: r.phone,
-          branch: r.branch,
-          batch: r.batch,
-          role: 'student',
-          status: r.status || 'approved',
-          mhcetId: r.mhcet_id,
-          mhcetPassword: r.mhcet_password,
-          createdAt: r.created_at,
-        }))
-      }
-    } catch {}
-
-    const localUsers = getLocalRegistrations()
-    const map = new Map<string, AuthUser>()
-
-    // Priority 1: Supabase DB users
-    sbUsers.forEach((u) => {
-      if (u && u.email) map.set(u.email.toLowerCase(), u)
-    })
-
-    // Priority 2: Backend API users. Preserve credentials when one source omits them.
-    apiUsers.forEach((u) => {
-      if (!u || !u.email) return
-      const key = u.email.toLowerCase()
-      const existing = map.get(key)
-      map.set(key, existing ? {
-        ...existing,
-        ...u,
-        mhcetPassword: u.mhcetPassword || existing.mhcetPassword,
-      } : u)
-    })
-
-    // Only use local storage when both remote sources are unavailable.
-    if (apiUsers.length === 0 && sbUsers.length === 0) {
-      localUsers.forEach((u) => {
-        if (u && u.email && u.role === 'student') {
-          const key = u.email.toLowerCase()
-          map.set(key, u)
-        }
-      })
-    }
-
-    const allList = Array.from(map.values()).filter((u) => u.role === 'student')
-    if (status) {
-      return allList.filter((u) => u.status === status)
-    }
-    return allList
+    const url = status ? `${BASE}/users?status=${encodeURIComponent(status)}` : `${BASE}/users`
+    const res = await fetch(url, { method: 'GET', credentials: 'include' })
+    const data = await handle(res).then(() => res.json())
+    return data as AuthUser[]
   },
   async stats() {
     const all = await this.getAll()
@@ -607,55 +526,15 @@ export const usersAPI = {
     return { pending, approved, rejected }
   },
   async approve(id: string) {
-    const year = new Date().getFullYear()
-    const randNum = String(Math.floor(10000 + Math.random() * 90000))
-    const mhcetId = `MHC-${year}-${randNum}`
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$'
-    const mhcetPwd = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-
-    try {
-      const csrfToken = getCsrfToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-      const res = await fetch(`${BASE}/users/${id}/approve`, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data && data.mhcetId) return data
-      }
-    } catch {}
-
-    const local = getLocalRegistrations()
-    const updated = local.map((u) => {
-      if (u._id === id || u.id === id || u.email === id) {
-        return { ...u, status: 'approved' as const, mhcetId, mhcetPassword: mhcetPwd, approvedAt: new Date().toISOString() }
-      }
-      return u
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/users/${id}/approve`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
     })
-    saveLocalRegistrations(updated)
-
-    // Update the existing pending row so approval keeps its database identity.
-    try {
-      const { data, error } = await supabase.from('users').update({
-        status: 'approved',
-        mhcet_id: mhcetId,
-        mhcet_password: mhcetPwd,
-        must_reset_password: true,
-        approved_at: new Date().toISOString(),
-      }).eq('id', id).select().single()
-      if (error) throw error
-      return {
-        mhcetId,
-        message: `Student approved! MHT-CET ID: ${mhcetId} (Temp Password: ${mhcetPwd}). Saved to Supabase database.`,
-        user: data,
-      }
-    } catch (err) {
-      throw new Error('Unable to approve this registration. Please refresh and try again.')
-    }
+    return await handle(res).then(response => response.json())
   },
   async resendCredentials(id: string) {
     const csrfToken = getCsrfToken()
@@ -671,175 +550,65 @@ export const usersAPI = {
     return data as { message: string; password?: string }
   },
   async reject(id: string) {
-    try {
-      const csrfToken = getCsrfToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-      await fetch(`${BASE}/users/${id}/reject`, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-      })
-    } catch {}
-
-    const local = getLocalRegistrations()
-    const updated = local.map((u) => {
-      if (u._id === id || u.id === id) return { ...u, status: 'rejected' as const }
-      return u
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/users/${id}/reject`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
     })
-    saveLocalRegistrations(updated)
-
-    try {
-      await supabase.from('users').update({ status: 'rejected' }).or(`id.eq.${id},email.eq.${id}`)
-    } catch {}
-
-    return { message: 'Student rejected.' }
+    return await handle(res).then(response => response.json())
   },
   async bulkApprove(ids: string[]) {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-    try {
-      const res = await fetch(`${BASE}/users/bulk-approve`, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify({ ids }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success) return data
-      }
-    } catch {}
-
-    // Fallback: approve sequentially
-    let approvedCount = 0
-    for (const id of ids) {
-      try {
-        await this.approve(id)
-        approvedCount++
-      } catch (err) {
-        console.error(`Failed to approve ${id}:`, err)
-      }
-    }
-    return { success: true, count: approvedCount, message: `Approved ${approvedCount} student(s).` }
+    const res = await fetch(`${BASE}/users/bulk-approve`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ ids }),
+    })
+    return await handle(res).then(response => response.json())
   },
   async bulkReject(ids: string[], reason?: string) {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-    try {
-      const res = await fetch(`${BASE}/users/bulk-reject`, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify({ ids, reason }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success) return data
-      }
-    } catch {}
-
-    // Fallback: reject sequentially
-    let rejectedCount = 0
-    for (const id of ids) {
-      try {
-        await this.reject(id)
-        rejectedCount++
-      } catch (err) {
-        console.error(`Failed to reject ${id}:`, err)
-      }
-    }
-    return { success: true, count: rejectedCount, message: `Rejected ${rejectedCount} applicant(s).` }
+    const res = await fetch(`${BASE}/users/bulk-reject`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ ids, reason }),
+    })
+    return await handle(res).then(response => response.json())
   },
   async updateStudent(id: string, updates: Partial<AuthUser>) {
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-    try {
-      const res = await fetch(`${BASE}/users/${id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify(updates),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.success) return data.user
-      }
-    } catch {}
-
-    // Update in Supabase
-    try {
-      const dbUpdates: any = {}
-      if (updates.name) dbUpdates.name = updates.name
-      if (updates.email) dbUpdates.email = updates.email
-      if (updates.phone) dbUpdates.phone = updates.phone
-      if (updates.branch) dbUpdates.branch = updates.branch
-      if (updates.batch) dbUpdates.batch = updates.batch
-      if (updates.status) dbUpdates.status = updates.status
-
-      const { data, error } = await supabase
-        .from('users')
-        .update(dbUpdates)
-        .eq('id', id)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    } catch (err) {
-      throw new Error('Unable to update student details.')
-    }
+    const res = await fetch(`${BASE}/users/${id}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify(updates),
+    })
+    const data = await handle(res).then(response => response.json())
+    return data.user
   },
   async delete(id: string) {
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('email')
-      .eq('id', id)
-      .maybeSingle()
-    const deletedEmail = existingUser?.email?.toLowerCase()
-    const { error: supabaseError } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id)
-      .select('id,email')
-    if (!supabaseError) {
-      const local = getLocalRegistrations().filter((u) =>
-        u._id !== id && u.id !== id && u.email?.toLowerCase() !== deletedEmail
-      )
-      saveLocalRegistrations(local)
-      return
-    }
-
-    const csrfToken = getCsrfToken()
+    const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = {}
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-    try {
-      const res = await fetch(`${BASE}/users/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers,
-      })
-      await handle(res)
-      return
-    } catch {
-      const { error } = await supabase.from('users').delete().eq('id', id)
-      if (error) throw error
-
-      const fallbackEmail = deletedEmail
-      const local = getLocalRegistrations().filter((u) =>
-        u._id !== id && u.id !== id && u.email?.toLowerCase() !== fallbackEmail
-      )
-      saveLocalRegistrations(local)
-    }
+    const res = await fetch(`${BASE}/users/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers,
+    })
+    await handle(res)
   },
-  async updateProfile(payload: { name?: string; email?: string; phone?: string; branch?: string; batch?: string | number }) {
+  async updateProfile(payload: { name?: string; email?: string; phone?: string; branch?: string; batch?: string | number; examType?: string | null }) {
     const csrfToken = getCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -892,42 +661,16 @@ export const usersAPI = {
     return data as { message: string }
   },
   async resetPassword(newPassword: string) {
-    try {
-      const csrfToken = getCsrfToken()
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
-      if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-
-      const res = await fetch(`${BASE}/users/reset-password`, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-        body: JSON.stringify({ newPassword }),
-      })
-      return await handle(res).then(() => res.json())
-    } catch {
-      const user = session.get<AuthUser>()
-      if (!user?._id) throw new Error('Your session has expired. Please sign in again.')
-
-      const { data, error } = await supabase
-        .from('users')
-        .update({
-          password: newPassword,
-          mhcet_password: null,
-          must_reset_password: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user._id)
-        .select('id,name,email')
-        .single()
-
-      if (error) throw error
-      return {
-        message: 'Password reset successful',
-        user: { _id: data.id, id: data.id, name: data.name, email: data.email },
-      }
-    }
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/users/reset-password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ newPassword }),
+    })
+    return await handle(res).then(() => res.json())
   },
 }
 
@@ -936,10 +679,12 @@ export interface MockTest {
   _id: string
   title: string
   subject: string
+  examType?: string | null
   questions: number
   duration: number
   difficulty: 'Easy' | 'Medium' | 'Hard'
   status: 'active' | 'scheduled' | 'draft'
+  maxAttempts?: number
   attempts: number
   avgScore: number
   scheduledDate?: string
@@ -948,9 +693,73 @@ export interface MockTest {
   questionIds?: string[]
 }
 
+export type MockTestAssignment = {
+  _id: string
+  mockTestId: string
+  mockTestName: string
+  assignedTo: 'all' | 'students' | 'batch' | 'branch' | 'examType'
+  studentIds: string[]
+  batchId?: number | null
+  branch?: string | null
+  examType?: string | null
+  subject?: string
+  questionCount?: number
+  totalMarks?: number
+  startDateTime: string
+  endDateTime: string
+  duration: number
+  attemptLimit: number | null
+  visibility: 'scheduled' | 'available' | 'draft'
+  timeZone: string
+  schedulingStatus: 'draft' | 'scheduled' | 'active' | 'expired' | 'cancelled'
+  activatedAt?: string | null
+  expiredAt?: string | null
+  resultVisibility: 'immediate' | 'after_close' | 'admin_only' | 'hidden'
+  randomizeQuestions: boolean
+  randomizeOptions: boolean
+  allowBackNavigation: boolean
+  allowResume: boolean
+  status: 'active' | 'cancelled' | 'archived' | 'Upcoming' | 'Available' | 'In Progress' | 'Completed' | 'Submitted' | 'Expired'
+  assignedStudentCount?: number
+  attemptsUsed?: number
+  hasSubmittedAttempt?: boolean
+  attemptsRemaining?: number | null
+  attemptCount?: number
+  activeAttemptId?: string | null
+  results?: Array<{ score: number; totalMarks: number; attemptedAt: string }>
+  createdAt?: string
+}
+
+export type MockTestAttempt = {
+  _id: string
+  assignmentId: string
+  mockTestId: string
+  studentId: string
+  startedAt: string
+  submittedAt?: string | null
+  status: 'in_progress' | 'submitted' | 'expired'
+  attemptNumber: number
+  score?: number | null
+  totalMarks: number
+  answers: Record<string, number>
+  timeSpent: number
+  questionIds: string[]
+  optionOrders: Record<string, number[]>
+}
+
+export type StartedMockTest = {
+  success: boolean
+  message: string
+  assignment: MockTestAssignment
+  attempt: MockTestAttempt
+  questions: Array<Omit<Question, 'correctIndex' | 'solution'>>
+  resumed: boolean
+}
+
 export interface TestResult {
   _id: string
   userId: string | { _id?: string; name?: string; email?: string; branch?: string }
+  mockTestId?: string | null
   testName: string
   subject: string
   score: number
@@ -972,100 +781,59 @@ export interface TestResult {
   totalQuestions?: number
 }
 
+export interface AdminDashboardOverview {
+  stats: {
+    totalStudents: number
+    totalMockTests: number
+    activeMockTests: number
+    questionCount: number
+    attemptsToday: number
+  }
+  dailyAttemptCounts: number[]
+  yearlyAttemptCounts: number[]
+  testResults: TestResult[]
+}
+
 const dashboardResultsCache = new Map<string, TestResult[]>()
 const dashboardResultsRequests = new Map<string, Promise<TestResult[]>>()
 
 const getDashboardCacheKey = () => session.get<{ _id?: string }>()?._id || 'anonymous'
 
+export const adminDashboardAPI = {
+  async getOverview() {
+    const res = await fetch(`${BASE}/admin/dashboard/overview`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const data = await handle(res).then(response => response.json())
+    return data as AdminDashboardOverview
+  },
+}
+
 export const testsAPI = {
-  async getAllAdmin() {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 2000)
-      const res = await fetch(`${BASE}/tests`, { credentials: 'include', signal: controller.signal }).finally(() => clearTimeout(timeoutId))
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data)) return data as TestResult[]
-      }
-    } catch {}
-
-    try {
-      const { data, error } = await supabase
-        .from('test_results')
-        .select('*')
-        .order('attempted_at', { ascending: false })
-
-      if (error) throw error
-
-      const userIds = [...new Set((data || []).map((row: any) => row.user_id).filter(Boolean))]
-      const { data: usersData, error: usersError } = userIds.length
-        ? await supabase.from('users').select('id, name, email, branch').in('id', userIds)
-        : { data: [], error: null }
-
-      if (usersError) throw usersError
-
-      const userMap = new Map((usersData || []).map((user: any) => [String(user.id), user]))
-
-      return (data || []).map((row: any) => ({
-        _id: row.id,
-        userId: userMap.get(String(row.user_id)) || { _id: row.user_id, name: 'Student', email: 'No email available' },
-        testName: row.test_name,
-        subject: row.subject,
-        score: Number(row.score || 0),
-        totalMarks: Number(row.total_marks || 0),
-        percentile: Number(row.percentile || 0),
-        duration: row.duration,
-        attemptedAt: row.attempted_at,
-        correct: row.correct,
-        incorrect: row.incorrect,
-        unanswered: row.unanswered,
-        totalQuestions: row.total_questions,
-        subjectWiseScores: row.subject_wise_scores || [],
-        answers: row.answers || {},
-        questionIds: row.question_ids || [],
-      }))
-    } catch (fallbackError) {
-      console.error('Failed to load admin results from fallback query:', fallbackError)
-      return []
-    }
+  async getAllAdmin(options: { summaryOnly?: boolean } = {}) {
+    const query = options.summaryOnly ? '?summary=true' : ''
+    const res = await fetch(`${BASE}/tests${query}`, { credentials: 'include' })
+    const data = await handle(res).then(() => res.json())
+    if (!Array.isArray(data)) throw new Error('Unable to load test results.')
+    return data as TestResult[]
+  },
+  async getReview(id: string) {
+    const res = await fetch(`${BASE}/tests/${encodeURIComponent(id)}/review`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    return await handle(res).then(response => response.json()) as { result: TestResult; questions: Question[] }
   },
   async getMyResults() {
-    try {
-      const res = await fetch(`${BASE}/tests/my`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-store',
-      })
-      const data = await handle(res).then(() => res.json())
-      return data as TestResult[]
-    } catch {
-      const user = session.get<AuthUser>()
-      if (!user?._id) return []
-      const { data, error } = await supabase
-        .from('test_results')
-        .select('*')
-        .eq('user_id', user._id)
-        .order('attempted_at', { ascending: false })
-      if (error) throw error
-      return (data || []).map((row: any) => ({
-        _id: row.id,
-        userId: row.user_id,
-        testName: row.test_name,
-        subject: row.subject,
-        score: Number(row.score),
-        totalMarks: Number(row.total_marks),
-        percentile: Number(row.percentile || 0),
-        duration: row.duration,
-        attemptedAt: row.attempted_at,
-        correct: row.correct,
-        incorrect: row.incorrect,
-        unanswered: row.unanswered,
-        totalQuestions: row.total_questions,
-        subjectWiseScores: row.subject_wise_scores || [],
-        answers: row.answers || {},
-        questionIds: row.question_ids || [],
-      }))
-    }
+    const res = await fetch(`${BASE}/tests/my`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as TestResult[]
   },
   getCachedDashboardResults() {
     return dashboardResultsCache.get(getDashboardCacheKey()) || null
@@ -1094,65 +862,427 @@ export const testsAPI = {
     dashboardResultsCache.set(cacheKey, [result, ...current.filter(item => item._id !== result._id)])
   },
   
-  async submitResult(payload: { testName: string; subject: string; score: number; totalMarks: number; percentile: number; duration: number; subjectWiseScores?: any[]; answers?: Record<string, number>; questionIds?: string[]; correct: number; incorrect: number; unanswered: number; totalQuestions: number; }) {
-    try {
-      const res = await fetch(`${BASE}/tests`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await handle(res).then(() => res.json())
-      const result = data as TestResult
-      testsAPI.updateDashboardCache(result)
-      return result
-    } catch {
-      const user = session.get<AuthUser>()
-      if (!user?._id) throw new Error('Please sign in again before submitting the exam.')
-      const { data, error } = await supabase.from('test_results').insert({
-        user_id: user._id,
-        test_name: payload.testName,
-        subject: payload.subject,
-        score: payload.score,
-        total_marks: payload.totalMarks,
-        percentile: payload.percentile,
-        duration: payload.duration,
-        correct: payload.correct,
-        incorrect: payload.incorrect,
-        unanswered: payload.unanswered,
-        total_questions: payload.totalQuestions,
-        subject_wise_scores: payload.subjectWiseScores || [],
-        answers: payload.answers || {},
-        question_ids: payload.questionIds || [],
-      }).select().single()
-      if (error) throw error
-      const result: TestResult = {
-        _id: data.id,
-        userId: data.user_id,
-        testName: data.test_name,
-        subject: data.subject,
-        score: Number(data.score),
-        totalMarks: Number(data.total_marks),
-        percentile: Number(data.percentile || 0),
-        duration: data.duration,
-        attemptedAt: data.attempted_at,
-        correct: data.correct,
-        incorrect: data.incorrect,
-        unanswered: data.unanswered,
-        totalQuestions: data.total_questions,
-        subjectWiseScores: data.subject_wise_scores || [],
-        answers: data.answers || {},
-        questionIds: data.question_ids || [],
-      }
-      testsAPI.updateDashboardCache(result)
-      return result
-    }
+  async submitResult(payload: { testName: string; subject: string; score: number; totalMarks: number; percentile: number; duration: number; subjectWiseScores?: any[]; answers?: Record<string, number>; questionIds?: string[]; mockTestId?: string; correct: number; incorrect: number; unanswered: number; totalQuestions: number; }) {
+    const res = await fetch(`${BASE}/tests`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await handle(res).then(() => res.json())
+    const result = data as TestResult
+    testsAPI.updateDashboardCache(result)
+    return result
   },
 }
 
+export const adminSettingsAPI = {
+  async get() {
+    const res = await fetch(`${BASE}/admin/settings`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as {
+      settings: Record<string, string | number | boolean>
+      admins: Array<{ id: string; name: string; email: string; role: string; admin_role?: string; status: string; created_at: string }>
+      auditLogs: Array<{ id: string; admin_name: string; action: string; module: string; created_at: string; ip_address: string; status: string }>
+      userCount: number
+    }
+  },
+  async save(settings: Record<string, string | number | boolean>) {
+    const res = await fetch(`${BASE}/admin/settings`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean }
+  },
+  async createAdmin(payload: { name: string; email: string; role: string; clusterId?: string }) {
+    const res = await fetch(`${BASE}/admin/settings/admins`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as {
+      success: boolean
+      admin: {
+        id: string
+        name: string
+        email: string
+        phone: string | null
+        role: string
+        admin_role: string | null
+        status: string | null
+        is_locked: boolean | null
+        locked_reason: string | null
+        cluster_id: string | null
+        created_at: string | null
+      }
+      temporaryPassword: string
+    }
+  },
+  async deleteAdmin(id: string) {
+    const res = await fetch(`${BASE}/admin/settings/admins/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean }
+  },
+  async getData(table: string) {
+    const res = await fetch(`${BASE}/admin/settings/data/${encodeURIComponent(table)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    return await handle(res).then(response => response.json()) as Record<string, unknown>[]
+  },
+}
+
+export interface SuperAdminStats {
+  totalStudents: number
+  totalAdmins: number
+  totalMockTests: number
+  totalQuestions: number
+  activeExams: number
+  todayAttempts: number
+  todayRegistrations: number
+  lockedAdmins: number | null
+  activeAlertsCount: number | null
+  todayApiCalls: number | null
+  totalApiCalls: number | null
+  backupHistoryAvailable: boolean
+  lastBackup: {
+    id: string
+    file_name: string
+    file_size_bytes: number
+    created_at: string
+    status: string
+  } | null
+  serverQuick: {
+    uptimeSeconds: number | null
+    processUptime: number
+    memoryUsagePercent: number | null
+    cpuLoad1m: number | null
+  }
+}
+
+export interface SecurityAlert {
+  id: string
+  alert_type: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  description: string
+  metadata?: Record<string, unknown>
+  status: 'active' | 'investigating' | 'resolved'
+  resolved_by?: string
+  resolved_at?: string
+  created_at: string
+}
+
+export interface ServerDiagnostics {
+  platform: string
+  release: string
+  arch: string
+  hostname: string
+  nodeVersion: string
+  applicationVersion: string
+  environment: string
+  processId: number
+  database: string
+  databaseVersion: string | null
+  serverTime: string
+  uptimeSeconds: number | null
+  processUptimeSeconds: number
+  loadAverage: number | null
+  loadLabel: string
+  loadUnavailableReason: string | null
+  cpuUsage: number | null
+  cpuUnavailableReason: string | null
+  cpuCores: number | null
+  diskUsedGB: number | null
+  diskTotalGB: number | null
+  diskUsage: number | null
+  diskUnavailableReason: string | null
+  cpu: {
+    count: number | null
+    model: string | null
+    speedMHz: number | null
+  }
+  systemMemory: {
+    totalMB: number | null
+    usedMB: number | null
+    freeMB: number | null
+    usagePercent: number | null
+  }
+  processMemory: {
+    rssMB: number
+    heapTotalMB: number
+    heapUsedMB: number
+    externalMB: number
+  }
+  timestamp: string
+}
+
+export interface ApiAnalytics {
+  totalRequests: number
+  clientErrors4xx: number
+  serverErrors5xx: number
+  successfulRequests: number
+  rateLimitHits: number
+  averageResponseTimeMs: number | null
+  rateLimit: {
+    limit: number
+    used: number
+    remaining: number
+    windowMs: number
+    resetAt: string | null
+    storage: string
+  } | null
+  lastCall: {
+    endpoint: string
+    method: string
+    status_code: number
+    response_time_ms: number
+    created_at: string
+  } | null
+  topEndpoints: Array<{
+    endpoint: string
+    method: string
+    count: number
+    avgResponseTimeMs: number
+  }>
+  topAdmins: Array<{ id: string; name: string; email: string; count: number }>
+  recentLogs: Array<{
+    id: string
+    endpoint: string
+    method: string
+    status_code: number
+    response_time_ms: number
+    created_at: string
+  }>
+}
+
+export interface BackupRecord {
+  id: string
+  backup_type: string
+  file_name: string
+  file_size_bytes: number
+  storage_path: string
+  status: string
+  error_message?: string
+  created_at: string
+}
+
+export interface SystemPerformancePoint {
+  bucket_start: string
+  cpu_usage: number | null
+  memory_usage: number | null
+  disk_usage: number | null
+  load_average: number | null
+}
+
+export interface SystemService {
+  id: string
+  name: string
+  status: 'running' | 'stopped' | 'failed' | 'unknown' | 'unavailable'
+  uptime?: number | null
+  responseTimeMs?: number
+  reason?: string
+  controllable: boolean
+}
+
+export interface SystemLog {
+  id: string
+  endpoint: string
+  method: string
+  status_code: number
+  response_time_ms: number
+  created_at: string
+  severity: 'error' | 'warning' | 'info'
+  message: string
+}
+
+export interface SafeSystemConfig {
+  environment: string
+  runtime: string
+  nodeVersion: string
+  applicationVersion: string
+  port: number
+  database: string
+  databaseConfigured: boolean
+  redisConfigured: boolean
+  csrfProtection: boolean
+  sessionStorage: string
+}
+
+const superAdminCsrfHeaders = async (): Promise<Record<string, string>> => {
+  const token = await ensureCsrfToken()
+  return token ? { 'X-CSRF-Token': token } : {}
+}
+
+export const superAdminAPI = {
+  async getOverview() {
+    const res = await fetch(`${BASE}/super-admin/overview`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as {
+      success: boolean
+      stats: SuperAdminStats
+      admins: Array<{
+        id: string
+        name: string | null
+        email: string
+        phone: string | null
+        role: string
+        admin_role: string | null
+        status: string | null
+        is_locked: boolean | null
+        locked_reason: string | null
+        cluster_id: string | null
+        created_at: string | null
+      }>
+      adminDetailsAvailable: boolean
+      recentAlerts: SecurityAlert[]
+      systemMetrics: Record<string, number | string | null>
+      dataWarnings: string[]
+    }
+  },
+  async lockAdmin(id: string, reason?: string) {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/admins/${encodeURIComponent(id)}/lock`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders },
+      body: JSON.stringify({ reason }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+  async unlockAdmin(id: string) {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/admins/${encodeURIComponent(id)}/unlock`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrfHeaders,
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+  async forceLogoutAdmin(id: string) {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/admins/${encodeURIComponent(id)}/force-logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrfHeaders,
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+  async getServerStatus() {
+    const res = await fetch(`${BASE}/super-admin/server/status`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; server: ServerDiagnostics }
+  },
+  async getSystemStats() {
+    const res = await fetch(`${BASE}/super-admin/system/stats`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: Record<string, number | string | null>; message: string }
+  },
+  async getPerformance(range: '1h' | '24h' | '7d' | '30d') {
+    const res = await fetch(`${BASE}/super-admin/system/performance?range=${range}`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: SystemPerformancePoint[]; message: string }
+  },
+  async getServices() {
+    const res = await fetch(`${BASE}/super-admin/system/services`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: SystemService[]; message: string }
+  },
+  async getSystemLogs(options: { limit?: number; offset?: number; severity?: string; search?: string } = {}) {
+    const params = new URLSearchParams()
+    if (options.limit !== undefined) params.set('limit', String(options.limit))
+    if (options.offset !== undefined) params.set('offset', String(options.offset))
+    if (options.severity) params.set('severity', options.severity)
+    if (options.search) params.set('search', options.search)
+    const res = await fetch(`${BASE}/super-admin/system/logs?${params}`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: SystemLog[]; total: number; limit: number; offset: number; message: string }
+  },
+  async getSystemConfig() {
+    const res = await fetch(`${BASE}/super-admin/system/config`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: SafeSystemConfig; message: string }
+  },
+  async getMaintenance() {
+    const res = await fetch(`${BASE}/super-admin/server/maintenance`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: { enabled: boolean; message: string; updatedAt: string | null }; message: string }
+  },
+  async getActivity() {
+    const res = await fetch(`${BASE}/super-admin/activity`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: Array<{ id: string; type: string; description: string; created_at: string }>; message: string }
+  },
+  async getAnalyticsOverview() {
+    const res = await fetch(`${BASE}/super-admin/analytics/overview`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: Record<string, number>; message: string }
+  },
+  async getAnalytics(metric: 'attempts' | 'registrations' | 'questions' | 'exams', range = '30d') {
+    const res = await fetch(`${BASE}/super-admin/analytics/${metric}?range=${encodeURIComponent(range)}`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; data: Array<{ bucket_start: string; total: number }>; message: string }
+  },
+  async clearCache(type: 'application' | 'config' | 'view' | 'redis' = 'application') {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/server/clear-cache`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders },
+      body: JSON.stringify({ type }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+  async toggleMaintenance(enabled: boolean, reason?: string) {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/server/maintenance`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders },
+      body: JSON.stringify({ enabled, reason }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; maintenanceMode: boolean; message: string }
+  },
+  async getApiAnalytics(limit = 100) {
+    const res = await fetch(`${BASE}/super-admin/api-analytics?limit=${limit}`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; analytics: ApiAnalytics }
+  },
+  async getBackups() {
+    const res = await fetch(`${BASE}/super-admin/backups`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; backups: BackupRecord[] }
+  },
+  async triggerBackup(type = 'full_db') {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/backups/create`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders },
+      body: JSON.stringify({ type }),
+    })
+    return await handle(res).then(response => response.json()) as {
+      success: boolean
+      backup: BackupRecord
+      content: string
+      fileName: string
+      sizeBytes: number
+      message: string
+    }
+  },
+  async getSecurityAlerts(status = 'all', severity = 'all') {
+    const res = await fetch(`${BASE}/super-admin/security-alerts?status=${encodeURIComponent(status)}&severity=${encodeURIComponent(severity)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; alerts: SecurityAlert[] }
+  },
+  async resolveSecurityAlert(id: string) {
+    const csrfHeaders = await superAdminCsrfHeaders()
+    const res = await fetch(`${BASE}/super-admin/security-alerts/${encodeURIComponent(id)}/resolve`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: csrfHeaders,
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+}
+
+
 export const mockTestsAPI = {
-  async getAll() {
-    const res = await fetch(`${BASE}/mock-tests`, {
+  async getAll(options: { background?: boolean } = {}) {
+    const backgroundQuery = options.background ? '?_background=1' : ''
+    const res = await fetch(`${BASE}/mock-tests${backgroundQuery}`, {
       method: 'GET',
       credentials: 'include',
     })
@@ -1163,6 +1293,14 @@ export const mockTestsAPI = {
     const res = await fetch(`${BASE}/mock-tests?admin=true`, { credentials: 'include' })
     const data = await handle(res).then(() => res.json())
     return data as MockTest[]
+  },
+  async getById(id: string) {
+    const res = await fetch(`${BASE}/mock-tests/${encodeURIComponent(id)}`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as MockTest
   },
   async create(payload: Omit<MockTest, '_id' | 'createdAt' | 'attempts' | 'avgScore'>) {
     const csrfToken = await ensureCsrfToken()
@@ -1202,7 +1340,87 @@ export const mockTestsAPI = {
       credentials: 'include',
       headers,
     })
-    await handle(res)
+    const data = await handle(res).then(response => response.json())
+    return data as { success: boolean; archived?: boolean; message: string }
+  },
+}
+
+const jsonHeaders = async () => {
+  const csrfToken = await ensureCsrfToken()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+  return headers
+}
+
+export const mockTestAssignmentsAPI = {
+  async getAdminAssignments() {
+    const res = await fetch(`${BASE}/admin/mock-tests/assignments`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; assignments: MockTestAssignment[] }
+  },
+  async create(payload: Record<string, unknown>) {
+    const res = await fetch(`${BASE}/admin/mock-tests/assign`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string; assignmentId: string; assignment: MockTestAssignment }
+  },
+  async update(id: string, payload: Record<string, unknown>) {
+    const res = await fetch(`${BASE}/admin/mock-tests/assignments/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as {
+      success: boolean
+      message: string
+      assignment?: MockTestAssignment
+    }
+  },
+  async cancel(id: string) {
+    const res = await fetch(`${BASE}/admin/mock-tests/assignments/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+  async getAttempts(id: string) {
+    const res = await fetch(`${BASE}/admin/mock-tests/assignments/${encodeURIComponent(id)}/attempts`, { credentials: 'include' })
+    return await handle(res).then(response => response.json()) as { success: boolean; attempts: MockTestAttempt[] }
+  },
+  async getStudentAssignments() {
+    const res = await fetch(`${BASE}/student/mock-tests/assigned`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as { success: boolean; assignments: MockTestAssignment[] }
+  },
+  async start(assignmentId: string) {
+    const res = await fetch(`${BASE}/student/mock-tests/${encodeURIComponent(assignmentId)}/start`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({}),
+    })
+    return await handle(res).then(response => response.json()) as StartedMockTest
+  },
+  async saveProgress(attemptId: string, answers: Record<string, number>, timeSpent: number) {
+    const res = await fetch(`${BASE}/student/mock-tests/attempts/${encodeURIComponent(attemptId)}/progress`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ answers, timeSpent }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string; attempt: MockTestAttempt }
+  },
+  async submit(attemptId: string, answers: Record<string, number>, timeSpent: number) {
+    const res = await fetch(`${BASE}/student/mock-tests/attempts/${encodeURIComponent(attemptId)}/submit`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ answers, timeSpent }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string; result?: TestResult; attempt: MockTestAttempt }
   },
 }
 
@@ -1221,8 +1439,264 @@ export interface Question {
   marks: number
   negativeMarks: number
   difficulty: 'Easy' | 'Medium' | 'Hard'
+  // MHT-CET classification (optional — empty/undefined = not classified)
+  questionType?: string
+  cetDifficulty?: string
+  cetRelevance?: string
+  classificationConfidence?: number | null
+  classificationSource?: string
+  sourcePdf?: string
+  sourcePage?: number | null
+  sourceQuestionNumber?: number | null
   isActive: boolean
   createdAt?: string
+}
+
+/** Shape of one question as produced by POST /api/questions/extract/pdf. */
+export interface ExtractedPdfQuestion {
+  questionNumber: number
+  question: string
+  options: Record<string, string>
+  correctAnswer: string
+  correctIndex: number
+  subject: string
+  chapter: string
+  topic: string
+  subTopic?: string
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+  questionType?: string
+  cetDifficulty?: string
+  cetRelevance?: string
+  classificationConfidence?: number
+  classificationSource?: string
+  sourcePdf?: string
+  solution: string
+  confidence: number
+  needsReview: boolean
+  reviewReason: string
+  warnings: string[]
+  sourcePage?: number
+  duplicate: boolean
+  duplicateType: 'exact' | 'similar' | null
+  duplicateOfId: string | null
+  duplicateOfText: string | null
+  duplicateScore: number
+  duplicateInBatch?: boolean
+  duplicateAction: 'skip' | 'import' | 'replace'
+}
+
+/* ── CET classification (MHT-CET syllabus mapping of PDF extractions) ── */
+
+export interface CetDistributionEntry {
+  name: string
+  count: number
+  percent: number
+}
+
+export interface CetAnalysisTopic extends CetDistributionEntry {
+  subTopics: CetDistributionEntry[]
+}
+
+export interface CetAnalysisChapter extends CetDistributionEntry {
+  topics: CetAnalysisTopic[]
+}
+
+export interface CetAnalysisSubject extends CetDistributionEntry {
+  chapters: CetAnalysisChapter[]
+}
+
+/** Distribution analysis returned with every PDF extraction. */
+export interface PdfAnalysis {
+  totalQuestions: number
+  classified: number
+  unclassified: number
+  subjects: CetDistributionEntry[]
+  chaptersBySubject: Record<string, CetDistributionEntry[]>
+  tree: CetAnalysisSubject[]
+  difficulty: CetDistributionEntry[]
+  cetRelevance: CetDistributionEntry[]
+  questionTypes: CetDistributionEntry[]
+}
+
+export interface CetTaxonomyTopic {
+  name: string
+  subTopics: string[]
+}
+
+export interface CetTaxonomyChapter {
+  name: string
+  topics: CetTaxonomyTopic[]
+}
+
+export interface CetTaxonomySubject {
+  name: string
+  chapters: CetTaxonomyChapter[]
+}
+
+/** MHT-CET syllabus taxonomy + classification vocabularies (admin dropdowns). */
+export interface CetTaxonomy {
+  subjects: CetTaxonomySubject[]
+  questionTypes: string[]
+  cetRelevanceLevels: string[]
+  cetDifficultyLevels: string[]
+  classificationSources: string[]
+}
+
+export interface PdfExtractResponse {
+  success: boolean
+  totalExtracted: number
+  duplicateCount: number
+  questions: ExtractedPdfQuestion[]
+  warnings: string[]
+  analysis: PdfAnalysis | null
+  meta: {
+    mode: 'text' | 'ocr'
+    ocrPages?: number
+    pages?: number
+    truncated?: boolean
+    fileName: string
+    sizeBytes: number
+    warnings?: string[]
+    [k: string]: unknown
+  }
+}
+
+/** Payload sent to POST /api/questions/import/batch after admin review. */
+export interface PdfImportQuestion extends ExtractedPdfQuestion {
+  selected: boolean
+}
+
+export interface NotesGeneratedQuestion {
+  subject: string
+  chapter: string
+  topic: string
+  subTopic: string
+  text: string
+  options: string[]
+  solution: string
+  correctIndex: number
+  marks: number
+  negativeMarks: number
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+  requestedDifficulty: 'Medium' | 'Hard' | 'Very Hard'
+  sourceDocument: string
+  sourceType: 'page' | 'slide'
+  sourcePage: number
+  evidence: string
+  confidence: number
+  validationIssues: string[]
+  approved: boolean
+  selected: boolean
+}
+
+export interface NotesGenerationConfig {
+  subject: string
+  count: number
+  difficulty: 'Medium' | 'Hard' | 'Very Hard' | 'Mixed'
+  mixedDifficulty?: Record<'Medium' | 'Hard' | 'Very Hard', number>
+  generateExplanations?: boolean
+  includeNumericalQuestions?: boolean
+  topicDistribution: {
+    mode: 'automatic' | 'equal' | 'custom'
+    values?: Record<string, number>
+  }
+}
+
+export interface NotesGenerationResult {
+  questions: NotesGeneratedQuestion[]
+  topics: Array<{ name: string; subtopics: string[]; sourcePages: number[] }>
+  detectedSubjects?: string[]
+  requestedCount: number
+  generatedCount: number
+  highConfidenceCount: number
+  warnings: string[]
+  sourceDocument: string
+  sourceType: 'page' | 'slide'
+}
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+const pollPdfExtractionJob = async (
+  jobId: string,
+  onProgress?: (percent: number, stage?: string) => void,
+): Promise<PdfExtractResponse> => {
+  const deadline = Date.now() + 5 * 60 * 1000
+  while (Date.now() < deadline) {
+    await wait(1500)
+    const res = await fetch(`${BASE}/questions/extract/pdf/jobs/${encodeURIComponent(jobId)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const payload = await res.json().catch(() => null) as
+      | { success?: boolean; status?: string; stage?: string; percent?: number; result?: Omit<PdfExtractResponse, 'success'>; error?: { message?: string }; message?: string }
+      | null
+
+    if (!res.ok || !payload?.success) {
+      throw new ApiResponseError(
+        payload?.message || `Could not check PDF processing status (HTTP ${res.status})`,
+        res.status,
+      )
+    }
+    onProgress?.(payload.percent ?? 0, payload.stage || 'Processing PDF')
+
+    if (payload.status === 'completed' && payload.result) {
+      return { ...payload.result, success: true }
+    }
+    if (payload.status === 'failed') {
+      throw new ApiResponseError(payload.error?.message || 'PDF processing failed.', 422)
+    }
+  }
+  throw new ApiResponseError('PDF processing is taking longer than expected. Please retry with a smaller PDF.', 408)
+}
+
+const pollNotesGenerationJob = async (
+  jobId: string,
+  onProgress?: (percent: number, stage?: string) => void,
+): Promise<NotesGenerationResult & { jobId: string }> => {
+  const deadline = Date.now() + 15 * 60 * 1000
+  let consecutiveStatusFailures = 0
+  let lastReportedProgress = 0
+  while (Date.now() < deadline) {
+    await wait(1500)
+    let res: Response
+    try {
+      res = await fetch(`${BASE}/questions/notes/jobs/${encodeURIComponent(jobId)}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+    } catch {
+      consecutiveStatusFailures += 1
+      onProgress?.(lastReportedProgress, 'Reconnecting to the server')
+      await wait(Math.min(1000 * 2 ** (consecutiveStatusFailures - 1), 8000))
+      continue
+    }
+    const payload = await res.json().catch(() => null) as
+      | { success?: boolean; status?: string; stage?: string; percent?: number; result?: NotesGenerationResult; error?: { message?: string }; message?: string }
+      | null
+    if (!res.ok || !payload?.success) {
+      if ([502, 503, 504].includes(res.status)) {
+        consecutiveStatusFailures += 1
+        onProgress?.(lastReportedProgress, 'Reconnecting to the server')
+        await wait(Math.min(1000 * 2 ** (consecutiveStatusFailures - 1), 8000))
+        continue
+      }
+      throw new ApiResponseError(payload?.message || `Could not check AI generation status (HTTP ${res.status}).`, res.status)
+    }
+    consecutiveStatusFailures = 0
+    lastReportedProgress = payload.percent ?? lastReportedProgress
+    onProgress?.(lastReportedProgress, payload.stage || 'Processing notes')
+    if (payload.status === 'completed' && payload.result) return { ...payload.result, jobId }
+    if (payload.status === 'failed') {
+      throw new ApiResponseError(payload.error?.message || 'AI question generation failed.', 422)
+    }
+  }
+  if (consecutiveStatusFailures > 0) {
+    throw new ApiResponseError(
+      'The server stayed unavailable while checking AI generation status. The job may still be running; check the server and retry.',
+      0,
+    )
+  }
+  throw new ApiResponseError('AI question generation is taking longer than expected. Retry with a smaller document.', 408)
 }
 
 export const questionsAPI = {
@@ -1236,12 +1710,13 @@ export const questionsAPI = {
     const data = await handle(res).then(() => res.json())
     return data as Question[]
   },
-  async getAllAdmin(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean }) {
+  async getAllAdmin(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean; ids?: string[] }) {
     const params = new URLSearchParams({ admin: 'true' })
     if (filters?.subject) params.set('subject', filters.subject)
     if (filters?.topic) params.set('topic', filters.topic)
     if (filters?.difficulty) params.set('difficulty', filters.difficulty)
     if (filters?.isActive !== undefined) params.set('isActive', String(filters.isActive))
+    if (filters?.ids?.length) params.set('ids', filters.ids.join(','))
     params.set('includeAnswers', String(filters?.includeAnswers ?? true))
     const res = await fetch(`${BASE}/questions?${params.toString()}`, { credentials: 'include' })
     const data = await handle(res).then(() => res.json())
@@ -1251,6 +1726,12 @@ export const questionsAPI = {
     const res = await fetch(`${BASE}/questions/meta/subjects-chapters`, { credentials: 'include' })
     const data = await handle(res).then(() => res.json())
     return data as { subjects: string[]; chaptersBySubject: Record<string, string[]> }
+  },
+  /** MHT-CET syllabus taxonomy powering the classification dropdowns. */
+  async getCetTaxonomy() {
+    const res = await fetch(`${BASE}/questions/meta/cet-taxonomy`, { credentials: 'include' })
+    const data = await handle(res).then(() => res.json())
+    return data as CetTaxonomy
   },
   async create(payload: Omit<Question, '_id' | 'createdAt'>) {
     const csrfToken = await ensureCsrfToken()
@@ -1320,5 +1801,135 @@ export const questionsAPI = {
     })
     const data = await handle(res).then(() => res.json())
     return data as { imported: number; total: number; errors: Array<{ row: number; message: string }> }
+  },
+  /**
+   * Upload a PDF for question extraction and track upload progress.
+   * Uses XHR (fetch has no upload progress) and returns the extracted,
+   * duplicate-flagged questions for the admin review screen.
+   */
+  extractPdf(file: File, onProgress?: (percent: number, stage?: string) => void): Promise<PdfExtractResponse> {
+    return new Promise((resolve, reject) => {
+      const csrfToken = getCsrfToken()
+      const form = new FormData()
+      form.append('file', file)
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${BASE}/questions/extract/pdf/jobs`)
+      xhr.withCredentials = true
+      if (csrfToken) xhr.setRequestHeader('X-CSRF-Token', csrfToken)
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100), 'Uploading PDF')
+      }
+      xhr.onload = () => {
+        let payload: unknown = null
+        try { payload = JSON.parse(xhr.responseText) } catch { /* non-JSON error page */ }
+        const data = payload as ({ success?: boolean; message?: string; jobId?: string }) | null
+        if (xhr.status < 200 || xhr.status >= 300 || !data?.success || !data.jobId) {
+          reject(new ApiResponseError(data?.message || `Could not start PDF processing (HTTP ${xhr.status})`, xhr.status))
+          return
+        }
+        void pollPdfExtractionJob(data.jobId, onProgress).then(resolve, reject)
+      }
+      xhr.onerror = () => reject(new ApiResponseError('Network error while uploading the PDF. Check your connection and try again.', 0))
+      xhr.ontimeout = () => reject(new ApiResponseError('The PDF upload timed out. Try again with a smaller file or a more stable connection.', 0))
+      xhr.send(form)
+    })
+  },
+  /** Persist the admin-reviewed extraction result via the shared import pipeline. */
+  async importBatch(questions: PdfImportQuestion[]) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+    const res = await fetch(`${BASE}/questions/import/batch`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ questions }),
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as { imported: number; replaced: number; skipped: number; failed: number; total: number; errors: Array<{ questionNumber: number; message: string }> }
+  },
+  /**
+   * AI-assisted refinement of classifications the rules engine could not
+   * confidently place. Returns the merged questions plus a rebuilt analysis;
+   * PDF-printed classifications are never overridden.
+   */
+  async classifyBatch(questions: PdfImportQuestion[]) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+    const res = await fetch(`${BASE}/questions/classify/batch`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ questions }),
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as { success: boolean; aiApplied: number; questions: PdfImportQuestion[]; analysis: PdfAnalysis }
+  },
+  generateFromNotes(
+    file: File,
+    config: NotesGenerationConfig,
+    onProgress?: (percent: number, stage?: string) => void,
+  ): Promise<NotesGenerationResult & { jobId: string }> {
+    return new Promise((resolve, reject) => {
+      void ensureCsrfToken().then((csrfToken) => {
+        const form = new FormData()
+        form.append('file', file)
+        form.append('config', JSON.stringify(config))
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', `${BASE}/questions/notes/generate`)
+        xhr.withCredentials = true
+        if (csrfToken) xhr.setRequestHeader('X-CSRF-Token', csrfToken)
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 10), 'Uploading notes')
+        }
+        xhr.onload = () => {
+          let payload: unknown = null
+          try { payload = JSON.parse(xhr.responseText) } catch { /* non-JSON error page */ }
+          const data = payload as { success?: boolean; message?: string; jobId?: string } | null
+          if (xhr.status < 200 || xhr.status >= 300 || !data?.success || !data.jobId) {
+            reject(new ApiResponseError(data?.message || `Could not start AI processing (HTTP ${xhr.status}).`, xhr.status))
+            return
+          }
+          void pollNotesGenerationJob(data.jobId, onProgress).then(resolve, reject)
+        }
+        xhr.onerror = () => reject(new ApiResponseError('Network error while uploading notes. Check your connection and retry.', 0))
+        xhr.ontimeout = () => reject(new ApiResponseError('The notes upload timed out. Try a smaller file or a more stable connection.', 0))
+        xhr.send(form)
+      }).catch(reject)
+    })
+  },
+  async validateNotesQuestion(
+    jobId: string,
+    questionIndex: number,
+    question: Pick<NotesGeneratedQuestion, 'subject' | 'topic' | 'subTopic' | 'text' | 'options' | 'solution' | 'correctIndex' | 'requestedDifficulty'>,
+  ) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/questions/notes/jobs/${encodeURIComponent(jobId)}/validate`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ questionIndex, question }),
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as { success: boolean; question: NotesGeneratedQuestion }
+  },
+  async regenerateNotesQuestion(jobId: string, questionIndex: number) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/questions/notes/jobs/${encodeURIComponent(jobId)}/regenerate`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ questionIndex }),
+    })
+    const data = await handle(res).then(() => res.json())
+    return data as { success: boolean; question: NotesGeneratedQuestion }
   },
 }

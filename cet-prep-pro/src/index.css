@@ -58,6 +58,67 @@ body {
   height: 100%;
 }
 
+.session-inactivity-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 48%);
+  backdrop-filter: blur(4px);
+}
+
+.session-inactivity-dialog {
+  width: min(100%, 440px);
+  padding: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgb(15 23 42 / 24%);
+  text-align: center;
+}
+
+.session-inactivity-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.session-inactivity-dialog h2 {
+  margin-bottom: 8px;
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.session-inactivity-dialog p {
+  margin-bottom: 24px;
+  color: #475569;
+}
+
+.session-inactivity-dialog button {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.session-inactivity-dialog button:hover {
+  background: #1d4ed8;
+}
+
 /* ─── Layout ─────────────────────────────── */
 .page {
   min-height: 100vh;

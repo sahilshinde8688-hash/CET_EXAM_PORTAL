@@ -5,17 +5,19 @@ import {
   Edit2, Trash2, Eye, CheckCircle2, AlertCircle, Database, BrainCircuit, 
   Wand2, SpellCheck, Image as ImageIcon, Video, BookOpen, Layers, Target, Settings,
   Save, X, GripVertical, Plus, MessageSquare, ShieldCheck, Download,
-  Copy, FileText, Bold, Italic, Underline, List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
+  Copy, FileText, FileSpreadsheet, Bold, Italic, Underline, List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
   Superscript, Subscript, Table, Type, Palette
 } from 'lucide-react'
 import { exportQuestionBankHTML } from '../lib/exportUtils'
-import { questionsAPI, Question } from '../lib/api'
+import { questionsAPI, Question, PdfExtractResponse, PdfImportQuestion } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
+import PdfImportReview from './PdfImportReview'
+import AiNotesQuestionGenerator from './AiNotesQuestionGenerator'
 import '../question-bank.css'
 
 type Tab = 'dashboard' | 'list' | 'add' | 'bulk'
 
-export default function QuestionBank() {
+export default function QuestionBank({ onCreateTest }: { onCreateTest: (questionIds: string[]) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,8 +31,20 @@ export default function QuestionBank() {
   const [uploadResult, setUploadResult] = useState<{ imported: number; total: number; errors: Array<{ row?: number; message: string }> } | null>(null)
   const [uploadError, setUploadError] = useState<{ message: string; details?: any } | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const pdfInputRef = useRef<HTMLInputElement | null>(null)
+
+  // PDF question extraction (extract -> review -> import)
+  const PDF_MAX_MB = 25
+  const [pdfStage, setPdfStage] = useState<'idle' | 'working' | 'review'>('idle')
+  const [pdfStatus, setPdfStatus] = useState('')
+  const [pdfError, setPdfError] = useState<{ message: string } | null>(null)
+  const [pdfQuestions, setPdfQuestions] = useState<PdfImportQuestion[]>([])
+  const [pdfMeta, setPdfMeta] = useState<PdfExtractResponse['meta'] | null>(null)
+  const [importingPdf, setImportingPdf] = useState(false)
+  const [showNotesGenerator, setShowNotesGenerator] = useState(false)
 
   const handleBulkImportClick = () => fileInputRef.current?.click()
+  const handlePdfImportClick = () => pdfInputRef.current?.click()
   const handleSubjectCardClick = (subject: string) => {
     setSubjectFilter(subject)
     setChapterFilter('')
@@ -46,9 +60,7 @@ export default function QuestionBank() {
     setSubjectFilter('')
     setChapterFilter('')
   }
-  const handleBulkFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const importSpreadsheet = async (file: File) => {
     setUploadResult(null)
     setUploadError(null)
     setUploading(true)
@@ -64,8 +76,86 @@ export default function QuestionBank() {
       showToast(message, 'error')
     } finally {
       setUploading(false)
-      e.target.value = ''
     }
+  }
+  const handleBulkFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) importSpreadsheet(file)
+  }
+
+  // ── PDF extraction flow ─────────────────────────────────────────────
+  const handlePdfFile = async (file: File) => {
+    if (!/\.pdf$/i.test(file.name)) {
+      showToast('Please choose a .pdf file for PDF question extraction', 'error')
+      return
+    }
+    if (file.size > PDF_MAX_MB * 1024 * 1024) {
+      showToast(`PDF is too large (max ${PDF_MAX_MB}MB)`, 'error')
+      return
+    }
+    setUploadResult(null)
+    setUploadError(null)
+    setPdfError(null)
+    setPdfStage('working')
+    setPdfStatus('Uploading PDF… 0%')
+    try {
+      const result = await questionsAPI.extractPdf(file, (percent, stage) => {
+        setPdfStatus(`${stage || 'Processing PDF'}… ${percent}%`)
+      })
+      if (!result.questions.length) {
+        setPdfStage('idle')
+        showToast(result.warnings?.[0] || 'No questions could be detected in this PDF', 'error')
+        return
+      }
+      setPdfQuestions(result.questions.map((q) => ({ ...q, selected: true })))
+      setPdfMeta(result.meta)
+      setPdfStage('review')
+      showToast(`Extracted ${result.totalExtracted} questions — review and import`, 'success')
+    } catch (error: unknown) {
+      setPdfStage('idle')
+      const message = error instanceof Error ? error.message : 'PDF extraction failed'
+      setPdfError({ message })
+      showToast(message, 'error')
+    }
+  }
+  const handlePdfFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) handlePdfFile(file)
+  }
+  const handlePdfImport = async () => {
+    setImportingPdf(true)
+    try {
+      const result = await questionsAPI.importBatch(pdfQuestions)
+      const parts = [`imported ${result.imported}`]
+      if (result.replaced) parts.push(`replaced ${result.replaced}`)
+      if (result.skipped) parts.push(`skipped ${result.skipped} duplicates`)
+      if (result.failed) parts.push(`${result.failed} failed`)
+      showToast(`PDF import finished: ${parts.join(', ')}`, result.failed ? 'error' : 'success')
+      setPdfStage('idle')
+      setPdfQuestions([])
+      setPdfMeta(null)
+      load()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'PDF import failed'
+      showToast(message, 'error')
+    } finally {
+      setImportingPdf(false)
+    }
+  }
+  const resetPdfReview = () => {
+    setPdfStage('idle')
+    setPdfQuestions([])
+    setPdfMeta(null)
+    setPdfError(null)
+  }
+  const handleBulkDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const file = e.dataTransfer?.files?.[0]
+    if (!file) return
+    if (/\.pdf$/i.test(file.name)) handlePdfFile(file)
+    else importSpreadsheet(file)
   }
 
   const downloadCSV = () => {
@@ -330,11 +420,12 @@ export default function QuestionBank() {
           <button className={`qb-tab-btn ${activeTab === 'add' ? 'active' : ''}`} onClick={() => { setEditingId(null); resetForm(); setActiveTab('add') }}>
             <PlusCircle size={18} /> {editingId ? 'Edit' : 'Add New'}
           </button>
-          <button className={`qb-tab-btn ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => { setActiveTab('bulk'); handleBulkImportClick() }}>
+          <button className={`qb-tab-btn ${activeTab === 'bulk' ? 'active' : ''}`} onClick={() => setActiveTab('bulk')}>
             <Upload size={18} /> Bulk Import
           </button>
         </div>
-        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.json" style={{ display: 'none' }} onChange={handleBulkFileChange} />
+        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.json" style={{ display: 'none' }} onChange={handleBulkFileChange} />
+        <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={handlePdfFileChange} />
         <input
           ref={node => setImageInputRef(node)}
           type="file"
@@ -478,7 +569,7 @@ export default function QuestionBank() {
                           <MathRenderer value={q.text} />
                         </td>
                         <td>
-                          <span className={`qb-badge ${q.difficulty?.toLowerCase() || 'medium'}`}>{q.difficulty}</span>
+                          <span className={`qb-badge ${q.difficulty?.toLowerCase() || 'medium'}`}>{q.cetDifficulty || q.difficulty}</span>
                           <div style={{fontSize: 12, marginTop: 4, color: 'var(--text-muted)'}}>+{q.marks} / -{q.negativeMarks}</div>
                         </td>
                         <td><span className="qb-badge easy">{q.isActive ? 'Published' : 'Draft'}</span></td>
@@ -749,17 +840,65 @@ export default function QuestionBank() {
         {/* ================= BULK UPLOAD TAB ================= */}
         {activeTab === 'bulk' && (
           <motion.div key="bulk" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            {showNotesGenerator ? (
+              <AiNotesQuestionGenerator
+                onClose={() => setShowNotesGenerator(false)}
+                onCreateTest={onCreateTest}
+              />
+            ) : pdfStage === 'review' ? (
+              <PdfImportReview
+                questions={pdfQuestions}
+                meta={pdfMeta}
+                importing={importingPdf}
+                onChange={setPdfQuestions}
+                onImport={handlePdfImport}
+                onCancel={resetPdfReview}
+              />
+            ) : (
             <div className="qb-card" style={{maxWidth: 800, margin: '0 auto', textAlign: 'center', padding: '60px 40px'}}>
               <div style={{width: 80, height: 80, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px'}}>
                 <Upload size={40} />
               </div>
               <h2 style={{fontSize: 24, fontWeight: 700, marginBottom: 12}}>Bulk Import Questions</h2>
-              <p style={{color: 'var(--text-muted)', marginBottom: 32}}>Upload CSV, Excel, or JSON files to import thousands of questions at once. Our AI validator will automatically flag missing images or formatting errors.</p>
-              
-              <div style={{border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', padding: '60px 20px', marginBottom: 24, cursor: 'pointer', background: '#fafafa'}} onClick={handleBulkImportClick}>
+              <p style={{color: 'var(--text-muted)', marginBottom: 32}}>Import existing questions, extract a PDF question paper, or generate new MCQs from course notes. Everything is reviewed here before it reaches the same question bank.</p>
+
+              <div className="qb-import-formats">
+                <button className="qb-import-format" onClick={handleBulkImportClick} type="button">
+                  <FileSpreadsheet size={26} />
+                  <strong>Excel / CSV / JSON</strong>
+                  <span>.xlsx · .xls · .csv · .json</span>
+                  <em>Instant import with row-level validation</em>
+                </button>
+                <button className="qb-import-format" onClick={handlePdfImportClick} type="button">
+                  <FileText size={26} />
+                  <strong>PDF Question Paper</strong>
+                  <span>.pdf · text layer or scanned (OCR)</span>
+                  <em>Extract → review → import</em>
+                </button>
+                <button className="qb-import-format qb-import-format-ai" onClick={() => setShowNotesGenerator(true)} type="button">
+                  <BrainCircuit size={26} />
+                  <strong>Generate from Notes</strong>
+                  <span>.pdf · .pptx</span>
+                  <em>Understand topics → generate → review → save</em>
+                </button>
+              </div>
+
+              <div
+                className="qb-dropzone"
+                style={{border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', padding: '40px 20px', margin: '24px 0', cursor: 'pointer', background: '#fafafa'}}
+                onClick={handleBulkImportClick}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleBulkDrop}
+              >
                 <p style={{fontWeight: 600, color: 'var(--primary)'}}>Click to browse or drag and drop files here</p>
-                <p style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 8}}>Supports .csv, .xlsx, .json (Max 50MB)</p>
+                <p style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 8}}>Supports .csv, .xlsx, .xls, .json and .pdf (Max 25MB for PDF)</p>
                 {uploading && <p style={{marginTop: 16, color: 'var(--primary)'}}>Uploading and importing questions…</p>}
+                {pdfStage === 'working' && (
+                  <div className="qb-pdf-progress">
+                    <p style={{marginTop: 16, color: 'var(--primary)'}}>{pdfStatus}</p>
+                    <div className="qb-pdf-progress-track"><div className="qb-pdf-progress-fill" /></div>
+                  </div>
+                )}
                 {!uploading && uploadResult && (
                   <div style={{marginTop: 16, textAlign: 'left', color: 'var(--text-main)'}}>
                     <p><strong>Imported:</strong> {uploadResult.imported} / {uploadResult.total}</p>
@@ -785,6 +924,12 @@ export default function QuestionBank() {
                     )}
                   </div>
                 )}
+                {!uploading && pdfStage !== 'working' && pdfError && (
+                  <div style={{marginTop: 16, textAlign: 'left', color: '#b91c1c', background: '#fee2e2', borderRadius: 12, padding: 16}}>
+                    <p style={{margin: 0, fontWeight: 700}}>PDF extraction failed:</p>
+                    <p style={{margin: '8px 0 0'}}>{pdfError.message}</p>
+                  </div>
+                )}
               </div>
 
               <div style={{display: 'flex', gap: 16, justifyContent: 'center'}}>
@@ -792,6 +937,7 @@ export default function QuestionBank() {
                 <button className="qb-btn qb-btn-outline" onClick={handleDownloadPDF}><ShieldCheck size={16}/> View Validation Rules</button>
               </div>
             </div>
+            )}
           </motion.div>
         )}
 
@@ -811,7 +957,7 @@ export default function QuestionBank() {
                   <span className="qb-badge medium">{previewQ.subject}</span>
                   {previewQ.chapter && <span className="qb-badge easy">{previewQ.chapter}</span>}
                   {previewQ.subTopic && <span className="qb-badge easy">{previewQ.subTopic}</span>}
-                  <span className={`qb-badge ${previewQ.difficulty?.toLowerCase() || 'medium'}`}>{previewQ.difficulty}</span>
+                  <span className={`qb-badge ${previewQ.difficulty?.toLowerCase() || 'medium'}`}>{previewQ.cetDifficulty || previewQ.difficulty}</span>
                 </div>
                 
                 <div className="qb-preview-text"><MathRenderer value={previewQ.text} /></div>
