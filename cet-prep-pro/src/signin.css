@@ -1133,3 +1133,35 @@
     font-size: 23px;
   }
 }
+
+.signin-grid-branch-batch {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .signin-grid-branch-batch {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 375px) {
+  .signin-auth-card {
+    padding: 20px 14px 18px;
+    border-radius: 16px;
+  }
+  .auth-toggle-tab {
+    padding: 9px 8px;
+    font-size: 13px;
+  }
+  .auth-card-title {
+    font-size: 20px;
+  }
+  .form-text-input,
+  .form-native-select {
+    font-size: 13px;
+    padding: 10px 10px 10px 38px;
+  }
+}

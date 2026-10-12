@@ -318,13 +318,13 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   })
 
   const testsTaken = testResults.length
-  const totalEarnedMarks = testResults.reduce((total, result) => total + result.score, 0)
-  const totalAvailableMarks = testResults.reduce((total, result) => total + result.totalMarks, 0)
+  const totalEarnedMarks = testResults.reduce((total, result) => total + (Number(result.score) || 0), 0)
+  const totalAvailableMarks = testResults.reduce((total, result) => total + (Number(result.totalMarks) || 0), 0)
   const averageScore = testsTaken > 0 ? Math.round(totalEarnedMarks / testsTaken) : 0
   const averageMaxScore = testsTaken > 0 ? Math.round(totalAvailableMarks / testsTaken) : 200
-  const practicedHours = testResults.reduce((total, result) => total + result.duration, 0) / 3600
-  const answeredQuestions = testResults.reduce((total, result) => total + (result.correct || 0) + (result.incorrect || 0), 0)
-  const correctQuestions = testResults.reduce((total, result) => total + (result.correct || 0), 0)
+  const practicedHours = Math.max(0, testResults.reduce((total, result) => total + (Number(result.duration) || 0), 0) / 3600)
+  const answeredQuestions = testResults.reduce((total, result) => total + (Number(result.correct) || 0) + (Number(result.incorrect) || 0), 0)
+  const correctQuestions = testResults.reduce((total, result) => total + (Number(result.correct) || 0), 0)
   const accuracy = answeredQuestions > 0 ? Math.round(correctQuestions / answeredQuestions * 100) : 0
   const completion = accuracy
   const targetSubjects = testResults.flatMap(result => result.subjectWiseScores || [])
@@ -507,6 +507,14 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
         {/* Topbar */}
         <header className="mt-topbar">
           <div className="mt-topbar-left">
+            <button
+              type="button"
+              className="mt-mobile-menu-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:toggle-nav'))}
+              aria-label="Toggle navigation menu"
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
             <h1 className="mt-topbar-title">MHT-CET Prep</h1>
             <div className="mt-search-wrap">
               <span className="material-symbols-outlined mt-search-icon">search</span>
@@ -514,6 +522,15 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             </div>
           </div>
           <div className="mt-topbar-right">
+            <button
+              type="button"
+              className="mt-icon-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
+              title="Open on Phone / QR Scanner"
+              aria-label="Open on Phone or scan QR code"
+            >
+              <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
+            </button>
             <button className="mt-icon-btn mt-notif-btn">
               <span className="material-symbols-outlined">notifications</span>
               <span className="mt-notif-dot" />
@@ -535,17 +552,23 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
               <h2 className="mt-hero-title">Practice &amp; Perfect</h2>
               <p className="mt-hero-sub">Refine your preparation with real-time test simulations designed by MHT-CET experts.</p>
             </div>
-            <button className="mt-quick-btn">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
-              Quick Start Mock
-            </button>
-            <button className="mt-quick-btn" onClick={() => document.getElementById('assigned-mock-tests')?.scrollIntoView({ behavior: 'smooth' })}>
-              <span className="material-symbols-outlined">assignment_turned_in</span>
-              Assigned Mock Tests
-            </button>
           </div>
 
-          <AssignedMockTests embedded />
+          <AssignedMockTests
+            embedded
+            toolbarActions={
+              <>
+                <button className="mt-quick-btn">
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
+                  Quick Start Mock
+                </button>
+                <button className="mt-quick-btn" onClick={() => document.getElementById('assigned-mock-tests')?.scrollIntoView({ behavior: 'smooth' })}>
+                  <span className="material-symbols-outlined">assignment_turned_in</span>
+                  Assigned Mock Tests
+                </button>
+              </>
+            }
+          />
 
           <div className="mt-grid">
 
@@ -743,24 +766,6 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           </div>
         </div>
       </main>
-
-      {/* Mobile Bottom Nav */}
-      <nav className="mt-mobile-nav">
-        {[
-          { icon: 'dashboard', label: 'Home' },
-          { icon: 'quiz', label: 'Tests', active: true },
-          { icon: 'analytics', label: 'Stats' },
-          { icon: 'person', label: 'Profile' },
-        ].map(item => (
-          <a key={item.label} href="#"
-            className={`mt-mobile-nav-item${item.active ? ' mt-mobile-nav-item--active' : ''}`}
-            onClick={e => e.preventDefault()}
-          >
-            <span className="material-symbols-outlined">{item.icon}</span>
-            <span>{item.label}</span>
-          </a>
-        ))}
-      </nav>
     </div>
     )}
     </>

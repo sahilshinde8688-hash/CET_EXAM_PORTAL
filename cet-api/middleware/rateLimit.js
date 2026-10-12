@@ -1,6 +1,10 @@
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit')
 
 const API_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000
+const authenticatedUserKey = (req, res) => {
+  const userId = req.user?.id || req.user?._id
+  return userId ? `user:${String(userId)}` : ipKeyGenerator(req, res)
+}
 let RedisStore = null
 let redisClient = null
 
@@ -96,6 +100,7 @@ const apiLimiter = createLimiter({
   windowMs: API_RATE_LIMIT_WINDOW_MS,
   max: 200,
   message: 'API rate limit exceeded. Please slow down.',
+  keyGenerator: authenticatedUserKey,
 })
 
 /**

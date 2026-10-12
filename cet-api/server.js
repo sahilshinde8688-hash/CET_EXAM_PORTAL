@@ -57,6 +57,7 @@ app.use('/api', maintenanceMode)
 
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'))
+app.use('/api/email', require('./routes/emailRoutes'))
 app.use('/api/admin/dashboard', require('./routes/adminDashboardRoutes'))
 app.use('/api/admin/settings', require('./routes/adminSettingsRoutes'))
 app.use('/api/super-admin', require('./routes/superAdminRoutes'))
@@ -76,6 +77,32 @@ app.get('/health', (req, res) => {
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
   })
+})
+
+const os = require('os')
+app.get('/api/system/network-info', (req, res) => {
+  try {
+    const interfaces = os.networkInterfaces()
+    const addresses = []
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name] || []) {
+        if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('169.254.')) {
+          addresses.push({ name, address: net.address })
+        }
+      }
+    }
+    // Prefer Wi-Fi or primary LAN IP
+    const wifi = addresses.find(a => /wi-?fi|wlan|wireless/i.test(a.name))
+    const preferred = wifi ? wifi.address : (addresses[0]?.address || '127.0.0.1')
+    res.json({
+      success: true,
+      addresses,
+      preferred,
+      port: 5173,
+    })
+  } catch (err) {
+    res.json({ success: false, preferred: '127.0.0.1', port: 5173 })
+  }
 })
 
 app.get('/', (req, res) => {

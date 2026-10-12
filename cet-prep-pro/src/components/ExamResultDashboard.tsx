@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { Question } from '../lib/api'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { testsAPI, type Question, type TestResult } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import FormattedSolution from './FormattedSolution'
 import {
@@ -8,7 +8,8 @@ import {
   type AIAnalyticsData,
   type SubjectScoreItem,
 } from '../lib/openrouter'
-import { downloadCompleteSolutionBooklet, shareTestReport } from '../lib/exportUtils'
+import { shareTestReport } from '../lib/exportUtils'
+import { downloadSolutionsBookletPdf } from '../lib/solutionsBookletPdf'
 
 interface ExamResultProps {
   onClose: () => void
@@ -35,6 +36,9 @@ interface ExamResultProps {
   analyticsGrid?: React.ReactNode
   questions?: Question[]
   answers?: Record<string, number | string>
+  resultId?: string
+  resultData?: TestResult | null
+  testId?: string
   onSelectQuestion?: (index: number) => void
 }
 
@@ -64,6 +68,9 @@ export default function ExamResultDashboard({
   analyticsGrid,
   questions = [],
   answers = {},
+  resultId,
+  resultData,
+  testId,
   onSelectQuestion,
 }: ExamResultProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
@@ -78,7 +85,9 @@ export default function ExamResultDashboard({
   const [solutionFilter, setSolutionFilter] = useState<SolutionFilter>('all')
   const [aiSolutions, setAiSolutions] = useState<Record<string, string>>({})
   const [loadingAiQuestion, setLoadingAiQuestion] = useState<Record<string, boolean>>({})
-  const [expandedSolutions, setExpandedSolutions] = useState<Record<string, boolean>>({})
+  const [downloadingBooklet, setDownloadingBooklet] = useState(false)
+  const [bookletMessage, setBookletMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const bookletDownloadLock = useRef(false)
 
   const answeredQuestions = correctAnswers + wrongAnswers
   const totalQuestions = answeredQuestions + unansweredQuestions || questions.length || 1
@@ -179,6 +188,36 @@ export default function ExamResultDashboard({
       return true
     })
   }, [questions, answers, solutionFilter])
+
+  const handleDownloadBooklet = async () => {
+    if (bookletDownloadLock.current) return
+    bookletDownloadLock.current = true
+    setDownloadingBooklet(true)
+    setBookletMessage(null)
+    try {
+      if (!resultId) throw new Error('This test result cannot be identified for secure booklet generation.')
+      const review = await testsAPI.getReview(resultId)
+      if (!review.questions.length) throw new Error('No questions are available for this test result.')
+      await downloadSolutionsBookletPdf({
+        testName: examName,
+        testId: testId || resultData?.mockTestId || resultId,
+        candidateName,
+        rollNumber,
+        result: review.result,
+        questions: review.questions,
+      })
+      setBookletMessage({ type: 'success', text: 'Solutions booklet downloaded successfully.' })
+    } catch (error) {
+      console.error('Failed to generate solutions booklet:', error)
+      setBookletMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Could not generate the solutions booklet. Please try again.',
+      })
+    } finally {
+      bookletDownloadLock.current = false
+      setDownloadingBooklet(false)
+    }
+  }
 
   return (
     <div className="compact-result-root" style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 20px 48px' }}>
@@ -656,15 +695,16 @@ export default function ExamResultDashboard({
               </p>
               <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
                 <button
-                  onClick={() => downloadCompleteSolutionBooklet(examName, questions, answers, aiSolutions)}
+                  onClick={() => void handleDownloadBooklet()}
+                  disabled={downloadingBooklet}
                   style={{
                     padding: '8px 16px', borderRadius: '8px', background: '#2563eb', color: '#fff',
-                    border: 'none', fontWeight: 600, fontSize: '13px', cursor: 'pointer',
+                    border: 'none', fontWeight: 600, fontSize: '13px', cursor: downloadingBooklet ? 'wait' : 'pointer',
                     display: 'flex', alignItems: 'center', gap: '6px'
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>download</span>
-                  Download Solutions Booklet
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>{downloadingBooklet ? 'hourglass_top' : 'download'}</span>
+                  {downloadingBooklet ? 'Generating Solutions Booklet...' : 'Download Solutions Booklet'}
                 </button>
                 <button
                   onClick={() => shareTestReport(examName, score, maxScore, aiAnalytics?.projectedPercentile || String(percentage.toFixed(1)))}
@@ -678,6 +718,16 @@ export default function ExamResultDashboard({
                   Share Result
                 </button>
               </div>
+              {bookletMessage && (
+                <p role={bookletMessage.type === 'error' ? 'alert' : 'status'} style={{
+                  margin: '9px 0 0',
+                  color: bookletMessage.type === 'error' ? '#b91c1c' : '#15803d',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                }}>
+                  {bookletMessage.text}
+                </p>
+              )}
             </div>
 
             {/* Filter Pills */}
@@ -722,9 +772,9 @@ export default function ExamResultDashboard({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {filteredQuestions.map(({ q, originalIndex, userAns, isCorrect, isIncorrect, isUnanswered }) => {
                 const qKey = q._id || q.text.slice(0, 30)
-                const isExpanded = expandedSolutions[qKey] || false
                 const isLoadingAI = loadingAiQuestion[qKey] || false
                 const aiSolutionText = aiSolutions[qKey]
+                const isExpanded = Boolean(aiSolutionText)
 
                 const correctLetter = String.fromCharCode(65 + Number(q.correctIndex ?? 0))
                 const userLetter = userAns !== null && userAns !== undefined

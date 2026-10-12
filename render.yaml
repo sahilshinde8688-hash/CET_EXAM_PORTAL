@@ -25,6 +25,10 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: NOTES_QUESTION_MODEL
+        value: gpt-4o-mini
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
@@ -33,8 +37,19 @@ services:
         sync: false
       - key: CLOUDINARY_UPLOAD_PRESET
         sync: false
-      - key: EMAIL_SERVICE_URL
+      - key: PYTHON_EMAIL_SERVICE_URL
+        value: https://cet-portal-python-mailer.onrender.com
+      - key: PYTHON_EMAIL_SERVICE_TOKEN
         sync: false
+      - key: EMAIL_SENDER_EMAIL
+        sync: false
+      - key: EMAIL_SENDER_NAME
+        value: CETNova
+      - key: EMAIL_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+
   - type: worker
     name: cet-portal-scheduler
     runtime: node
@@ -48,3 +63,42 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: PYTHON_EMAIL_SERVICE_URL
+        value: https://cet-portal-python-mailer.onrender.com
+      - key: PYTHON_EMAIL_SERVICE_TOKEN
+        sync: false
+      - key: EMAIL_SENDER_EMAIL
+        sync: false
+      - key: EMAIL_SENDER_NAME
+        value: CETNova
+      - key: EMAIL_TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+  - type: web
+    name: cet-portal-python-mailer
+    runtime: python
+    rootDir: cet-api/python-email-service
+    buildCommand: python -m compileall -q .
+    startCommand: python server.py
+    envVars:
+      - key: EMAIL_SERVICE_HOST
+        value: 0.0.0.0
+      - key: PYTHON_EMAIL_SERVICE_TOKEN
+        sync: false
+      - key: EMAIL_SMTP_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_SMTP_PORT
+        value: 587
+      - key: EMAIL_SMTP_USERNAME
+        sync: false
+      - key: EMAIL_SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_SMTP_FROM
+        sync: false
+      - key: EMAIL_SENDER_NAME
+        value: CETNova

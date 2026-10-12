@@ -366,6 +366,32 @@
 .an-mob-item--active { color: #005bbf; font-weight: 700; }
 .an-mob-item .material-symbols-outlined { font-size: 22px; }
 
+.an-mobile-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: #191c1d;
+  cursor: pointer;
+  touch-action: manipulation;
+  margin-right: -4px;
+}
+.an-mobile-menu-btn:hover {
+  background: #e7e8e9;
+}
+.an-mobile-menu-btn .material-symbols-outlined {
+  font-size: 24px;
+}
+.an-brand-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #005bbf;
+}
+
 /* ── Responsive ─────────────────────────── */
 @media (max-width: 1100px) {
   .an-grid { grid-template-columns: 1fr; }
@@ -376,16 +402,28 @@
 }
 @media (max-width: 900px) {
   .an-sidebar { display: none; }
-  .an-main { margin-left: 0; }
-  .an-topnav { padding: 0 20px; }
+  .an-main { margin-left: 0; width: 100%; min-width: 0; }
+  .an-topnav { padding: 0 16px; height: 60px; }
+  .an-mobile-menu-btn { display: flex; }
   .an-search-wrap { display: none; }
-  .an-content { padding: 20px 16px; }
-  .an-mobile-nav { display: flex; }
-  .an-hero { padding: 28px 24px; }
-  .an-hero-stat-value { font-size: 36px; }
+  .an-content { padding: 18px 14px; width: 100%; min-width: 0; }
+  .an-mobile-nav { display: none; }
+  .an-hero { padding: 22px 18px; border-radius: 20px; flex-direction: column; align-items: flex-start; gap: 16px; }
+  .an-hero-stat-value { font-size: 30px; }
+  .an-hero-actions { width: 100%; display: flex; gap: 10px; }
+  .an-hero-btn { flex: 1; justify-content: center; min-height: 44px; }
 }
 @media (max-width: 560px) {
   .an-qgrid { grid-template-columns: repeat(5, 1fr); }
-  .an-hero-stats { gap: 20px; }
+  .an-hero-stats { gap: 14px; width: 100%; justify-content: space-between; }
+  .an-hero-stat-value { font-size: 24px; }
+  .an-hero-title { font-size: 22px; }
+  .an-hero-actions { flex-direction: column; }
+  .an-hero-btn { width: 100%; }
   .an-subject-body { grid-template-columns: 1fr; }
+  .an-glass-card { padding: 20px 16px; border-radius: 18px; }
+}
+@media (max-width: 375px) {
+  .an-content { padding: 14px 10px; }
+  .an-hero-stats { flex-direction: column; gap: 8px; }
 }

@@ -29,6 +29,8 @@ export default function SignIn({
   const [password, setPassword]               = useState('')
   const [remember, setRemember]               = useState(false)
   const [showForgotModal, setShowForgotModal] = useState(false)
+  const [setupToken, setSetupToken] = useState(() => new URLSearchParams(window.location.search).get('setup_token') || '')
+  const [setupComplete, setSetupComplete] = useState(false)
 
   // Registration state
   const [name, setName]                       = useState('')
@@ -49,6 +51,27 @@ export default function SignIn({
     setErrorMsg('')
 
     try {
+      if (setupToken) {
+        if (resetPassword.length < 8) {
+          setErrorMsg('Choose a password with at least 8 characters.')
+          setSubmitState('error')
+          return
+        }
+        if (resetPassword !== resetConfirm) {
+          setErrorMsg('Passwords do not match')
+          setSubmitState('error')
+          return
+        }
+        await authAPI.setupPassword(setupToken, resetPassword)
+        window.history.replaceState({}, '', window.location.pathname)
+        setSetupToken('')
+        setSetupComplete(true)
+        setResetPassword('')
+        setResetConfirm('')
+        setSubmitState('idle')
+        return
+      }
+
       if (mustResetPassword) {
         if (!resetPassword || resetPassword.length < 6) {
           setErrorMsg('Password must be at least 6 characters')
@@ -146,7 +169,16 @@ export default function SignIn({
             <span className="signin-brand-subtag">CET EXAM PORTAL</span>
           </button>
 
-          <div className="signin-nav-auth">
+          {!setupToken && <div className="signin-nav-auth" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              className="btn-phone-qr"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
+              title="Open CET NOVA on your mobile phone"
+            >
+              <span className="material-symbols-outlined">qr_code_2</span>
+              <span>Open on Phone</span>
+            </button>
             <span className="signin-nav-prompt-text">
               {activeTab === 'login' ? "Don't have an account?" : "Already enrolled?"}
             </span>
@@ -157,7 +189,7 @@ export default function SignIn({
             >
               {activeTab === 'login' ? 'Sign Up' : 'Sign In'}
             </button>
-          </div>
+          </div>}
         </div>
       </header>
 
@@ -264,14 +296,18 @@ export default function SignIn({
             </div>
 
             <h2 className="auth-card-title">
-              {mustResetPassword
+              {setupToken
+                ? 'Set Up Your Account'
+                : mustResetPassword
                 ? 'Set New Password'
                 : activeTab === 'login'
                   ? 'Sign In'
                   : 'Create Account'}
             </h2>
             <p className="auth-card-subtitle">
-              {mustResetPassword
+              {setupToken
+                ? 'Choose a secure password to activate your CETNova student account.'
+                : mustResetPassword
                 ? 'Choose a new password to secure your account.'
                 : activeTab === 'login'
                   ? 'Welcome back! Continue your CET journey.'
@@ -306,8 +342,53 @@ export default function SignIn({
               </div>
             )}
 
+            {setupComplete && (
+              <div className="signin-alert-banner" role="status">
+                <span className="material-symbols-outlined">check_circle</span>
+                <span>Your password is set. Sign in with your username and new password.</span>
+              </div>
+            )}
+
+            {setupToken && (
+              <form className="signin-form-fields" onSubmit={handleSubmit}>
+                <div className="form-field-group">
+                  <label className="form-field-label" htmlFor="setup-pwd">New Password</label>
+                  <input
+                    id="setup-pwd"
+                    type="password"
+                    className="form-text-input"
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    value={resetPassword}
+                    onChange={event => setResetPassword(event.target.value)}
+                    disabled={submitState === 'loading'}
+                  />
+                </div>
+                <div className="form-field-group">
+                  <label className="form-field-label" htmlFor="setup-pwd-confirm">Confirm New Password</label>
+                  <input
+                    id="setup-pwd-confirm"
+                    type="password"
+                    className="form-text-input"
+                    placeholder="Repeat your new password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    value={resetConfirm}
+                    onChange={event => setResetConfirm(event.target.value)}
+                    disabled={submitState === 'loading'}
+                  />
+                </div>
+                <button type="submit" className="form-submit-btn" disabled={submitState === 'loading'}>
+                  {submitState === 'loading' ? 'Setting password…' : 'Activate account'}
+                </button>
+              </form>
+            )}
+
             {/* ── 1. SIGN IN FORM ── */}
-            {activeTab === 'login' && !mustResetPassword && (
+            {activeTab === 'login' && !mustResetPassword && !setupToken && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
                 {/* Email Field */}
                 <div className="form-field-group">
@@ -490,7 +571,7 @@ export default function SignIn({
             )}
 
             {/* ── 3. REGISTRATION FORM ── */}
-            {activeTab === 'register' && submitState !== 'pending' && !mustResetPassword && (
+            {activeTab === 'register' && submitState !== 'pending' && !mustResetPassword && !setupToken && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
                 {/* Full Student Name */}
                 <div className="form-field-group">
@@ -544,7 +625,7 @@ export default function SignIn({
                 </div>
 
                 {/* Center Branch & Batch */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
+                <div className="signin-grid-branch-batch">
                   <div className="form-field-group">
                     <div className="form-input-container form-select-wrap">
                       <span className="material-symbols-outlined input-leading-icon">location_on</span>

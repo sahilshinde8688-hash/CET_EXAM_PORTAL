@@ -23,22 +23,11 @@ export function exportStudentsToExcel(
   }
 
   const formatStudentRow = (s: AuthUser) => {
-    // Password display logic: show plain text temp password if available, or state
-    let passwordDisplay = '••••••••'
-    if (s.mhcetPassword) {
-      passwordDisplay = s.mhcetPassword
-    } else if (s.password && !s.password.startsWith('$2')) {
-      passwordDisplay = s.password
-    } else if (s.status === 'pending') {
-      passwordDisplay = 'Pending Approval'
-    }
-
     return {
       'Name of the student': s.name || '',
       'Email ID': s.email || '',
       'Student Unique No.': s.mhcetId || s._id || s.id || 'Pending',
       'Username': s.mhcetId || s.email || '',
-      'Password': passwordDisplay,
       'Batch': s.batch ? `Batch ${s.batch}` : 'N/A',
       'Branch': s.branch || 'N/A',
       'Phone Number': s.phone || 'N/A',
@@ -58,7 +47,6 @@ export function exportStudentsToExcel(
     { wch: 28 }, // Email ID
     { wch: 20 }, // Student Unique No.
     { wch: 20 }, // Username
-    { wch: 18 }, // Password
     { wch: 14 }, // Batch
     { wch: 16 }, // Branch
     { wch: 16 }, // Phone Number
@@ -75,7 +63,6 @@ export function exportStudentsToExcel(
         'Email ID': '',
         'Student Unique No.': '',
         'Username': '',
-        'Password': '',
         'Batch': String(batch),
         'Branch': '',
         'Phone Number': '',

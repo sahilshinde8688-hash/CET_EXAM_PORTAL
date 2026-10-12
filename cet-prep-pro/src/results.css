@@ -119,7 +119,7 @@
 }
 
 /* ── Content ────────────────────────────── */
-.rs-content { padding: 32px 40px; max-width: 1280px; margin: 0 auto; width: 100%; }
+.rs-content { padding: 32px 40px; max-width: 1280px; margin: 0 auto; width: 100%; box-sizing: border-box; }
 
 /* ── Summary Banner ─────────────────────── */
 .rs-summary-banner {
@@ -366,6 +366,27 @@
 }
 .rs-mob-fab .material-symbols-outlined { font-size: 26px; }
 
+.rs-mobile-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: #191c1d;
+  cursor: pointer;
+  touch-action: manipulation;
+  margin-right: -4px;
+}
+.rs-mobile-menu-btn:hover {
+  background: #f1f5f9;
+}
+.rs-mobile-menu-btn .material-symbols-outlined {
+  font-size: 24px;
+}
+
 /* ── Responsive ─────────────────────────── */
 @media (max-width: 1100px) {
   .rs-lower-grid { grid-template-columns: 1fr; }
@@ -373,17 +394,26 @@
 }
 @media (max-width: 900px) {
   .rs-sidebar { display: none; }
-  .rs-main { margin-left: 0; }
-  .rs-topbar { padding: 0 20px; }
+  .rs-main { margin-left: 0; width: 100%; min-width: 0; box-sizing: border-box; padding-bottom: 84px; }
+  .rs-topbar { padding: 0 16px; height: 60px; }
+  .rs-mobile-menu-btn { display: flex; }
   .rs-search-wrap { display: none; }
-  .rs-content { padding: 20px 16px; }
-  .rs-mobile-nav { display: flex; }
-  .rs-banner-stats { gap: 20px; }
-  .rs-stat-value { font-size: 32px; }
+  .rs-content { padding: 18px 14px 84px; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: hidden; }
+  .rs-mobile-nav { display: none; }
+  .rs-banner-stats { gap: 16px; }
+  .rs-stat-value { font-size: 28px; }
 }
 @media (max-width: 600px) {
   .rs-left-col { grid-template-columns: 1fr; }
   .rs-filter-btn span:last-child { display: none; }
   .rs-user-info { display: none; }
-  .rs-banner-inner { flex-direction: column; align-items: flex-start; }
+  .rs-banner-inner { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .rs-banner-stats { width: 100%; justify-content: space-between; }
+  .rs-topbar-title { font-size: 18px; }
+  .rs-card-footer { flex-direction: column; align-items: stretch; gap: 10px; }
+  .rs-card-footer button { width: 100%; min-height: 44px; justify-content: center; }
+}
+@media (max-width: 375px) {
+  .rs-content { padding: 14px 10px 84px; }
+  .rs-stat-item { min-width: 70px; }
 }

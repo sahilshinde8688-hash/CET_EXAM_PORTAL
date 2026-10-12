@@ -174,6 +174,14 @@ export default function Results({ onNavigate }: ResultsProps) {
         {/* Topbar */}
         <header className="rs-topbar">
           <div className="rs-topbar-left">
+            <button
+              type="button"
+              className="rs-mobile-menu-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:toggle-nav'))}
+              aria-label="Toggle navigation menu"
+            >
+              <span className="material-symbols-outlined">menu</span>
+            </button>
             <h2 className="rs-topbar-title">Test Results</h2>
             <div className="rs-search-wrap">
               <span className="material-symbols-outlined rs-search-icon">search</span>
@@ -232,12 +240,22 @@ export default function Results({ onNavigate }: ResultsProps) {
               )}
             </div>
             <button 
+              type="button"
               className="rs-filter-btn" 
               title="Download Full Test History (CSV)"
               onClick={() => downloadTestHistoryCSV(displayedTests, user?.name)}
             >
               <span className="material-symbols-outlined">download</span>
               <span>Export CSV</span>
+            </button>
+            <button
+              type="button"
+              className="rs-filter-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
+              title="Open on Phone / QR Scanner"
+            >
+              <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
+              <span>Phone QR</span>
             </button>
             <div className="rs-divider" />
             <div className="rs-user-chip">
@@ -502,26 +520,6 @@ export default function Results({ onNavigate }: ResultsProps) {
 
         </div>
       </main>
-
-      {/* Mobile Bottom Nav */}
-      <nav className="rs-mobile-nav">
-        <a href="#" className="rs-mob-item" onClick={e => { e.preventDefault(); onNavigate?.('dashboard') }}>
-          <span className="material-symbols-outlined">dashboard</span><span>Home</span>
-        </a>
-        <a href="#" className="rs-mob-item" onClick={e => { e.preventDefault(); onNavigate?.('mocktests') }}>
-          <span className="material-symbols-outlined">quiz</span><span>Tests</span>
-        </a>
-        <div className="rs-mob-fab-wrap">
-          <button className="rs-mob-fab" onClick={() => onNavigate?.('mocktests')}><span className="material-symbols-outlined">add</span></button>
-        </div>
-        <a href="#" className="rs-mob-item rs-mob-item--active" onClick={e => e.preventDefault()}>
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>history</span>
-          <span>Results</span>
-        </a>
-        <a href="#" className="rs-mob-item" onClick={e => { e.preventDefault(); onNavigate?.('settings') }}>
-          <span className="material-symbols-outlined">person</span><span>Profile</span>
-        </a>
-      </nav>
     </div>
   )
 }

@@ -14,7 +14,7 @@ export const getApiUrl = (): string => {
     }
   }
   const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
-  const fallbackApiUrl = 'https://cet-portal-3vas.onrender.com'
+  const fallbackApiUrl = 'https://cet-portal-api.onrender.com'
   return (configuredApiUrl || fallbackApiUrl).replace(/\/$/, '')
 }
 
@@ -262,15 +262,16 @@ export interface AuthUser {
   phone?: string
   branch?: string
   examType?: string | null
+  guardianEmail?: string | null
+  parentResultEmailConsent?: boolean
   mhcetId?: string
   createdAt?: string
   mustResetPassword?: boolean
+  initialPasswordAvailable?: boolean
   expiresAt?: string
   inactivityTimeoutSeconds?: number
   batch?: number
   photo?: string
-  password?: string
-  mhcetPassword?: string
 }
 
 export interface AuthenticatedSession {
@@ -383,6 +384,18 @@ export const authAPI = {
     }
 
     throw backendError || new Error('Unable to reach the login server.')
+  },
+  setupPassword: async (token: string, newPassword: string) => {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/auth/setup-password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ token, newPassword }),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
   },
   register: async (name: string, email: string, phone: string, branch: string, batch: string | number) => {
     const numBatch = Number(batch)
@@ -518,6 +531,19 @@ export const usersAPI = {
     const data = await handle(res).then(() => res.json())
     return data as AuthUser[]
   },
+  async getStudentReport(id: string, from?: string, to?: string) {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const query = params.size ? `?${params.toString()}` : ''
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(id)}/report${query}`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const data = await handle(res).then(response => response.json())
+    return data as StudentReportData
+  },
   async stats() {
     const all = await this.getAll()
     const pending = all.filter((u) => u.status === 'pending').length
@@ -547,7 +573,30 @@ export const usersAPI = {
       headers,
     })
     const data = await handle(res).then(() => res.json())
-    return data as { message: string; password?: string }
+    return data as {
+      success: boolean
+      status?: 'accepted' | 'delivered' | 'pending' | 'failed' | 'unknown' | 'cancelled' | 'disabled' | 'skipped'
+      notificationId?: string | null
+      message: string
+    }
+  },
+  async getTemporaryPassword(id: string) {
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(id)}/temporary-password`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const data = await handle(res).then(response => response.json())
+    return data as { available: boolean; password: string | null }
+  },
+  async getTemporaryPasswordStatus(id: string) {
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(id)}/temporary-password/status`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const data = await handle(res).then(response => response.json())
+    return data as { available: boolean }
   },
   async reject(id: string) {
     const csrfToken = await ensureCsrfToken()
@@ -608,7 +657,7 @@ export const usersAPI = {
     })
     await handle(res)
   },
-  async updateProfile(payload: { name?: string; email?: string; phone?: string; branch?: string; batch?: string | number; examType?: string | null }) {
+  async updateProfile(payload: { name?: string; email?: string; phone?: string; branch?: string; batch?: string | number; examType?: string | null; guardianEmail?: string | null; parentResultEmailConsent?: boolean }) {
     const csrfToken = getCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -781,6 +830,38 @@ export interface TestResult {
   totalQuestions?: number
 }
 
+export interface StudentReportData {
+  success: boolean
+  student: Omit<AuthUser, '_id'> & { _id: string; id: string }
+  results: Array<Omit<TestResult, '_id' | 'percentile'> & {
+    id: string
+    mockTestAttemptId?: string | null
+    percentile: number | null
+    subjectQuestionStats: Record<string, { totalQuestions: number; correct: number; incorrect: number; unattempted: number }>
+  }>
+  assignments: Array<{
+    id: string
+    testName: string
+    startDateTime: string
+    endDateTime: string
+    status: string
+    visibility: string
+  }>
+  attempts: Array<{
+    id: string
+    assignmentId: string
+    testName: string
+    status: 'in_progress' | 'submitted' | 'expired'
+    attemptNumber: number
+    startedAt: string
+    submittedAt?: string | null
+    score?: number | null
+    totalMarks: number
+    resultId?: string | null
+  }>
+  reportPeriod: { from: string | null; to: string | null }
+}
+
 export interface AdminDashboardOverview {
   stats: {
     totalStudents: number
@@ -862,7 +943,7 @@ export const testsAPI = {
     dashboardResultsCache.set(cacheKey, [result, ...current.filter(item => item._id !== result._id)])
   },
   
-  async submitResult(payload: { testName: string; subject: string; score: number; totalMarks: number; percentile: number; duration: number; subjectWiseScores?: any[]; answers?: Record<string, number>; questionIds?: string[]; mockTestId?: string; correct: number; incorrect: number; unanswered: number; totalQuestions: number; }) {
+  async submitResult(payload: { testName: string; subject: string; score: number; totalMarks: number; percentile: number; duration: number; subjectWiseScores?: any[]; answers?: Record<string, number>; questionIds?: string[]; mockTestId?: string; submissionKey: string; correct: number; incorrect: number; unanswered: number; totalQuestions: number; }) {
     const res = await fetch(`${BASE}/tests`, {
       method: 'POST',
       credentials: 'include',
@@ -877,6 +958,53 @@ export const testsAPI = {
 }
 
 export const adminSettingsAPI = {
+  async getEmailNotifications() {
+    const res = await fetch(`${BASE}/email/admin`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as {
+      configuration: { senderEmail: string; senderName: string; serviceUrlConfigured: boolean; serviceTokenConfigured: boolean; ready: boolean; error: string | null; setupEncryptionConfigured: boolean }
+      notifications: Array<{
+        id: string
+        notification_type: string
+        student_id: string | null
+        student_name: string | null
+        test_result_id: string | null
+        exam_name: string | null
+        recipient_email: string
+        status: 'pending' | 'accepted' | 'delivered' | 'failed' | 'unknown' | 'cancelled'
+        safe_error: string | null
+        retry_count: number
+        last_attempt_at: string | null
+        created_at: string
+      }>
+    }
+  },
+  async sendTestEmail() {
+    const res = await fetch(`${BASE}/email/admin/test`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string; status: string }
+  },
+  async validateEmailService() {
+    const res = await fetch(`${BASE}/email/admin/validate`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; valid: boolean; message: string }
+  },
+  async retryEmailNotification(id: string) {
+    const res = await fetch(`${BASE}/email/admin/retry/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
   async get() {
     const res = await fetch(`${BASE}/admin/settings`, { credentials: 'include', cache: 'no-store' })
     return await handle(res).then(response => response.json()) as {
@@ -1341,7 +1469,7 @@ export const mockTestsAPI = {
       headers,
     })
     const data = await handle(res).then(response => response.json())
-    return data as { success: boolean; archived?: boolean; message: string }
+    return data as { success: boolean; message: string }
   },
 }
 

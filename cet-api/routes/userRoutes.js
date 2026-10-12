@@ -1,11 +1,16 @@
 const express = require('express')
 const router = express.Router()
-const axios = require('axios')
 const bcrypt = require('bcryptjs')
 const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
-const { apiLimiter, passwordResetLimiter } = require('../middleware/rateLimit')
+const { apiLimiter, passwordResetLimiter, createLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
+const emailNotifications = require('../services/emailNotificationService')
+const credentialResendLimiter = createLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: 'Too many account setup emails requested. Please try again later.',
+})
 
 // Generate the next MHT-CET ID from the highest assigned number, not total
 // users, because IDs can remain after users are deleted.
@@ -24,34 +29,42 @@ const generateMhcetId = async () => {
 const isMhcetIdConflict = (error) => error?.code === '23505'
   && /users_mhcet_id_key|mhcet_id/i.test(String(error?.message || error?.details || ''))
 
-const approveStudent = async (user) => {
-  const mhcetPwd = generatePassword()
-  const hashedPassword = await bcrypt.hash(mhcetPwd, 10)
+const setupPreparationErrorMessage = error => {
+  const message = String(error?.message || '')
+  const code = String(error?.code || '')
+  if (/EMAIL_TOKEN_ENCRYPTION_KEY/.test(message)) {
+    return 'Account setup encryption is not configured. Set EMAIL_TOKEN_ENCRYPTION_KEY (32+ characters) on both the API and scheduler services.'
+  }
+  if (/cannot be decrypted/i.test(message)) {
+    return 'The existing setup link cannot be decrypted. Restore the original EMAIL_TOKEN_ENCRYPTION_KEY on the API and scheduler services.'
+  }
+  if (/account_setup_tokens|token_ciphertext|schema cache/i.test(message) || ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code)) {
+    return 'The Supabase account-setup schema is missing or out of date. Apply the email-notification and account-setup migrations.'
+  }
+  return 'Account setup could not be prepared. Check the API logs for the setup-token operation and database error code.'
+}
 
+const approveStudent = async (user) => {
   for (let attempt = 0; attempt < 5; attempt++) {
     const mhcetId = await generateMhcetId()
     try {
+      const { password: temporaryPassword, ciphertext } = emailNotifications.createInitialTemporaryPassword()
       const approvedUser = await db.updateUser(user.id, {
         status: 'approved',
         mhcetId,
-        password: hashedPassword,
-        mhcetPassword: mhcetPwd,
+        password: await bcrypt.hash(temporaryPassword, 12),
+        mhcetPassword: null,
         mustResetPassword: true,
+        initialPasswordCiphertext: ciphertext,
         approvedAt: new Date().toISOString(),
       })
-      return { user: approvedUser, mhcetId, mhcetPwd }
+      return { user: approvedUser, mhcetId, initialPasswordCiphertext: ciphertext }
     } catch (error) {
       if (!isMhcetIdConflict(error) || attempt === 4) throw error
     }
   }
 
   throw new Error('Unable to assign a unique MHT-CET ID.')
-}
-
-// Generate secure random temporary password (8 characters)
-const generatePassword = () => {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$'
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
 // GET /api/users/me — Profile of logged in user
@@ -65,7 +78,7 @@ router.get('/me', protect, apiLimiter, (req, res) => {
 // PUT /api/users/profile — Update user profile
 router.put('/profile', protect, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
-    const { name, email, phone, branch, batch, examType } = req.body
+    const { name, email, phone, branch, batch, examType, guardianEmail, parentResultEmailConsent } = req.body
     const userId = req.user.id || req.user._id
 
     const user = await db.findUserById(userId)
@@ -99,6 +112,22 @@ router.put('/profile', protect, validateCsrfToken, apiLimiter, async (req, res) 
       }
       updates.examType = examType
     }
+    if (guardianEmail !== undefined) {
+      const cleanGuardianEmail = String(guardianEmail || '').trim().toLowerCase()
+      if (cleanGuardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanGuardianEmail)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid parent or guardian email address.' })
+      }
+      updates.guardianEmail = cleanGuardianEmail || null
+    }
+    if (parentResultEmailConsent !== undefined) {
+      if (typeof parentResultEmailConsent !== 'boolean') {
+        return res.status(400).json({ success: false, message: 'Parent email consent must be true or false.' })
+      }
+      updates.parentResultEmailConsent = parentResultEmailConsent
+    }
+    if (updates.parentResultEmailConsent === true && !(updates.guardianEmail || user.guardianEmail)) {
+      return res.status(400).json({ success: false, message: 'Add a parent or guardian email before enabling parent result emails.' })
+    }
 
     const updatedUser = await db.updateUser(user.id, updates)
     delete updatedUser.password
@@ -124,11 +153,156 @@ router.get('/', protect, adminOnly, apiLimiter, async (req, res) => {
     const sanitizedUsers = users.map((u) => {
       const userObj = { ...u, _id: u.id }
       delete userObj.password
+      delete userObj.mhcetPassword
       return userObj
     })
     res.json(sanitizedUsers)
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
+  }
+})
+
+// GET /api/users/:id/report — ADMIN ONLY: one student's report data
+router.get('/:id/report', protect, adminOnly, apiLimiter, async (req, res) => {
+  try {
+    const { from, to } = req.query
+    const parseDate = (value, endOfDay) => {
+      if (!value) return null
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN
+      const timestamp = Date.parse(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`)
+      if (!Number.isFinite(timestamp)) return NaN
+      return new Date(timestamp).toISOString().slice(0, 10) === value ? timestamp : NaN
+    }
+    const fromTime = parseDate(from, false)
+    const toTime = parseDate(to, true)
+    if ((from && !Number.isFinite(fromTime)) || (to && !Number.isFinite(toTime)) || (fromTime !== null && toTime !== null && fromTime > toTime)) {
+      return res.status(400).json({ success: false, message: 'Select a valid report date range.' })
+    }
+
+    const student = await db.findUserById(req.params.id)
+    if (!student || student.role !== 'student') {
+      return res.status(404).json({ success: false, message: 'Student not found.' })
+    }
+    const inRange = value => {
+      const time = Date.parse(value || '')
+      return Number.isFinite(time) && (fromTime === null || time >= fromTime) && (toTime === null || time <= toTime)
+    }
+
+    const [allResults, allAssignments] = await Promise.all([
+      db.getTestResultsByUserId(student.id),
+      db.getMockTestAssignments(),
+    ])
+    const results = allResults.filter(result => inRange(result.attemptedAt))
+    const assignments = allAssignments.filter(assignment => {
+      if (assignment.status !== 'active' || assignment.visibility === 'draft' || !Array.isArray(assignment.studentIds) || !assignment.studentIds.includes(String(student.id))) return false
+      const startsAt = Date.parse(assignment.startDateTime)
+      const endsAt = Date.parse(assignment.endDateTime)
+      return (fromTime === null || endsAt >= fromTime) && (toTime === null || startsAt <= toTime)
+    })
+
+    const attemptsByAssignment = await Promise.all(assignments.map(assignment => db.getMockTestAttempts(assignment._id, student.id)))
+    const attempts = attemptsByAssignment.flat()
+      .filter(attempt => inRange(attempt.startedAt))
+      .map(attempt => ({
+        id: attempt._id,
+        assignmentId: attempt.assignmentId,
+        testName: assignments.find(assignment => assignment._id === attempt.assignmentId)?.mockTestName || 'Assigned Mock Test',
+        status: attempt.status,
+        attemptNumber: attempt.attemptNumber,
+        startedAt: attempt.startedAt,
+        submittedAt: attempt.submittedAt,
+        score: attempt.score,
+        totalMarks: attempt.totalMarks,
+        resultId: attempt.resultId || null,
+      }))
+
+    const questionIds = [...new Set(results.flatMap(result => result.questionIds || []).map(String))]
+    const questions = questionIds.length
+      ? await db.getQuestions({ ids: questionIds }, { isAdmin: true })
+      : []
+    const questionsById = new Map(questions.map(question => [String(question._id), question]))
+    const safeResults = results.map(result => {
+      const subjectQuestionStats = new Map()
+      for (const questionId of result.questionIds || []) {
+        const question = questionsById.get(String(questionId))
+        if (!question) continue
+        const subject = question.subject || 'General'
+        const stats = subjectQuestionStats.get(subject) || { totalQuestions: 0, correct: 0, incorrect: 0, unattempted: 0 }
+        stats.totalQuestions += 1
+        const selected = result.answers?.[String(questionId)]
+        if (selected === undefined || selected === null) stats.unattempted += 1
+        else if (Number(selected) === Number(question.correctIndex)) stats.correct += 1
+        else stats.incorrect += 1
+        subjectQuestionStats.set(subject, stats)
+      }
+      return {
+        id: result._id,
+        testName: result.testName,
+        subject: result.subject,
+        mockTestId: result.mockTestId || null,
+        mockTestAttemptId: result.mockTestAttemptId || null,
+        attemptedAt: result.attemptedAt,
+        score: Number(result.score) || 0,
+        totalMarks: Number(result.totalMarks) || 0,
+        percentile: Number.isFinite(Number(result.percentile)) ? Number(result.percentile) : null,
+        duration: Number(result.duration) || 0,
+        correct: Number(result.correct) || 0,
+        incorrect: Number(result.incorrect) || 0,
+        unanswered: Number(result.unanswered) || 0,
+        totalQuestions: Number(result.totalQuestions) || 0,
+        subjectWiseScores: Array.isArray(result.subjectWiseScores) ? result.subjectWiseScores : [],
+        subjectQuestionStats: Object.fromEntries(subjectQuestionStats),
+      }
+    })
+
+    const safeStudent = { ...student }
+    delete safeStudent.password
+    delete safeStudent.mhcetPassword
+    return res.json({
+      success: true,
+      student: { ...safeStudent, _id: safeStudent.id },
+      results: safeResults,
+      assignments: assignments.map(assignment => ({
+        id: assignment._id,
+        testName: assignment.mockTestName,
+        startDateTime: assignment.startDateTime,
+        endDateTime: assignment.endDateTime,
+        status: assignment.status,
+        visibility: assignment.visibility,
+      })),
+      attempts,
+      reportPeriod: { from: from || null, to: to || null },
+    })
+  } catch (err) {
+    console.error('Failed to generate student report data:', err)
+    return res.status(500).json({ success: false, message: 'Could not load student report data.' })
+  }
+})
+
+router.get('/:id/temporary-password/status', protect, adminOnly, apiLimiter, async (req, res) => {
+  try {
+    const user = await db.findUserById(req.params.id)
+    if (!user || user.role !== 'student') return res.status(404).json({ success: false, message: 'Student not found.' })
+    res.set('Cache-Control', 'no-store')
+    return res.json({
+      available: user.status === 'approved' && user.mustResetPassword === true && user.initialPasswordAvailable === true,
+    })
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Could not check temporary password availability.' })
+  }
+})
+
+router.get('/:id/temporary-password', protect, adminOnly, apiLimiter, async (req, res) => {
+  try {
+    const user = await db.findUserById(req.params.id)
+    if (!user || user.role !== 'student') return res.status(404).json({ success: false, message: 'Student not found.' })
+    const credential = await emailNotifications.getInitialTemporaryPasswordForAdmin(user.id || user._id)
+    res.set('Cache-Control', 'no-store')
+    if (!credential.available) return res.json({ available: false, password: null })
+    return res.json(credential)
+  } catch (err) {
+    console.error('[auth] Could not reveal initial temporary password:', err.message)
+    return res.status(500).json({ success: false, message: 'Could not retrieve the temporary password.' })
   }
 })
 
@@ -149,10 +323,16 @@ router.post('/reset-password', protect, validateCsrfToken, passwordResetLimiter,
       password: hashedPassword,
       mhcetPassword: null,
       mustResetPassword: false,
+      initialPasswordCiphertext: null,
     })
 
     delete updatedUser.password
     delete updatedUser.mhcetPassword
+    try {
+      await emailNotifications.sendPasswordChangedNotification(updatedUser)
+    } catch (emailError) {
+      console.error('[email] Could not queue password-change notification:', emailError.message)
+    }
 
     res.json({
       success: true,
@@ -186,29 +366,21 @@ router.post('/:id/approve', protect, adminOnly, validateCsrfToken, apiLimiter, a
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
     if (user.status === 'approved') return res.status(400).json({ success: false, message: 'Already approved' })
 
-    const { user: updatedUser, mhcetId, mhcetPwd } = await approveStudent(user)
+    const { user: updatedUser, mhcetId, initialPasswordCiphertext } = await approveStudent(user)
 
     const sanitizedUser = { ...updatedUser }
     delete sanitizedUser.password
-    // Do not delete mhcetPassword so the admin UI can receive and display it
+    delete sanitizedUser.mhcetPassword
 
     let emailWarning = ''
     try {
-      const emailPayload = {
-        name: user.name,
-        email: user.email,
-        branch: user.branch || 'N/A',
-        mhcetId: mhcetId,
-        password: mhcetPwd, // Dispatched once via email, not persisted in DB
+      const delivery = await emailNotifications.sendInitialTemporaryPassword(updatedUser, initialPasswordCiphertext)
+      if (['failed', 'unknown', 'skipped', 'cancelled', 'disabled'].includes(delivery.status)) {
+        emailWarning = ` The account is approved, but the temporary password email status is ${delivery.status}. Use Resend setup email or check the email notification log.`
       }
-      await axios.post(
-        `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-approval`,
-        emailPayload,
-        { timeout: 5000 }
-      )
     } catch (emailErr) {
-      console.warn('⚠️ External email notification notice:', emailErr.message)
-      emailWarning = ' (Note: Email service unreachable. Notify student with temporary password if needed.)'
+      if (!emailErr.emailDiagnosticLogged) emailNotifications.logEmailFailure(emailErr.operation || 'student_welcome_enqueue', emailErr)
+      emailWarning = ' The account is approved, but the temporary password email could not be queued. Use the resend setup email action if needed.'
     }
 
     res.json({
@@ -218,12 +390,13 @@ router.post('/:id/approve', protect, adminOnly, validateCsrfToken, apiLimiter, a
       user: sanitizedUser,
     })
   } catch (err) {
+    if (err.operation && !err.emailDiagnosticLogged) emailNotifications.logEmailFailure(err.operation, err)
     res.status(500).json({ success: false, message: err.message })
   }
 })
 
 // POST /api/users/:id/resend-credentials — ADMIN ONLY: issue new credentials & email
-router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, credentialResendLimiter, async (req, res) => {
   try {
     const user = await db.findUserById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
@@ -231,35 +404,41 @@ router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, ap
       return res.status(400).json({ success: false, message: 'User is not approved yet' })
     }
 
-    const newTempPassword = generatePassword()
-    const hashedPassword = await bcrypt.hash(newTempPassword, 10)
-
-    const updatedUser = await db.updateUser(user.id, {
-      password: hashedPassword,
-      mhcetPassword: newTempPassword,
-      mustResetPassword: true,
-    })
-
+    const invitation = await emailNotifications.createAccountSetupInvitation(user.id)
     try {
-      const emailPayload = {
-        name: user.name,
-        email: user.email,
-        branch: user.branch || 'N/A',
-        mhcetId: user.mhcetId,
-        password: newTempPassword,
+      const delivery = await emailNotifications.sendStudentWelcome(user, invitation, { forceResend: true })
+      const statusMessages = {
+        accepted: `The SMTP server accepted the password setup email for ${user.email}. Final mailbox delivery is not confirmed; ask the student to check spam/junk if it does not arrive.`,
+        delivered: `The password setup email for ${user.email} was marked delivered.`,
+        pending: `The password setup email for ${user.email} is queued and awaiting delivery.`,
+        failed: `The SMTP server could not send the password setup email. ${delivery.safe_error || 'Review the email notification log before retrying.'}`,
+        unknown: `The SMTP server may have accepted the email, but CETNova could not confirm the result. ${delivery.safe_error || 'Check the recipient mailbox before retrying to avoid duplicates.'}`,
+        cancelled: 'The password setup email was not sent because welcome emails are disabled in administrator settings.',
+        disabled: 'Student welcome emails are disabled in administrator settings.',
+        skipped: delivery.safe_error || 'The student does not have a valid email address.',
       }
-      await axios.post(
-        `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-approval`,
-        emailPayload,
-        { timeout: 5000 }
-      )
-      res.json({ success: true, message: `New credentials sent to ${user.email}`, password: newTempPassword })
+      const success = ['accepted', 'delivered', 'pending', 'disabled'].includes(delivery.status)
+      const statusCode = delivery.status === 'failed' ? 503
+        : delivery.status === 'unknown' ? 502
+          : delivery.status === 'skipped' || delivery.status === 'cancelled' ? 400
+            : delivery.status === 'pending' ? 202 : 200
+      res.status(statusCode).json({
+        success,
+        status: delivery.status,
+        notificationId: delivery.notificationId,
+        message: statusMessages[delivery.status] || 'Email delivery status is unavailable. Review the administrator notification log.',
+      })
     } catch (emailErr) {
-      console.error('⚠️ Email service error:', emailErr.message)
-      res.status(500).json({ success: false, message: 'Failed to send email. The email service is unreachable.' })
+      if (!emailErr.emailDiagnosticLogged) emailNotifications.logEmailFailure(emailErr.operation || 'student_welcome_enqueue', emailErr)
+      res.status(503).json({ success: false, message: 'The account setup link was created, but its email could not be queued. Please retry.' })
     }
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message })
+    if (err.operation && !err.emailDiagnosticLogged) emailNotifications.logEmailFailure(err.operation, err)
+    res.status(500).json({
+      success: false,
+      message: setupPreparationErrorMessage(err),
+      ...(err.code ? { code: String(err.code).slice(0, 40) } : {}),
+    })
   }
 })
 
@@ -273,17 +452,9 @@ router.post('/:id/reject', protect, adminOnly, validateCsrfToken, apiLimiter, as
     const rejectionReason = reason || 'Application did not meet requirements'
 
     try {
-      await axios.post(
-        `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-rejection`,
-        {
-          name: user.name,
-          email: user.email,
-          reason: rejectionReason,
-        },
-        { timeout: 5000 }
-      )
+      await emailNotifications.sendRejectionEmail(user, rejectionReason)
     } catch (emailErr) {
-      console.warn('⚠️ Email rejection notification notice:', emailErr.message)
+      console.warn('[email] Rejection notification failed:', emailErr.message)
     }
 
     await db.deleteUser(req.params.id)
@@ -303,29 +474,25 @@ router.post('/bulk-approve', protect, adminOnly, validateCsrfToken, apiLimiter, 
     }
 
     const results = []
+    let emailFailures = 0
     for (const id of ids) {
       try {
         const user = await db.findUserById(id)
         if (!user || user.status === 'approved') continue
 
-        const { user: updatedUser, mhcetId, mhcetPwd } = await approveStudent(user)
+        const { user: updatedUser, initialPasswordCiphertext } = await approveStudent(user)
 
         const sanitized = { ...updatedUser }
         delete sanitized.password
+        delete sanitized.mhcetPassword
 
         try {
-          await axios.post(
-            `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-approval`,
-            {
-              name: user.name,
-              email: user.email,
-              branch: user.branch || 'N/A',
-              mhcetId,
-              password: mhcetPwd,
-            },
-            { timeout: 3000 }
-          )
-        } catch {}
+          const delivery = await emailNotifications.sendInitialTemporaryPassword(updatedUser, initialPasswordCiphertext)
+          if (!['accepted', 'delivered', 'pending'].includes(delivery.status)) emailFailures += 1
+        } catch (emailError) {
+          emailFailures += 1
+          if (!emailError.emailDiagnosticLogged) emailNotifications.logEmailFailure(emailError.operation || 'bulk_student_welcome_enqueue', emailError)
+        }
 
         results.push(sanitized)
       } catch (innerErr) {
@@ -336,7 +503,7 @@ router.post('/bulk-approve', protect, adminOnly, validateCsrfToken, apiLimiter, 
     res.json({
       success: true,
       count: results.length,
-      message: `Successfully approved ${results.length} student(s).`,
+      message: `Successfully approved ${results.length} student(s).${emailFailures ? ` ${emailFailures} temporary password email(s) were not confirmed; check the email notification log.` : ''}`,
       users: results,
     })
   } catch (err) {
@@ -359,16 +526,13 @@ router.post('/bulk-reject', protect, adminOnly, validateCsrfToken, apiLimiter, a
         if (!user) continue
 
         try {
-          await axios.post(
-            `${process.env.EMAIL_SERVICE_URL || 'http://localhost:8000'}/send-rejection`,
-            {
-              name: user.name,
-              email: user.email,
-              reason: reason || 'Application did not meet requirements',
-            },
-            { timeout: 3000 }
+          await emailNotifications.sendRejectionEmail(
+            user,
+            reason || 'Application did not meet requirements',
           )
-        } catch {}
+        } catch (emailErr) {
+          console.warn('[email] Bulk rejection notification failed:', emailErr.message)
+        }
 
         await db.deleteUser(id)
         count++
@@ -403,7 +567,6 @@ router.get('/export', protect, adminOnly, async (req, res) => {
       'Email ID': s.email || '',
       'Student Unique No.': s.mhcetId || s.id || 'Pending',
       'Username': s.mhcetId || s.email || '',
-      'Password': s.mhcetPassword || (s.status === 'pending' ? 'Pending Approval' : '••••••••'),
       'Batch': s.batch ? `Batch ${s.batch}` : 'N/A',
       'Branch': s.branch || 'N/A',
       'Phone Number': s.phone || 'N/A',
@@ -420,7 +583,6 @@ router.get('/export', protect, adminOnly, async (req, res) => {
       { wch: 28 }, // Email
       { wch: 20 }, // Student Unique No.
       { wch: 20 }, // Username
-      { wch: 18 }, // Password
       { wch: 14 }, // Batch
       { wch: 16 }, // Branch
       { wch: 16 }, // Phone
@@ -469,6 +631,7 @@ router.put('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req
 
     const updatedUser = await db.updateUser(req.params.id, updates)
     delete updatedUser.password
+    delete updatedUser.mhcetPassword
 
     res.json({
       success: true,

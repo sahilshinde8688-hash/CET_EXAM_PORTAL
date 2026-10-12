@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminSettingsAPI, getApiUrl } from '../lib/api'
 import '../adminSettings.css'
+import '../adminEmailNotifications.css'
 import '../adminSettingsLayout.css'
 
 type SectionKey = 'general' | 'roles' | 'security' | 'ai' | 'notifications' | 'integrations' | 'branding' | 'features' | 'backup' | 'audit' | 'health'
@@ -12,6 +13,29 @@ type HealthState = {
   database: { status: string; value: string; count: number }
 }
 type BackupInfo = { createdAt: string | null; size: number; tables: number }
+type EmailNotificationRow = {
+  id: string
+  notification_type: string
+  student_id: string | null
+  student_name: string | null
+  test_result_id: string | null
+  exam_name: string | null
+  recipient_email: string
+  status: 'pending' | 'accepted' | 'delivered' | 'failed' | 'unknown' | 'cancelled'
+  safe_error: string | null
+  retry_count: number
+  last_attempt_at: string | null
+  created_at: string
+}
+type EmailConfiguration = {
+  senderEmail: string
+  senderName: string
+  serviceUrlConfigured: boolean
+  serviceTokenConfigured: boolean
+  ready: boolean
+  error: string | null
+  setupEncryptionConfigured: boolean
+}
 
 const backupTables = ['users', 'questions', 'mock_tests', 'test_results', 'system_settings', 'admin_audit_logs'] as const
 
@@ -68,6 +92,7 @@ const defaults: SettingsData = {
   two_factor: true, login_attempt_limit: 5, session_timeout: 30, captcha: false, force_password_change: false,
   ai_provider: 'OpenAI', ai_model: 'gpt-4o-mini', ai_enabled: true, ai_daily_limit: 1000, ai_question_generator: true, ai_doubt_solver: true, ai_performance_analysis: true,
   email_notifications: true, in_app_notifications: true, registration_notifications: true, completion_notifications: true, result_notifications: true, announcements: true,
+  transactional_result_emails_enabled: true, parent_result_emails_enabled: false, student_welcome_emails_enabled: true,
   google_oauth: false, smtp_host: '', smtp_port: 587, external_api_url: '', webhook_url: '',
   primary_color: '#2563eb', secondary_color: '#0f172a', dark_mode: false, login_branding: true,
   student_registration: true, mock_test_system: true, google_login: false, result_publishing: true, new_user_registration: true, email_notifications_feature: true,
@@ -109,7 +134,26 @@ export default function AdminSettings() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
   const [backupInfo, setBackupInfo] = useState<BackupInfo>({ createdAt: null, size: 0, tables: 0 })
   const [backupBusy, setBackupBusy] = useState(false)
+  const [emailConfiguration, setEmailConfiguration] = useState<EmailConfiguration | null>(null)
+  const [emailNotifications, setEmailNotifications] = useState<EmailNotificationRow[]>([])
+  const [emailLoading, setEmailLoading] = useState(false)
+  const [emailAction, setEmailAction] = useState<'validate' | 'test' | null>(null)
+  const [emailServiceValidation, setEmailServiceValidation] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked')
+  const [retryingNotification, setRetryingNotification] = useState<string | null>(null)
   const activeSection = sections.find(section => section.key === active) || sections[0]
+
+  const loadEmailNotifications = async () => {
+    setEmailLoading(true)
+    try {
+      const result = await adminSettingsAPI.getEmailNotifications()
+      setEmailConfiguration(result.configuration)
+      setEmailNotifications(result.notifications)
+    } catch (emailError) {
+      setError(emailError instanceof Error ? emailError.message : 'Unable to load email notification activity.')
+    } finally {
+      setEmailLoading(false)
+    }
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -138,13 +182,21 @@ export default function AdminSettings() {
     load().catch(() => { setError('Unable to load system settings.'); setLoading(false) })
   }, [])
 
+  useEffect(() => {
+    if (active === 'notifications') void loadEmailNotifications()
+  }, [active])
+
   const update = (key: string, value: string | boolean | number) => setSettings(previous => ({ ...previous, [key]: value }))
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3500) }
 
   const saveSection = async () => {
     setSaving(true)
     setError('')
-    const keys = active === 'general' ? ['portal_name', 'tagline', 'admin_email', 'support_contact', 'maintenance_mode'] : Object.keys(settings)
+    const keys = active === 'general'
+      ? ['portal_name', 'tagline', 'admin_email', 'support_contact', 'maintenance_mode']
+      : active === 'notifications'
+        ? ['email_notifications', 'in_app_notifications', 'registration_notifications', 'completion_notifications', 'result_notifications', 'announcements', 'transactional_result_emails_enabled', 'parent_result_emails_enabled', 'student_welcome_emails_enabled']
+        : Object.keys(settings)
     try {
       await adminSettingsAPI.save(Object.fromEntries(keys.map(key => [key, settings[key]])))
       notify('Changes saved successfully')
@@ -152,6 +204,51 @@ export default function AdminSettings() {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save settings.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const sendTestEmail = async () => {
+    setEmailAction('test')
+    setError('')
+    try {
+      const result = await adminSettingsAPI.sendTestEmail()
+      notify(result.message)
+      await loadEmailNotifications()
+    } catch (emailError) {
+      setError(emailError instanceof Error ? emailError.message : 'Unable to send the test email.')
+      await loadEmailNotifications()
+    } finally {
+      setEmailAction(null)
+    }
+  }
+
+  const validateEmailService = async () => {
+    setEmailAction('validate')
+    setError('')
+    setEmailServiceValidation('unchecked')
+    try {
+      const result = await adminSettingsAPI.validateEmailService()
+      setEmailServiceValidation(result.valid ? 'valid' : 'invalid')
+      notify(result.message)
+    } catch (emailError) {
+      setEmailServiceValidation('invalid')
+      setError(emailError instanceof Error ? emailError.message : 'Unable to validate the Python email service.')
+    } finally {
+      setEmailAction(null)
+    }
+  }
+
+  const retryEmail = async (id: string) => {
+    setRetryingNotification(id)
+    setError('')
+    try {
+      const result = await adminSettingsAPI.retryEmailNotification(id)
+      notify(result.message)
+      await loadEmailNotifications()
+    } catch (emailError) {
+      setError(emailError instanceof Error ? emailError.message : 'Unable to retry the email notification.')
+    } finally {
+      setRetryingNotification(null)
     }
   }
 
@@ -195,7 +292,7 @@ export default function AdminSettings() {
     setBackupBusy(true)
     try {
       const [users, questions, mockTests, testResults, systemSettings, auditLogs] = await Promise.all(backupTables.map(fetchBackupRows))
-      const safeUsers = users.map(user => Object.fromEntries(Object.entries(user).filter(([key]) => !['password', 'mhcet_password'].includes(key))))
+      const safeUsers = users.map(user => Object.fromEntries(Object.entries(user).filter(([key]) => !['password', 'mhcet_password', 'mhcetPassword'].includes(key))))
       const snapshot = {
         generatedAt: new Date().toISOString(),
         source: 'CET NOVA admin backup',
@@ -221,7 +318,7 @@ export default function AdminSettings() {
   const exportTable = async (table: string, filename: string, sanitize = false) => {
     try {
       const rows = await fetchBackupRows(table)
-      const safeRows = sanitize ? rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => !['password', 'mhcet_password'].includes(key)))) : rows
+      const safeRows = sanitize ? rows.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => !['password', 'mhcet_password', 'mhcetPassword'].includes(key)))) : rows
       downloadFile(toCsv(safeRows), `${filename}-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8')
       notify(`${rows.length} records exported`)
     } catch (exportError) {
@@ -281,7 +378,61 @@ export default function AdminSettings() {
         </>}
         {active === 'security' && <><Card title="Authentication policy" icon="shield"><SwitchRow label="Two-factor authentication" description="Require a second factor for administrator accounts." checked={bool('two_factor')} onChange={v => update('two_factor', v)} /><SwitchRow label="CAPTCHA on sign in" checked={bool('captcha')} onChange={v => update('captcha', v)} /><SwitchRow label="Force password change" checked={bool('force_password_change')} onChange={v => update('force_password_change', v)} /><div className="as-grid"><Field label="Login attempt limit" value={Number(value('login_attempt_limit'))} onChange={v => update('login_attempt_limit', Number(v))} type="number" min={1} max={20} /><Field label="Session inactivity timeout (minutes)" value={Number(value('session_timeout'))} onChange={v => update('session_timeout', Number.parseInt(v, 10) || 1)} type="number" min={1} max={1440} /></div><p className="as-card-intro">Sessions remain active while users are working and expire after this many minutes without activity.</p></Card><Card title="Security activity" icon="history"><div className="as-health-list"><StatusRow label="Active sessions" value="Protected" status="green" /><StatusRow label="Last security review" value="Today, 09:42" status="blue" /><StatusRow label="Force logout all users" value="Irreversible action" status="red" action={() => setConfirmAction('Force logout all users?')} /></div></Card></>}
         {active === 'ai' && <><Card title="Provider & usage" icon="smart_toy"><div className="as-grid"><label className="as-field"><span>AI provider</span><select value={String(value('ai_provider'))} onChange={e => update('ai_provider', e.target.value)}><option>OpenAI</option><option>Google Gemini</option><option>Anthropic</option><option>OpenRouter</option></select></label><label className="as-field"><span>AI model</span><select value={String(value('ai_model'))} onChange={e => update('ai_model', e.target.value)}><option>gpt-4o-mini</option><option>gpt-4.1-mini</option><option>gemini-2.0-flash</option></select></label><label className="as-field"><span>API key</span><div className="as-input-action"><input type={showKey ? 'text' : 'password'} value="••••••••••••••••" readOnly /><button type="button" onClick={() => setShowKey(!showKey)}><span className="material-symbols-outlined">{showKey ? 'visibility_off' : 'visibility'}</span></button></div></label><Field label="Daily usage limit" value={Number(value('ai_daily_limit'))} onChange={v => update('ai_daily_limit', Number(v))} type="number" /></div><SwitchRow label="Enable AI features" checked={bool('ai_enabled')} onChange={v => update('ai_enabled', v)} /></Card><Card title="AI feature controls" icon="auto_awesome"><SwitchRow label="AI Question Generator" checked={bool('ai_question_generator')} onChange={v => update('ai_question_generator', v)} /><SwitchRow label="AI Doubt Solver" checked={bool('ai_doubt_solver')} onChange={v => update('ai_doubt_solver', v)} /><SwitchRow label="AI Performance Analysis" checked={bool('ai_performance_analysis')} onChange={v => update('ai_performance_analysis', v)} /><div className="as-usage"><div><span>Usage this month</span><strong>34,820 / 50,000 tokens</strong></div><div className="as-progress"><i style={{ width: '69%' }} /></div></div></Card></>}
-        {active === 'notifications' && <Card title="Notification channels" icon="notifications"><SwitchRow label="Email notifications" checked={bool('email_notifications')} onChange={v => update('email_notifications', v)} /><SwitchRow label="In-app notifications" checked={bool('in_app_notifications')} onChange={v => update('in_app_notifications', v)} /><SwitchRow label="Registration notifications" checked={bool('registration_notifications')} onChange={v => update('registration_notifications', v)} /><SwitchRow label="Mock test completion" checked={bool('completion_notifications')} onChange={v => update('completion_notifications', v)} /><SwitchRow label="Result notifications" checked={bool('result_notifications')} onChange={v => update('result_notifications', v)} /><SwitchRow label="System announcements" checked={bool('announcements')} onChange={v => update('announcements', v)} /></Card>}
+        {active === 'notifications' && <>
+          <Card title="Notification channels" icon="notifications">
+            <SwitchRow label="Email notifications" checked={bool('email_notifications')} onChange={v => update('email_notifications', v)} />
+            <SwitchRow label="In-app notifications" checked={bool('in_app_notifications')} onChange={v => update('in_app_notifications', v)} />
+            <SwitchRow label="Registration notifications" checked={bool('registration_notifications')} onChange={v => update('registration_notifications', v)} />
+            <SwitchRow label="Mock test completion" checked={bool('completion_notifications')} onChange={v => update('completion_notifications', v)} />
+            <SwitchRow label="Result notifications" checked={bool('result_notifications')} onChange={v => update('result_notifications', v)} />
+            <SwitchRow label="System announcements" checked={bool('announcements')} onChange={v => update('announcements', v)} />
+          </Card>
+          <Card title="Python SMTP email notifications" icon="mail">
+            <SwitchRow label="Automatic student result emails" description="Send authoritative result summaries after a regular or assigned test is finalized." checked={bool('transactional_result_emails_enabled')} onChange={v => update('transactional_result_emails_enabled', v)} />
+            <SwitchRow label="Parent or guardian result emails" description="Requires the student to add a guardian email and explicitly consent in their profile." checked={bool('parent_result_emails_enabled')} onChange={v => update('parent_result_emails_enabled', v)} />
+            <SwitchRow label="Student welcome and setup emails" description="Send single-use password setup links when an administrator approves or resends student access." checked={bool('student_welcome_emails_enabled')} onChange={v => update('student_welcome_emails_enabled', v)} />
+            <div className="as-email-config">
+              <div><span>Sender email</span><strong>{emailConfiguration?.senderEmail || 'Not configured'}</strong></div>
+              <div><span>Sender name</span><strong>{emailConfiguration?.senderName || 'CETNova'}</strong></div>
+              <div><span>Python email service</span><strong>{emailConfiguration?.serviceUrlConfigured ? 'Configured' : 'Not configured'}</strong></div>
+              <div><span>Service authentication</span><strong>{emailConfiguration?.serviceTokenConfigured ? 'Configured (hidden)' : 'Not configured'}</strong></div>
+              <div><span>SMTP service check</span><strong>{emailServiceValidation === 'valid' ? 'Ready' : emailServiceValidation === 'invalid' ? 'Unavailable or misconfigured' : 'Not checked'}</strong></div>
+              <div><span>Secure setup-link encryption</span><strong>{emailConfiguration?.setupEncryptionConfigured ? 'Configured' : 'Needs a shared API and scheduler secret'}</strong></div>
+            </div>
+            {emailConfiguration?.error && <p className="as-email-warning" role="status">{emailConfiguration.error}</p>}
+            {emailConfiguration && !emailConfiguration.setupEncryptionConfigured && <p className="as-email-warning" role="status">Set the same EMAIL_TOKEN_ENCRYPTION_KEY (at least 32 characters) on the API and scheduler to deliver account setup emails.</p>}
+            <div className="as-card-actions">
+              <button className="as-secondary" type="button" onClick={validateEmailService} disabled={emailAction !== null}>
+                {emailAction === 'validate' ? 'Checking…' : 'Check Python email service'}
+              </button>
+              <button className="as-secondary" type="button" onClick={sendTestEmail} disabled={emailAction !== null}>
+                {emailAction === 'test' ? 'Sending test…' : 'Send test email to my admin address'}
+              </button>
+            </div>
+          </Card>
+          <Card title="Email delivery activity" icon="outbox">
+            {emailLoading ? <p className="as-card-intro">Loading delivery activity…</p> : emailNotifications.length ? (
+              <div className="as-email-log-list">
+                {emailNotifications.map(notification => (
+                  <article className="as-email-log-row" key={notification.id}>
+                    <div className="as-email-log-main">
+                      <strong>{notification.notification_type.replaceAll('_', ' ')}</strong>
+                      <span>{notification.recipient_email}</span>
+                      <small>{notification.student_name || 'Admin test'}{notification.exam_name ? ` · ${notification.exam_name}` : ''} · {new Date(notification.created_at).toLocaleString()}</small>
+                      {notification.safe_error && <small className="as-email-log-error">{notification.safe_error}</small>}
+                    </div>
+                    <div className="as-email-log-status">
+                      <span className={`as-status as-status--${notification.status === 'delivered' || notification.status === 'accepted' ? 'green' : notification.status === 'failed' ? 'red' : 'blue'}`}>
+                        {notification.status === 'accepted' ? 'Accepted by SMTP server' : notification.status}
+                      </span>
+                      {notification.status === 'failed' && <button className="as-secondary" type="button" onClick={() => retryEmail(notification.id)} disabled={retryingNotification === notification.id}>{retryingNotification === notification.id ? 'Retrying…' : 'Retry'}</button>}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : <Empty label="No email notifications have been recorded" />}
+          </Card>
+        </>}
         {active === 'integrations' && <><Card title="Connected services" icon="hub"><div className="as-integration-grid"><Integration name="Supabase" icon="database" status="Connected" /><Integration name="Google OAuth" icon="login" status={bool('google_oauth') ? 'Connected' : 'Not connected'} action={() => update('google_oauth', !bool('google_oauth'))} /><Integration name="SMTP" icon="mail" status="Ready to configure" action={() => setActive('notifications')} /></div></Card><Card title="API & webhooks" icon="api"><div className="as-grid"><Field label="SMTP host" value={String(value('smtp_host'))} onChange={v => update('smtp_host', v)} placeholder="smtp.example.com" /><Field label="SMTP port" value={Number(value('smtp_port'))} onChange={v => update('smtp_port', Number(v))} type="number" /><Field label="External API URL" value={String(value('external_api_url'))} onChange={v => update('external_api_url', v)} /><Field label="Webhook URL" value={String(value('webhook_url'))} onChange={v => update('webhook_url', v)} /></div><div className="as-card-actions"><button className="as-secondary" onClick={() => notify('Connection test queued')}>Test connections</button><button className="as-secondary" onClick={() => notify('API key rotation queued')}>Manage API keys</button></div></Card></>}
         {active === 'branding' && <><Card title="Appearance" icon="palette"><div className="as-color-row"><label>Primary color<input type="color" value={String(value('primary_color'))} onChange={e => update('primary_color', e.target.value)} /></label><label>Secondary color<input type="color" value={String(value('secondary_color'))} onChange={e => update('secondary_color', e.target.value)} /></label></div><SwitchRow label="Dark mode" description="Available to administrators only." checked={bool('dark_mode')} onChange={v => update('dark_mode', v)} /><SwitchRow label="Login page branding" checked={bool('login_branding')} onChange={v => update('login_branding', v)} /></Card><Card title="Brand assets" icon="image"><UploadRow label="Logo" /><UploadRow label="Favicon" /><Field label="Custom tagline" value={String(value('tagline'))} onChange={v => update('tagline', v)} /><button className="as-secondary" onClick={() => notify('Preview opened in a new tab')}>Preview changes</button></Card></>}
         {active === 'features' && <Card title="Platform controls" icon="toggle_on"><p className="as-card-intro">Changes take effect immediately across the student experience.</p>{[['student_registration', 'Student Registration'], ['mock_test_system', 'Mock Test System'], ['ai_question_generator', 'AI Question Generator'], ['ai_doubt_solver', 'AI Doubt Solver'], ['google_login', 'Google Login'], ['email_notifications_feature', 'Email Notifications'], ['result_publishing', 'Result Publishing'], ['new_user_registration', 'New User Registration'], ['maintenance_mode', 'Maintenance Mode']].map(([key, label]) => <SwitchRow key={key} label={label} checked={bool(key)} onChange={v => update(key, v)} />)}</Card>}

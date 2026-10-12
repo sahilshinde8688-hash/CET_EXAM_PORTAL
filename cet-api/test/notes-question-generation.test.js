@@ -2,6 +2,8 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const JSZip = require('jszip')
 const {
+  callAi,
+  NotesGenerationError,
   extractDocument,
   normalizeQuestion,
   planQuestions,
@@ -10,6 +12,81 @@ const {
 } = require('../services/notesQuestionGeneration')
 
 const slideXml = (paragraphs) => `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree>${paragraphs.map((text) => `<a:p><a:r><a:t>${text}</a:t></a:r></a:p>`).join('')}</p:spTree></p:cSld></p:sld>`
+
+test('uses the configured OpenAI API key and default notes model', async () => {
+ const previousApiKey = process.env.OPENAI_API_KEY
+ const previousModel = process.env.NOTES_QUESTION_MODEL
+ const previousFetch = global.fetch
+ process.env.OPENAI_API_KEY = 'test-openai-key'
+ delete process.env.NOTES_QUESTION_MODEL
+ let request
+ global.fetch = async (url, options) => {
+   request = { url, options }
+   return {
+     ok: true,
+     json: async () => ({ choices: [{ message: { content: '{"topics":[]}' } }] }),
+   }
+ }
+
+ try {
+   assert.deepEqual(await callAi('notes prompt', 'test analysis'), { topics: [] })
+   assert.equal(request.url, 'https://api.openai.com/v1/chat/completions')
+   assert.equal(request.options.headers.Authorization, 'Bearer test-openai-key')
+   assert.equal(JSON.parse(request.options.body).model, 'gpt-4o-mini')
+ } finally {
+   global.fetch = previousFetch
+   if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY
+   else process.env.OPENAI_API_KEY = previousApiKey
+   if (previousModel === undefined) delete process.env.NOTES_QUESTION_MODEL
+   else process.env.NOTES_QUESTION_MODEL = previousModel
+ }
+})
+
+test('reports missing OpenAI API configuration without making a request', async () => {
+ const previousApiKey = process.env.OPENAI_API_KEY
+ const previousFetch = global.fetch
+ delete process.env.OPENAI_API_KEY
+ global.fetch = async () => {
+   throw new Error('fetch should not be called without a key')
+ }
+
+ try {
+   await assert.rejects(
+     callAi('notes prompt', 'test analysis'),
+     (error) => error instanceof NotesGenerationError && error.statusCode === 503 && /OPENAI_API_KEY/.test(error.message),
+   )
+ } finally {
+   global.fetch = previousFetch
+   if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY
+   else process.env.OPENAI_API_KEY = previousApiKey
+ }
+})
+
+test('includes OpenAI model error details when the provider rejects a request', async () => {
+ const previousApiKey = process.env.OPENAI_API_KEY
+ const previousModel = process.env.NOTES_QUESTION_MODEL
+ const previousFetch = global.fetch
+ process.env.OPENAI_API_KEY = 'test-openai-key'
+ delete process.env.NOTES_QUESTION_MODEL
+ global.fetch = async () => ({
+  ok: false,
+  status: 404,
+  text: async () => JSON.stringify({   error: { message: 'model is not available' } }),
+ })
+
+ try {
+  await assert.rejects(
+    callAi('notes prompt', 'test analysis'),
+    /gpt-4o-mini.*HTTP 404.*model is not available/,
+  )
+ } finally {
+  global.fetch = previousFetch
+  if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY
+  else process.env.OPENAI_API_KEY = previousApiKey
+  if (previousModel === undefined) delete process.env.NOTES_QUESTION_MODEL
+  else process.env.NOTES_QUESTION_MODEL = previousModel
+ }
+})
 
 test('extracts PPTX text while retaining slide numbers and paragraph order', async () => {
   const zip = new JSZip()

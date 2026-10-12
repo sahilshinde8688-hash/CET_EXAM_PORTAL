@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { questionsAPI, usersAPI, testsAPI, mockTestsAPI, session, Question, type AuthUser } from '../lib/api'
+import { questionsAPI, usersAPI, testsAPI, mockTestsAPI, session, Question, type AuthUser, type StartedMockTest, type TestResult } from '../lib/api'
 import { MathRenderer } from '../lib/mathDisplay'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
@@ -12,6 +12,8 @@ import '../testInterface.css'
 
 const QUESTION_ORDER_KEY = 'cet_exam_question_order_v2'
 const EMPTY_QUESTION_IDS: string[] = []
+const getAssignedElapsedSeconds = (startedAt: string) =>
+  Math.max(0, Math.floor((Date.now() - Date.parse(startedAt)) / 1000))
 
 const shuffleQuestionsBySubject = (items: Question[]): Question[] => {
   const grouped = new Map<string, Question[]>()
@@ -86,7 +88,12 @@ export default function TestInterface({
   reviewResultId,
   reviewMode = false, 
   pastAnswers, 
-  pastResultData 
+  pastResultData,
+  assignedAttempt,
+  onAssignedSave,
+  onAssignedSubmit,
+  onAssignedSubmitted,
+  onAssignedRetake,
 }: { 
   onClose: () => void; 
   onBackRequest?: () => void;
@@ -101,25 +108,48 @@ export default function TestInterface({
   reviewMode?: boolean;
   pastAnswers?: Record<string, number>;
   pastResultData?: any;
+  assignedAttempt?: StartedMockTest;
+  onAssignedSave?: (answers: Record<string, number>, timeSpent: number) => Promise<void>;
+  onAssignedSubmit?: (answers: Record<string, number>, timeSpent: number) => Promise<{ result?: TestResult }>;
+  onAssignedSubmitted?: () => Promise<void> | void;
+  onAssignedRetake?: () => void;
 }) {
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [loading, setLoading] = useState(true)
+  const [questions, setQuestions] = useState<Question[]>(() => assignedAttempt?.questions.map(normalizeQuestion) || [])
+  const [loading, setLoading] = useState(!assignedAttempt)
   const [error, setError] = useState<string | null>(null)
   const [currentIndex, setCurrentIndex] = useState<number>(() => {
     if (reviewMode) return 0
+    if (assignedAttempt) {
+      const savedIndex = Number(sessionStorage.getItem(`cet_assigned_question_${assignedAttempt.attempt._id}`))
+      return Number.isInteger(savedIndex) && savedIndex >= 0 ? savedIndex : 0
+    }
     const saved = localStorage.getItem('cet_exam_current_index')
     return saved ? parseInt(saved, 10) : 0
   })
   const [answers, setAnswers] = useState<Record<string, number>>(() => {
+    if (assignedAttempt) return assignedAttempt.attempt.answers || {}
     if (pastAnswers) return pastAnswers
     const saved = localStorage.getItem('cet_exam_answers')
     return saved ? JSON.parse(saved) : {}
   }) // questionId -> selected option index
   const [marked, setMarked] = useState<Record<string, boolean>>(() => {
+    if (assignedAttempt) {
+      try {
+        return JSON.parse(sessionStorage.getItem(`cet_assigned_marked_${assignedAttempt.attempt._id}`) || '{}')
+      } catch {
+        return {}
+      }
+    }
     const saved = localStorage.getItem('cet_exam_marked')
     return saved ? JSON.parse(saved) : {}
   })
+  const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
+    if (assignedAttempt) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(assignedAttempt.attempt.startedAt)) / 1000))
+      const untilExpiry = Math.ceil((Date.parse(assignedAttempt.assignment.endDateTime) - Date.now()) / 1000)
+      return Math.max(0, Math.min(assignedAttempt.assignment.duration * 60 - elapsed, untilExpiry))
+    }
     if (reviewMode) return durationMinutes * 60
     const savedTime = Number(localStorage.getItem('cet_exam_time_remaining'))
     const savedDuration = Number(localStorage.getItem('cet_exam_duration_minutes'))
@@ -130,6 +160,9 @@ export default function TestInterface({
       : durationMinutes * 60
   }) // exam duration in seconds
   const [timeElapsed, setTimeElapsed] = useState<number>(() => {
+    if (assignedAttempt) {
+      return Math.max(0, Math.floor((Date.now() - Date.parse(assignedAttempt.attempt.startedAt)) / 1000))
+    }
     if (reviewMode) return 0
     const saved = localStorage.getItem('cet_exam_time_elapsed')
     const savedDuration = Number(localStorage.getItem('cet_exam_duration_minutes'))
@@ -140,10 +173,17 @@ export default function TestInterface({
   }) // Track actual elapsed time
 
   const [submitted, setSubmitted] = useState(reviewMode)
+  const [assignedResult, setAssignedResult] = useState<TestResult | null>(null)
+  const [savedResult, setSavedResult] = useState<TestResult | null>(null)
+  const [savedResultId, setSavedResultId] = useState<string | undefined>(reviewResultId)
+  const [assignedReviewLoaded, setAssignedReviewLoaded] = useState(false)
+  const [assignedReviewError, setAssignedReviewError] = useState<string | null>(null)
+  const [assignedSaveError, setAssignedSaveError] = useState<string | null>(null)
+  const assignedMode = Boolean(assignedAttempt)
 
   // Set ongoing test indicator in localStorage for Dashboard resume card
   useEffect(() => {
-    if (reviewMode || submitted) return
+    if (reviewMode || assignedMode || submitted) return
     const user = session.get<AuthUser>()
     localStorage.setItem('cet_inProgressTest', JSON.stringify({
       userId: user?.id || user?._id || null,
@@ -154,35 +194,49 @@ export default function TestInterface({
       questionIds,
       message: 'Exam in progress. Resume to continue.'
     }))
-  }, [durationMinutes, examName, mockTestId, questionCount, questionIds, questions.length, reviewMode, submitted])
+  }, [assignedMode, durationMinutes, examName, mockTestId, questionCount, questionIds, questions.length, reviewMode, submitted])
 
   // Sync state changes to localStorage to handle page reload and cross-page access
   useEffect(() => {
     if (reviewMode) return
+    if (assignedAttempt) {
+      const key = `cet_assigned_question_${assignedAttempt.attempt._id}`
+      if (submitted) sessionStorage.removeItem(key)
+      else sessionStorage.setItem(key, currentIndex.toString())
+      return
+    }
+    if (assignedMode) return
     localStorage.setItem('cet_exam_current_index', currentIndex.toString())
-  }, [currentIndex, reviewMode])
+  }, [assignedAttempt, assignedMode, currentIndex, reviewMode, submitted])
 
   useEffect(() => {
-    if (reviewMode) return
+    if (reviewMode || assignedMode) return
     localStorage.setItem('cet_exam_answers', JSON.stringify(answers))
-  }, [answers, reviewMode])
+  }, [answers, assignedMode, reviewMode])
 
   useEffect(() => {
-    if (reviewMode) return
+    if (reviewMode || assignedMode) {
+      if (assignedAttempt) {
+        const key = `cet_assigned_marked_${assignedAttempt.attempt._id}`
+        if (submitted) sessionStorage.removeItem(key)
+        else sessionStorage.setItem(key, JSON.stringify(marked))
+      }
+      return
+    }
     localStorage.setItem('cet_exam_marked', JSON.stringify(marked))
-  }, [marked, reviewMode])
+  }, [assignedAttempt, assignedMode, marked, reviewMode, submitted])
 
   useEffect(() => {
-    if (reviewMode) return
+    if (reviewMode || assignedMode) return
     localStorage.setItem('cet_exam_time_remaining', timeRemaining.toString())
     localStorage.setItem('cet_exam_duration_minutes', durationMinutes.toString())
     localStorage.setItem('cet_exam_name', examName)
-  }, [durationMinutes, examName, reviewMode, timeRemaining])
+  }, [assignedMode, durationMinutes, examName, reviewMode, timeRemaining])
 
   useEffect(() => {
-    if (reviewMode) return
+    if (reviewMode || assignedMode) return
     localStorage.setItem('cet_exam_time_elapsed', timeElapsed.toString())
-  }, [timeElapsed, reviewMode])
+  }, [assignedMode, timeElapsed, reviewMode])
 
   useEffect(() => {
     setCurrentIndex(index => questions.length > 0
@@ -210,17 +264,23 @@ export default function TestInterface({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showResultPage, setShowResultPage] = useState(reviewMode)
   const [confirmationId, setConfirmationId] = useState<string>('')
-  const [user, setUser] = useState<{ name: string; mhcetId?: string; email: string } | null>(null)
+  const [user, setUser] = useState<{ name: string; mhcetId?: string; email: string } | null>(() => {
+    const s = session.get<AuthUser>()
+    return s ? { name: s.name || 'Student', mhcetId: s.mhcetId, email: s.email } : null
+  })
   const [aiSolutions, setAiSolutions] = useState<Record<string, string>>({})
   const [loadingAiSolution, setLoadingAiSolution] = useState<Record<string, boolean>>({})
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportType, setReportType] = useState('')
   const [reportNote, setReportNote] = useState('')
   const [reportSuccess, setReportSuccess] = useState(false)
+  const assignedReviewMode = Boolean(assignedAttempt && submitted && assignedReviewLoaded && !showResultPage && !showSuccessPage)
+  const isReviewMode = reviewMode || assignedReviewMode
 
   // Full-screen guard — active only during the live exam (not review/result/loading)
   const examActive = !reviewMode && !submitted && !loading && !showResultPage && !showSuccessPage
-  const { warningType, fullscreenSupported, timerPaused, requestFullscreen, dismissFocusWarning } = useFullscreenGuard(examActive)
+  const { warningType, fullscreenSupported, timerPaused: guardTimerPaused, requestFullscreen, dismissFocusWarning } = useFullscreenGuard(examActive)
+  const timerPaused = guardTimerPaused && !assignedMode
 
   useEffect(() => {
     if (!showSubmissionAnimation) return
@@ -336,6 +396,69 @@ export default function TestInterface({
     if (isSubmitting) return
     setIsSubmitting(true)
     setSubmitError(null)
+    if (assignedAttempt) {
+      try {
+        if (!onAssignedSubmit) throw new Error('Assigned-test submission is unavailable. Return to the assigned tests and retry.')
+        const response = await onAssignedSubmit(answers, getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt))
+        const submittedResult = response.result || null
+        setAssignedResult(submittedResult)
+        if (submittedResult) {
+          setSavedResult(submittedResult)
+          setSavedResultId(submittedResult._id)
+          setResult({
+            total: Number(submittedResult.totalQuestions ?? assignedAttempt.questions.length),
+            answered: Number(submittedResult.correct ?? 0) + Number(submittedResult.incorrect ?? 0),
+            marked: Object.values(marked).filter(Boolean).length,
+            notAnswered: Number(submittedResult.unanswered ?? 0),
+            correct: Number(submittedResult.correct ?? 0),
+            incorrect: Number(submittedResult.incorrect ?? 0),
+            score: Number(submittedResult.score ?? 0),
+            maxScore: Number(submittedResult.totalMarks ?? assignedAttempt.attempt.totalMarks),
+            duration: Number(submittedResult.duration ?? getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt)),
+          })
+          try {
+            const review = await testsAPI.getReview(submittedResult._id)
+            setQuestions(review.questions.map(normalizeQuestion))
+            setAnswers(review.result.answers || {})
+            setAssignedResult(review.result)
+            setAssignedReviewLoaded(true)
+            setResult({
+              total: Number(review.result.totalQuestions ?? review.questions.length),
+              answered: Number(review.result.correct ?? 0) + Number(review.result.incorrect ?? 0),
+              marked: Object.values(marked).filter(Boolean).length,
+              notAnswered: Number(review.result.unanswered ?? 0),
+              correct: Number(review.result.correct ?? 0),
+              incorrect: Number(review.result.incorrect ?? 0),
+              score: Number(review.result.score ?? 0),
+              maxScore: Number(review.result.totalMarks ?? assignedAttempt.attempt.totalMarks),
+              duration: Number(review.result.duration ?? getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt)),
+            })
+          } catch (reviewError) {
+            console.error('Failed to load assigned test review:', reviewError)
+            setAssignedReviewError(reviewError instanceof Error ? reviewError.message : 'Question-by-question review is temporarily unavailable.')
+          }
+        }
+        setSubmitted(true)
+        sessionStorage.removeItem(`cet_assigned_marked_${assignedAttempt.attempt._id}`)
+        sessionStorage.removeItem(`cet_assigned_question_${assignedAttempt.attempt._id}`)
+        await onAssignedSubmitted?.()
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen().catch(() => {})
+        }
+        if (submittedResult) {
+          setConfirmationId(`CONF-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`)
+          setShowSubmissionAnimation(true)
+        }
+      } catch (error) {
+        console.error('Failed to submit assigned mock test:', error)
+        setSubmitError(error instanceof Error ? error.message : 'Your test could not be submitted. Please try again.')
+        setShowSubmitConfirm(true)
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
+
     const resultData = calculateResult()
     setResult(resultData)
     
@@ -370,9 +493,16 @@ export default function TestInterface({
     
     // Save test result to backend
     try {
+      const submissionStorageKey = `cet_submission_${mockTestId || examName || 'practice-test'}`
+      let submissionKey = sessionStorage.getItem(submissionStorageKey)
+      if (!submissionKey) {
+        submissionKey = crypto.randomUUID()
+        sessionStorage.setItem(submissionStorageKey, submissionKey)
+      }
       const savedResult = await testsAPI.submitResult({
         testName: examName,
         mockTestId,
+        submissionKey,
         subject: 'Mock Test',
         score: resultData.score,
         totalMarks: resultData.maxScore,
@@ -386,6 +516,9 @@ export default function TestInterface({
         unanswered: resultData.notAnswered,
         totalQuestions: resultData.total,
       })
+      sessionStorage.removeItem(submissionStorageKey)
+      setSavedResult(savedResult)
+      setSavedResultId(savedResult._id)
       setSubmitted(true)
 
       // Keep the in-progress state until the server confirms the submission.
@@ -465,6 +598,12 @@ export default function TestInterface({
 
   // Load questions from the live backend only. No demo/mock fallback is allowed in production.
   useEffect(() => {
+    if (assignedAttempt) {
+      setQuestions(assignedAttempt.questions.map(normalizeQuestion))
+      setLoading(false)
+      return
+    }
+
     const load = async () => {
       setLoading(true)
       setError(null)
@@ -529,13 +668,20 @@ export default function TestInterface({
     }, 100)
 
     return () => clearTimeout(timeout)
-  }, [durationMinutes, examName, questionCount, questionIds, reviewMode, reviewResultId])
+  }, [assignedAttempt, durationMinutes, examName, questionCount, questionIds, reviewMode, reviewResultId])
 
 
   // Timer — pauses automatically when fullscreen/focus warning is active
   useEffect(() => {
     if (loading || submitted) return
     const timer = setInterval(() => {
+      if (assignedAttempt) {
+        const elapsed = getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt)
+        const untilExpiry = Math.ceil((Date.parse(assignedAttempt.assignment.endDateTime) - Date.now()) / 1000)
+        setTimeElapsed(elapsed)
+        setTimeRemaining(Math.max(0, Math.min(assignedAttempt.assignment.duration * 60 - elapsed, untilExpiry)))
+        return
+      }
       if (timerPaused) return // Do not tick while warning modal is shown
       setTimeRemaining(t => {
         if (t > 0) {
@@ -547,7 +693,50 @@ export default function TestInterface({
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [loading, submitted, timerPaused])
+  }, [assignedAttempt, loading, submitted, timerPaused])
+
+  useEffect(() => {
+    if (!assignedAttempt || !onAssignedSave || submitted) return
+    let cancelled = false
+    const save = async () => {
+      try {
+        await onAssignedSave(answers, getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt))
+        if (!cancelled) setAssignedSaveError(null)
+      } catch (saveError) {
+        if (!cancelled) {
+          setAssignedSaveError(`Progress could not be saved. Check your connection and retry. ${saveError instanceof Error ? saveError.message : 'Please try again.'}`)
+        }
+      }
+    }
+    const timeout = window.setTimeout(() => { void save() }, 450)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [answers, assignedAttempt, onAssignedSave, submitted])
+
+  useEffect(() => {
+    if (!assignedAttempt || !onAssignedSave || submitted) return
+    const save = () => {
+      void onAssignedSave(answers, getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt)).catch(saveError => {
+        setAssignedSaveError(`Progress could not be saved. Check your connection and retry. ${saveError instanceof Error ? saveError.message : 'Please try again.'}`)
+      })
+    }
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') save()
+    }
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      save()
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  }, [answers, assignedAttempt, onAssignedSave, submitted])
 
   useEffect(() => {
     if (reviewMode || loading || submitted || isSubmitting || timeRemaining > 0) return
@@ -735,6 +924,126 @@ export default function TestInterface({
     )
   }
 
+  if (assignedAttempt && submitted && showSubmissionAnimation) {
+    return <SubmissionAnimation />
+  }
+
+  if (assignedAttempt && submitted && showResultPage && result && assignedResult) {
+    const percentage = result.maxScore > 0 ? (result.score / result.maxScore) * 100 : 0
+    const hasPassed = percentage >= 50
+    const strengths = subjectWiseScores.filter(subject => subject.percentage >= 70).map(subject => subject.subject)
+    const weaknesses = subjectWiseScores.filter(subject => subject.percentage < 50).map(subject => subject.subject)
+    const aiFeedback = percentage >= 80
+      ? 'Excellent performance! You have demonstrated strong understanding across multiple subjects. Keep up the great work!'
+      : percentage >= 60
+        ? 'Good performance! You have a solid foundation. Focus on improving your weak areas to achieve better scores.'
+        : percentage >= 50
+          ? 'You have passed the exam. Review the topics you found challenging to improve further.'
+          : 'Review the fundamentals and keep practicing the topics you found challenging.'
+    const analyticsGridContent = assignedReviewLoaded ? (
+      <div className="test-qgrid-card" style={{ marginBottom: '24px' }}>
+        <div className="test-qgrid-header">
+          <div>
+            <h2 className="test-qgrid-title">Question-by-Question Analytics</h2>
+            <p className="test-qgrid-sub">Click any box to view the detailed question and solution.</p>
+          </div>
+          <div className="test-qlegend">
+            <div className="test-ql-item"><span className="test-ql-box test-ql-box--correct" /><span>Correct</span></div>
+            <div className="test-ql-item"><span className="test-ql-box test-ql-box--incorrect" /><span>Incorrect</span></div>
+            <div className="test-ql-item"><span className="test-ql-box test-ql-box--unattempted" /><span>Unattempted</span></div>
+            <div className="test-ql-item"><span className="test-ql-box test-ql-box--review" /><span>Review</span></div>
+          </div>
+        </div>
+        <div className="test-qgrid">
+          {questions.map((question, index) => {
+            const state = getQuestionResultState(index)
+            return (
+              <button
+                key={question._id || index}
+                className={`test-q-box test-q-box--${state}`}
+                onClick={() => {
+                  setCurrentIndex(index)
+                  setShowResultPage(false)
+                }}
+                title={`Q${index + 1}: ${state}`}
+              >
+                {index + 1}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    ) : undefined
+    return (
+      <>
+        {assignedReviewError && <p role="alert" style={{ margin: '12px 24px', color: '#b91c1c' }}>Your score is available, but question review could not be loaded: {assignedReviewError}</p>}
+        <ExamResultDashboard
+          onClose={onClose}
+          onRetakeExam={() => onAssignedRetake?.()}
+          candidateName={user?.name || 'Student'}
+          rollNumber={user?.mhcetId || 'N/A'}
+          examName={examName}
+          score={result.score}
+          maxScore={result.maxScore}
+          percentage={percentage}
+          passMark={50}
+          timeTaken={formatTime(result.duration)}
+          correctAnswers={result.correct}
+          wrongAnswers={result.incorrect}
+          unansweredQuestions={result.notAnswered}
+          subjectWiseScores={subjectWiseScores}
+          strengths={strengths.length > 0 ? strengths : ['Need more practice']}
+          weaknesses={weaknesses.length > 0 ? weaknesses : ['Overall improvement needed']}
+          aiFeedback={aiFeedback}
+          canRetake={Boolean(onAssignedRetake && (assignedAttempt.assignment.attemptLimit === null || (assignedAttempt.assignment.attemptsRemaining ?? 0) > 0) && Date.now() < Date.parse(assignedAttempt.assignment.endDateTime))}
+          hasPassed={hasPassed}
+          analyticsGrid={analyticsGridContent}
+          questions={assignedReviewLoaded ? questions : []}
+          answers={assignedReviewLoaded ? answers : {}}
+          resultId={assignedResult?._id || savedResultId}
+          resultData={assignedResult || savedResult}
+          testId={assignedAttempt.assignment.mockTestId}
+          onSelectQuestion={(index) => {
+            setCurrentIndex(index)
+            setShowResultPage(false)
+          }}
+        />
+      </>
+    )
+  }
+
+  if (assignedAttempt && submitted && showSuccessPage && assignedResult && result) {
+    return (
+      <ExamSuccessPage
+        onClose={onClose}
+        onViewDashboard={handleViewResults}
+        examName={examName}
+        candidateName={user?.name || 'Student'}
+        rollNumber={user?.mhcetId || 'N/A'}
+        submissionTime={assignedResult.attemptedAt || new Date().toLocaleString()}
+        totalQuestions={result.total}
+        attemptedQuestions={result.answered}
+        unansweredQuestions={result.notAnswered}
+        timeTaken={formatTime(result.duration)}
+        confirmationId={confirmationId}
+      />
+    )
+  }
+
+  if (assignedAttempt && submitted) {
+    return (
+      <main className="test-root">
+        <section className="test-result-card" style={{ margin: 'auto', textAlign: 'center' }}>
+          <div className="test-success-animation" aria-hidden="true">✓</div>
+          <h1>Mock test submitted</h1>
+          <p>{assignedAttempt.assignment.mockTestName} · Attempt {assignedAttempt.attempt.attemptNumber}</p>
+          <p>Your result will be available according to the assignment's result visibility settings.</p>
+          <button className="test-submit-btn" type="button" onClick={onClose}>Back to assigned tests</button>
+        </section>
+      </main>
+    )
+  }
+
   if (showSuccessPage && result) {
     // Only show if we have user data
     if (!user) {
@@ -765,8 +1074,8 @@ export default function TestInterface({
         onClose={onClose}
         onViewDashboard={handleViewResults}
         examName={examName}
-        candidateName={user.name}
-        rollNumber={user.mhcetId || 'N/A'}
+        candidateName={user?.name || 'Student'}
+        rollNumber={user?.mhcetId || 'N/A'}
         submissionTime={new Date().toLocaleString()}
         totalQuestions={result.total}
         attemptedQuestions={result.answered}
@@ -874,6 +1183,9 @@ export default function TestInterface({
         analyticsGrid={analyticsGridContent}
         questions={questions}
         answers={answers}
+        resultId={savedResultId}
+        resultData={assignedResult || savedResult}
+        testId={mockTestId}
         onSelectQuestion={(idx) => {
           setCurrentIndex(idx)
           setShowResultPage(false)
@@ -884,7 +1196,23 @@ export default function TestInterface({
 
 
 
-  const handleBackAction = () => {
+  const handleBackAction = async () => {
+    if (assignedAttempt) {
+      if (submitted && assignedResult) {
+        setShowResultPage(true)
+        return
+      }
+      if (!assignedAttempt.assignment.allowResume || !assignedAttempt.assignment.allowBackNavigation
+        || !window.confirm('Leave this test? Your progress will be saved and you can resume later.')) return
+      try {
+        if (!onAssignedSave) throw new Error('Progress saving is unavailable. Stay on this page and retry.')
+        await onAssignedSave(answers, getAssignedElapsedSeconds(assignedAttempt.attempt.startedAt))
+        onClose()
+      } catch (saveError) {
+        setAssignedSaveError(`Progress could not be saved. Stay on this page and retry. ${saveError instanceof Error ? saveError.message : 'Please try again.'}`)
+      }
+      return
+    }
     if (reviewMode) {
       setShowResultPage(true)
     } else if (submitted) {
@@ -899,6 +1227,10 @@ export default function TestInterface({
   }
 
   const handleNext = () => {
+    if (assignedAttempt) {
+      if (currentIndex < questions.length - 1) setCurrentIndex(index => index + 1)
+      return
+    }
     const currentSubject = questions[currentIndex]?.subject || 'General'
     const nextIdx = questions.findIndex((q, i) => i > currentIndex && (q.subject || 'General') === currentSubject)
     if (nextIdx !== -1) {
@@ -914,6 +1246,10 @@ export default function TestInterface({
   }
 
   const handlePrev = () => {
+    if (assignedAttempt) {
+      if (submitted || assignedAttempt.assignment.allowBackNavigation) setCurrentIndex(index => Math.max(0, index - 1))
+      return
+    }
     const currentSubject = questions[currentIndex]?.subject || 'General'
     let prevIdx = -1
     for (let i = currentIndex - 1; i >= 0; i--) {
@@ -929,13 +1265,13 @@ export default function TestInterface({
     <div className="test-root">
       <header className="test-header">
         <div className="test-header-left">
-          <button className="test-back-btn" type="button" onClick={handleBackAction}>
+          <button className="test-back-btn" type="button" onClick={() => void handleBackAction()} disabled={Boolean(assignedAttempt && !assignedAttempt.assignment.allowResume)}>
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
           <div className="test-brand"><img src="/logo.png" alt="" /></div>
           <div className="test-sep" />
           <h1 className="test-title">{examName}</h1>
-          {questions.length > 0 && (
+          {questions.length > 0 && (!assignedAttempt || submitted || assignedAttempt.assignment.allowBackNavigation) && (
             <>
               <div className="test-sep" />
               <select 
@@ -966,12 +1302,22 @@ export default function TestInterface({
           )}
         </div>
         <div className="test-header-right">
+          <button
+            type="button"
+            className="test-palette-toggle-btn"
+            onClick={() => setMobilePaletteOpen(prev => !prev)}
+            aria-label="Toggle Question Palette"
+          >
+            <span className="material-symbols-outlined">grid_view</span>
+            <span className="test-palette-toggle-text">Palette</span>
+            <span className="test-palette-badge">{currentIndex + 1}/{questions.length}</span>
+          </button>
           <div className="test-timer" style={timerPaused ? { borderColor: '#f59e0b', background: 'rgba(245,158,11,0.1)', color: '#d97706' } : {}}>
             <span className="material-symbols-outlined">{timerPaused ? 'timer_off' : 'timer'}</span>
             <span className="test-timer-text">
-              {reviewMode ? 'Review Mode' : formatTime(timeRemaining)}
+              {isReviewMode ? 'Review Mode' : formatTime(timeRemaining)}
             </span>
-            {timerPaused && !reviewMode && (
+            {timerPaused && !isReviewMode && (
               <span style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
                 background: '#f59e0b', color: '#fff', padding: '2px 6px',
@@ -980,13 +1326,18 @@ export default function TestInterface({
             )}
           </div>
           <style>{`@keyframes timerPausePulse { 0%,100%{opacity:1} 50%{opacity:0.45} }`}</style>
-          {reviewMode ? (
+          {isReviewMode ? (
             <button className="test-submit-btn" onClick={() => setShowResultPage(true)}>Back to Analysis</button>
+          ) : assignedAttempt ? (
+            assignedAttempt.assignment.allowResume && assignedAttempt.assignment.allowBackNavigation
+              ? <button className="test-submit-btn" onClick={() => void handleBackAction()}>Exit</button>
+              : null
           ) : (
-            <button className="test-submit-btn" onClick={handleBackAction}>Exit</button>
+            <button className="test-submit-btn" onClick={() => void handleBackAction()}>Exit</button>
           )}
         </div>
       </header>
+      {assignedSaveError && <p role="alert" style={{ color: '#b91c1c', margin: '8px 32px 0' }}>{assignedSaveError}</p>}
 
       <main className="test-main">
         <section className="test-question-area">
@@ -997,7 +1348,10 @@ export default function TestInterface({
                   <span className="test-q-number">{currentIndex + 1}</span>
                   <div>
                     <p className="test-q-topic">{currentQuestion.subject} • {currentQuestion.topic}</p>
-                    <p className="test-q-marks">+{currentQuestion.marks} Marks • {Number(currentQuestion.negativeMarks || 0) === 0 ? 'No Negative Marking' : `-${currentQuestion.negativeMarks} Negative`}</p>
+                    <p className="test-q-marks">
+                      +{currentQuestion.marks} Marks • {Number(currentQuestion.negativeMarks || 0) === 0 ? 'No Negative Marking' : `-${currentQuestion.negativeMarks} Negative`}
+                      {assignedAttempt && ` · Total ${assignedAttempt.attempt.totalMarks} · Attempt ${assignedAttempt.attempt.attemptNumber}`}
+                    </p>
                   </div>
                 </div>
                 <button className="test-report-btn" onClick={() => { setShowReportModal(true); setReportSuccess(false); setReportType(''); setReportNote('') }}>
@@ -1032,7 +1386,7 @@ export default function TestInterface({
                     const isCorrect = i === correctIndex
                     
                     let optionClass = ''
-                    if (reviewMode) {
+                    if (isReviewMode) {
                       if (isCorrect) optionClass = 'test-option--correct-review'
                       else if (isSelected && !isCorrect) optionClass = 'test-option--incorrect-review'
                     } else if (isSelected) {
@@ -1043,21 +1397,21 @@ export default function TestInterface({
                       <button
                         key={i}
                         className={`test-option ${optionClass}`}
-                        onClick={() => !reviewMode && selectOption(i)}
+                        onClick={() => !isReviewMode && selectOption(i)}
                       >
                         <div className="test-option-letter">
                           <span className={`test-option-circle ${isSelected ? 'test-option-circle--active' : ''}`}>{String.fromCharCode(65 + i)}</span>
                           <span className="test-option-text"><MathRenderer value={opt} /></span>
                         </div>
-                        {reviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#10b981'}}>check_circle</span>}
-                        {reviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#ef4444'}}>cancel</span>}
-                        {!reviewMode && isSelected && <span className="material-symbols-outlined test-option-check">check_circle</span>}
+                        {isReviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#10b981'}}>check_circle</span>}
+                        {isReviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#ef4444'}}>cancel</span>}
+                        {!isReviewMode && isSelected && <span className="material-symbols-outlined test-option-check">check_circle</span>}
                       </button>
                     )
                   })}
                 </div>
 
-                {reviewMode && (
+                {isReviewMode && (
                   <div className="test-review-explanation" style={{ marginTop: '32px', padding: '24px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                       <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1157,10 +1511,28 @@ export default function TestInterface({
           )}
         </section>
 
-        <aside className="test-sidebar">
+        {mobilePaletteOpen && (
+          <div
+            className="test-palette-backdrop"
+            onClick={() => setMobilePaletteOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        <aside className={`test-sidebar${mobilePaletteOpen ? ' test-sidebar--mobile-open' : ''}`}>
           <div className="test-palette">
             <div className="test-palette-header">
-              <h4 className="test-palette-title">Question Palette</h4>
+              <div className="test-palette-header-row">
+                <h4 className="test-palette-title">Question Palette</h4>
+                <button
+                  type="button"
+                  className="test-palette-close-btn"
+                  onClick={() => setMobilePaletteOpen(false)}
+                  aria-label="Close question palette"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
               <div className="test-legend">
                 <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--answered" /> Answered</div>
                 <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--marked" /> Marked</div>
@@ -1170,15 +1542,21 @@ export default function TestInterface({
             </div>
             <div className="test-palette-grid">
               {questions.map((q, i) => ({ q, i }))
-                .filter(({ q }) => (q.subject || 'General') === (questions[currentIndex]?.subject || 'General'))
+                .filter(({ q }) => assignedAttempt || (q.subject || 'General') === (questions[currentIndex]?.subject || 'General'))
                 .map(({ i }) => (
-                  <div
+                  <button
+                    type="button"
                     key={i}
-                    className={`test-palette-item test-palette-item--${getQuestionState(i)}`}
-                    onClick={() => setCurrentIndex(i)}
+                    className={`test-palette-item test-palette-item--${getQuestionState(i)}${i === currentIndex ? ' test-palette-item--current' : ''}`}
+                    disabled={Boolean(assignedAttempt && !submitted && !assignedAttempt.assignment.allowBackNavigation && i < currentIndex)}
+                    onClick={() => {
+                      if (assignedAttempt && !submitted && !assignedAttempt.assignment.allowBackNavigation && i < currentIndex) return
+                      setCurrentIndex(i)
+                      setMobilePaletteOpen(false)
+                    }}
                   >
                     {i + 1}
-                  </div>
+                  </button>
               ))}
             </div>
           </div>
@@ -1230,7 +1608,11 @@ export default function TestInterface({
 
       <footer className="test-footer">
         <div className="test-footer-left">
-          <button className="test-nav-btn test-nav-btn--prev" onClick={handlePrev}>
+          <button
+            className="test-nav-btn test-nav-btn--prev"
+            onClick={handlePrev}
+            disabled={currentIndex === 0 || Boolean(assignedAttempt && !submitted && !assignedAttempt.assignment.allowBackNavigation)}
+          >
             <span className="material-symbols-outlined">chevron_left</span>
             Previous
           </button>
@@ -1243,7 +1625,7 @@ export default function TestInterface({
           </button>
         </div>
         <div className="test-footer-right">
-          {!reviewMode && (
+          {!isReviewMode && (
             <button className="test-action-btn test-action-btn--clear" onClick={() => {
               if (currentQuestion) {
                 setAnswers(prev => {
@@ -1255,10 +1637,10 @@ export default function TestInterface({
             }}>Clear Response</button>
           )}
           <button className="test-action-btn test-action-btn--save" onClick={handleNext}>
-            {reviewMode ? 'Next Question' : 'Save & Next'}
+            {isReviewMode ? 'Next Question' : 'Save & Next'}
             <span className="material-symbols-outlined">chevron_right</span>
           </button>
-          {!reviewMode && (
+          {!isReviewMode && (
             <button className="test-action-btn test-action-btn--submit" onClick={() => setShowSubmitConfirm(true)} disabled={isSubmitting}>
               Submit Test
             </button>
@@ -1273,6 +1655,7 @@ export default function TestInterface({
         onRequestFullscreen={requestFullscreen}
         onDismissFocusWarning={dismissFocusWarning}
         onExitExam={handleBackAction}
+        timerContinues={assignedMode}
       />
 
       {/* ── Report Error Modal ─────────────────────────────────── */}

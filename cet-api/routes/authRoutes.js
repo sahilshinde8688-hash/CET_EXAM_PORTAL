@@ -16,9 +16,10 @@ const {
 } = require('../utils/authHelpers')
 const { validateCsrfToken } = require('../middleware/csrf')
 const { sensitiveHeaders } = require('../middleware/securityHeaders')
-const { loginLimiter, registerLimiter, refreshLimiter } = require('../middleware/rateLimit')
+const { loginLimiter, registerLimiter, refreshLimiter, passwordResetLimiter } = require('../middleware/rateLimit')
 const { protect, protectWithoutActivity } = require('../middleware/auth')
 const { getSessionExpiresAt, sendSessionExpired } = require('../config/auth')
+const emailNotifications = require('../services/emailNotificationService')
 
 const getUserPayload = (user) => ({
   _id: user.id || user._id,
@@ -31,6 +32,8 @@ const getUserPayload = (user) => ({
   status: user.status,
   mhcetId: user.mhcetId,
   phone: user.phone,
+  guardianEmail: user.guardianEmail || null,
+  parentResultEmailConsent: Boolean(user.parentResultEmailConsent),
   batch: user.batch,
   photo: user.photo,
   mustResetPassword: user.mustResetPassword,
@@ -214,6 +217,36 @@ const refreshUserSession = async (req, res, recordRefreshHistory = false) => {
 }
 
 // POST /api/auth/register
+router.post('/setup-password', validateCsrfToken, passwordResetLimiter, async (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token : ''
+  const password = typeof req.body?.newPassword === 'string' ? req.body.newPassword : ''
+  if (token.length < 40 || token.length > 128) {
+    return res.status(400).json({ success: false, message: 'The account setup link is invalid or expired. Ask your administrator to send a new one.' })
+  }
+  const normalizedPassword = password.trim()
+  if (normalizedPassword.length < 8 || Buffer.byteLength(normalizedPassword, 'utf8') > 72) {
+    return res.status(400).json({ success: false, message: 'Choose a password between 8 and 72 UTF-8 bytes.' })
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(normalizedPassword, 12)
+    const userId = await emailNotifications.completeAccountSetup(token, passwordHash)
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'The account setup link is invalid, expired, or already used.' })
+    }
+    try {
+      const user = await db.findUserById(userId)
+      if (user) await emailNotifications.sendPasswordChangedNotification(user)
+    } catch (emailError) {
+      console.error('[email] Could not queue account setup security notice:', emailError.message)
+    }
+    res.json({ success: true, message: 'Your password is set. You can now sign in to CETNova.' })
+  } catch (error) {
+    console.error('[auth] Account password setup failed:', error.message)
+    res.status(503).json({ success: false, message: 'Unable to complete account setup. Verify that the latest database migrations are installed.' })
+  }
+})
+
 router.post('/register', sensitiveHeaders, registerLimiter, async (req, res) => {
   const { name, email, phone, branch, batch } = req.body
   try {
@@ -334,6 +367,11 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
         metadata: { email: input },
       })
       return res.status(401).json({ success: false, message: 'Invalid credentials.' })
+    }
+
+    if (user.initialPasswordAvailable) {
+      await db.consumeInitialTemporaryPassword(user.id)
+      user.initialPasswordAvailable = false
     }
 
     const payload = await createAuthSession(user, req, res, Boolean(rememberMe))

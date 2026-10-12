@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Sidebar from './Sidebar'
 import TestInterface from './TestInterface'
 import UserAvatar from './UserAvatar'
@@ -35,6 +35,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [showHelp, setShowHelp] = useState(false)
   const [unreadNotifs, setUnreadNotifs] = useState(3)
   const [shareToast, setShareToast] = useState(false)
+  const lastAssignmentRequestAt = useRef(0)
   const user = session.get<AuthUser>()
   const currentUserId = String(user?.id || user?._id || '')
 
@@ -56,6 +57,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     }
 
     let cancelled = false
+    let assignmentRequestInFlight = false
     const cachedResults = testsAPI.getCachedDashboardResults()
     if (cachedResults) setTestHistory(cachedResults)
 
@@ -71,7 +73,11 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     }).finally(() => {
       if (!cancelled) setDashboardLoading(false)
     })
-    const loadAssignedTests = () => {
+    const loadAssignedTests = (force = false) => {
+      if (assignmentRequestInFlight) return
+      if (!force && (document.hidden || Date.now() - lastAssignmentRequestAt.current < 30_000)) return
+      assignmentRequestInFlight = true
+      lastAssignmentRequestAt.current = Date.now()
       mockTestAssignmentsAPI.getStudentAssignments().then(response => {
         if (!cancelled) {
           setAssignedTests(response.assignments)
@@ -83,24 +89,27 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           setAssignedTestsError(error instanceof Error ? error.message : 'Assigned mock tests could not be loaded.')
         }
       }).finally(() => {
+        assignmentRequestInFlight = false
         if (!cancelled) setAssignedTestsLoading(false)
       })
     }
-    loadAssignedTests()
-    const assignmentRefresh = window.setInterval(loadAssignedTests, 30000)
-    window.addEventListener('focus', loadAssignedTests)
+    loadAssignedTests(true)
+    const assignmentRefresh = window.setInterval(loadAssignedTests, 60000)
+    const refreshAssignmentsOnFocus = () => { loadAssignedTests() }
+    window.addEventListener('focus', refreshAssignmentsOnFocus)
     return () => {
       cancelled = true
       window.clearInterval(assignmentRefresh)
-      window.removeEventListener('focus', loadAssignedTests)
+      window.removeEventListener('focus', refreshAssignmentsOnFocus)
     }
   }, [currentUserId])
 
   useEffect(() => {
     let cancelled = false
     let checkingTest = false
+    let lastTestCheckAt = 0
 
-    const refreshInProgressTest = async () => {
+    const refreshInProgressTest = async (force = false) => {
       const saved = localStorage.getItem('cet_inProgressTest')
       if (!saved) {
         setInProgressTest(null)
@@ -127,8 +136,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         setInProgressTest(progress)
         return
       }
+      if (!force && (document.hidden || Date.now() - lastTestCheckAt < 30_000)) {
+        setInProgressTest({ ...progress, mockTestId })
+        return
+      }
 
       checkingTest = true
+      lastTestCheckAt = Date.now()
       try {
         const availableTests = await mockTestsAPI.getAll({ background: true })
         if (cancelled) return
@@ -160,14 +174,16 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     }
 
     refreshInProgressTest()
-    const refreshInterval = window.setInterval(refreshInProgressTest, 15000)
-    window.addEventListener('focus', refreshInProgressTest)
-    window.addEventListener('storage', refreshInProgressTest)
+    const refreshInterval = window.setInterval(refreshInProgressTest, 60000)
+    const refreshInProgressTestOnFocus = () => { void refreshInProgressTest() }
+    window.addEventListener('focus', refreshInProgressTestOnFocus)
+    const refreshOnStorage = () => { void refreshInProgressTest(true) }
+    window.addEventListener('storage', refreshOnStorage)
     return () => {
       cancelled = true
       window.clearInterval(refreshInterval)
-      window.removeEventListener('focus', refreshInProgressTest)
-      window.removeEventListener('storage', refreshInProgressTest)
+      window.removeEventListener('focus', refreshInProgressTestOnFocus)
+      window.removeEventListener('storage', refreshOnStorage)
     }
   }, [currentUserId])
 
@@ -255,7 +271,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         {/* Top Bar */}
         <header className="db-topbar">
           <div className="db-topbar-left">
-            <button className="db-mobile-menu-btn" onClick={() => setMobileNavOpen(!mobileNavOpen)}>
+            <button
+              type="button"
+              className="db-mobile-menu-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:toggle-nav'))}
+              aria-label="Toggle navigation menu"
+            >
               <span className="material-symbols-outlined">menu</span>
             </button>
             <div className="db-search-wrap">
@@ -264,6 +285,14 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           </div>
           <div className="db-topbar-right">
+            <button
+              className="db-icon-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
+              title="Open on Phone / QR Scanner"
+              aria-label="Open on Phone or scan QR code"
+            >
+              <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
+            </button>
             <div style={{ position: 'relative' }}>
               <button className="db-icon-btn db-notif-btn" onClick={() => { setShowNotifs(!showNotifs); setShowHelp(false) }}>
                 <span className="material-symbols-outlined">notifications</span>
@@ -313,20 +342,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           </div>
         </header>
 
-        {/* Mobile overlay nav */}
-        {mobileNavOpen && (
-          <div className="db-mobile-overlay" onClick={() => setMobileNavOpen(false)}>
-            <div className="db-mobile-nav" onClick={e => e.stopPropagation()}>
-              {mobileNavItems.map(item => (
-                <button key={item.label} type="button" className={`db-nav-item${activeNav === item.label ? ' db-nav-item--active' : ''}`}
-                  onClick={() => { setActiveNav(item.label); setMobileNavOpen(false); onNavigate?.(item.page as any) }}>
-                  <span className="material-symbols-outlined">{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+
 
         <div className="db-content">
 

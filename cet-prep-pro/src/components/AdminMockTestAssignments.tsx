@@ -331,14 +331,14 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
           : `${groupValue || 'Exam category'} category`
 
   return (
-    <section style={{ padding: 24, maxWidth: 1500, margin: '0 auto', color: '#0f172a' }}>
+    <section className="amta-section">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
         <div>
-          <button type="button" style={{ ...secondaryStyle, marginBottom: 10 }} onClick={onBack}>← Mock tests</button>
-          <h1 style={{ margin: 0, fontSize: 26 }}>Mock Test Assignments</h1>
+          <button type="button" style={{ ...secondaryStyle, marginBottom: 10, minHeight: 44 }} onClick={onBack}>← Mock tests</button>
+          <h1 style={{ margin: 0, fontSize: 24 }}>Mock Test Assignments</h1>
           <p style={{ margin: '6px 0 0', color: '#64748b' }}>Assign saved tests to students and manage deadlines and attempts.</p>
         </div>
-        {view === 'list' && <button type="button" style={actionStyle} onClick={() => startForm()}>Assign Mock Test</button>}
+        {view === 'list' && <button type="button" style={{ ...actionStyle, minHeight: 44 }} onClick={() => startForm()}>Assign Mock Test</button>}
       </header>
 
       {error && <div role="alert" style={{ ...panelStyle, color: '#b91c1c', borderColor: '#fecaca', background: '#fef2f2' }}>{error}</div>}

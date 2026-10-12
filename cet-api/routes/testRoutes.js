@@ -4,6 +4,7 @@ const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
 const { apiLimiter, testSubmitLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
+const emailNotifications = require('../services/emailNotificationService')
 
 const assignedResultVisibility = async (studentId) => {
   const assignments = (await db.getMockTestAssignments())
@@ -22,8 +23,12 @@ const assignedResultVisibility = async (studentId) => {
 
 // POST /api/tests — Save and authoritatively score a test result
 router.post('/', protect, validateCsrfToken, testSubmitLimiter, async (req, res) => {
-  const { testName, answers, duration, questionIds, mockTestId } = req.body
+  const { testName, answers, duration, questionIds, mockTestId, submissionKey } = req.body
   try {
+    if (submissionKey !== undefined && (typeof submissionKey !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(submissionKey))) {
+      return res.status(400).json({ success: false, message: 'The test submission identifier is invalid.' })
+    }
     const userId = req.user.id || req.user._id
     const requestedMockTestId = typeof mockTestId === 'string' ? mockTestId : null
     const matchingTest = requestedMockTestId || typeof testName !== 'string'
@@ -49,8 +54,14 @@ router.post('/', protect, validateCsrfToken, testSubmitLimiter, async (req, res)
       duration: Number(duration) || 0,
       questionIds: Array.isArray(questionIds) ? questionIds : [],
       mockTestId: requestedMockTestId || matchingTest?._id || null,
+      submissionKey: submissionKey || null,
     })
 
+    try {
+      await emailNotifications.sendSavedResultNotifications(result._id || result.id)
+    } catch (emailError) {
+      console.error('[email] Could not queue result notification:', emailError.message)
+    }
     res.status(201).json(result)
   } catch (err) {
     if (err.code === 'P0001' && err.message.includes('attempt limit')) {
@@ -128,6 +139,9 @@ router.get('/:id/review', protect, apiLimiter, async (req, res) => {
     const questions = reviewQuestionIds
       .map(questionId => questionsByIdMap.get(questionId))
       .filter(Boolean)
+    if (questions.length !== reviewQuestionIds.length) {
+      return res.status(409).json({ success: false, message: 'Some questions from this test attempt are no longer available for review.' })
+    }
 
     res.json({
       result,

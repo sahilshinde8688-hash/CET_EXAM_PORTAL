@@ -10,7 +10,8 @@ const ANALYSIS_CHUNK_SIZE = 9000
 const DIFFICULTIES = ['Medium', 'Hard', 'Very Hard']
 const DEFAULT_MIXED_DIFFICULTY = { Medium: 20, Hard: 50, 'Very Hard': 30 }
 const SUPPORTED_DIFFICULTIES = new Set([...DIFFICULTIES, 'Mixed'])
-const MODEL = process.env.NOTES_QUESTION_MODEL || 'openai/gpt-4o-mini'
+const DEFAULT_MODEL = 'gpt-4o-mini'
+const AI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 const { randomInt } = require('crypto')
 
 class NotesGenerationError extends Error {
@@ -180,28 +181,24 @@ const parseJson = (content, label) => {
 }
 
 const callAi = async (prompt, label) => {
-  const apiKeys = [...new Set([
-    process.env.OPENROUTER_API_KEY,
-    process.env.OPENROUTER_API_KEY_BACKUP,
-  ].map((key) => String(key || '').trim()).filter(Boolean))]
-  if (!apiKeys.length) throw new NotesGenerationError('The AI question generation service is not configured.', 503)
+  const apiKeys = [String(process.env.OPENAI_API_KEY || '').trim()].filter(Boolean)
+  const model = String(process.env.NOTES_QUESTION_MODEL || DEFAULT_MODEL).trim()
+  if (!apiKeys.length) throw new NotesGenerationError('The OpenAI service is not configured. Set OPENAI_API_KEY on the API server.', 503)
 
   let lastError
   for (let index = 0; index < apiKeys.length; index += 1) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 90000)
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      const response = await fetch(AI_CHAT_COMPLETIONS_URL, {
         method: 'POST',
         signal: controller.signal,
         headers: {
           Authorization: `Bearer ${apiKeys[index]}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.APP_URL || 'https://cet-portal-3vas.onrender.com',
-          'X-Title': 'CET Exam Portal',
         },
         body: JSON.stringify({
-          model: MODEL,
+          model,
           messages: [
             {
               role: 'system',
@@ -214,25 +211,38 @@ const callAi = async (prompt, label) => {
         }),
       })
       if (!response.ok) {
-        console.error(`OpenRouter ${label} failed with HTTP ${response.status}${index ? ' using the backup key' : ''}`)
-        lastError = new NotesGenerationError('The AI service could not complete this request. Please retry.', 502)
+        const providerResponse = (await response.text()).slice(0, 500)
+        let providerMessage = providerResponse
+        try {
+          const parsedError = JSON.parse(providerResponse)
+          providerMessage = parsedError.error?.message || parsedError.message || providerResponse
+        } catch {
+          providerMessage = providerResponse
+        }
+        console.error(`OpenAI ${label} failed with HTTP ${response.status} for model ${model}: ${providerMessage}`)
+        lastError = new NotesGenerationError(`OpenAI rejected model "${model}" with HTTP ${response.status}${providerMessage ? `: ${providerMessage}` : '.'}`, 502)
         continue
       }
-      const result = await response.json()
+      let result
+      try {
+        result = await response.json()
+      } catch {
+        throw new NotesGenerationError('The OpenAI service returned an invalid response. Please retry.', 502)
+      }
       return parseJson(result.choices?.[0]?.message?.content, label)
     } catch (error) {
       if (error instanceof NotesGenerationError) lastError = error
       else if (error.name === 'AbortError') {
         lastError = new NotesGenerationError('AI processing timed out. Retry the job or upload a smaller document.', 504)
       } else {
-        console.error(`OpenRouter ${label} request failed:`, error.message)
-        lastError = new NotesGenerationError('Could not reach the AI service. Please retry.', 502)
+        console.error(`OpenAI ${label} request failed:`, error.message)
+        lastError = new NotesGenerationError('Could not reach the OpenAI service. Please retry.', 502)
       }
     } finally {
       clearTimeout(timeout)
     }
   }
-  throw lastError || new NotesGenerationError('The AI service could not complete this request. Please retry.', 502)
+  throw lastError || new NotesGenerationError('The OpenAI service could not complete this request. Please retry.', 502)
 }
 
 const chunksFromPages = (pages) => {
@@ -722,6 +732,7 @@ Return JSON: {"question":{"text":"...","options":["A","B","C","D"],"correctIndex
 
 module.exports = {
   NotesGenerationError,
+  callAi,
   extractDocument,
   generateFromNotes,
   normalizeQuestion,

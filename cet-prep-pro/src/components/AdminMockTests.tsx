@@ -223,20 +223,13 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
   }
 
   const deleteTest = async (test: MockTest) => {
-    if (!window.confirm(`Delete "${test.title}" permanently?`)) return
+    if (!window.confirm(`Permanently delete "${test.title}", all its schedules, student attempts, and results? This cannot be undone.`)) return
     try {
-      const result = await mockTestsAPI.delete(test._id)
-      if (result.archived) {
-        setMockTests(current => current.map(item => item._id === test._id
-          ? { ...item, status: 'draft', scheduledDate: undefined }
-          : item))
-        window.alert(result.message)
-      } else {
-        setMockTests(current => current.filter(item => item._id !== test._id))
-      }
+      await mockTestsAPI.delete(test._id)
+      setMockTests(current => current.filter(item => item._id !== test._id))
     } catch (error) {
       console.error('Failed to delete mock test:', error)
-      alert('Failed to delete test. Please try again.')
+      alert(error instanceof Error ? error.message : 'Failed to delete test. Please try again.')
     }
   }
 

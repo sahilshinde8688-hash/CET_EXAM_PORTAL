@@ -113,42 +113,21 @@ router.put('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req
 // DELETE mock test — ADMIN ONLY
 router.delete('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
-    const test = await db.getMockTestById(req.params.id)
-    if (!test) return res.status(404).json({ success: false, message: 'Mock test not found.' })
-
-    const assignments = (await db.getMockTestAssignments())
-      .filter(assignment => assignment.mockTestId === req.params.id)
-    const attemptsByAssignment = await Promise.all(assignments.map(assignment =>
-      db.getMockTestAttempts(assignment._id)))
-    const hasAttempts = attemptsByAssignment.some(attempts => attempts.length > 0)
-
-    if (hasAttempts) {
-      for (const assignment of assignments) {
-        await db.updateMockTestAssignment(assignment._id, {
-          status: 'archived',
-          schedulingStatus: 'cancelled',
-        })
-      }
-      const archived = await db.updateMockTest(req.params.id, {
-        status: 'draft',
-        scheduledDate: null,
-      })
-      console.info(`[mock-test] Archived ${req.params.id} to preserve student attempts and results`)
-      return res.json({
-        success: true,
-        archived: true,
-        message: 'Test archived because it has student attempts. Attempts and results were preserved.',
-        test: archived,
-      })
-    }
-
-    for (const assignment of assignments) {
-      await db.deleteMockTestAssignment(assignment._id)
-    }
-    await db.deleteMockTest(req.params.id)
-    return res.json({ success: true, message: 'Mock test and its schedules deleted.' })
+    const deleted = await db.deleteMockTest(req.params.id)
+    if (!deleted) return res.status(404).json({ success: false, message: 'Mock test not found.' })
+    console.info(`[mock-test] Permanently deleted ${req.params.id} and its attempts and results`)
+    return res.json({
+      success: true,
+      message: 'Mock test, schedules, attempts, and results permanently deleted.',
+    })
   } catch (err) {
-    console.error('Failed to delete mock test and its schedules:', err)
+    console.error('Failed to delete mock test and its data:', err)
+    if (['PGRST202', '42883'].includes(err?.code)) {
+      return res.status(503).json({
+        success: false,
+        message: 'Permanent mock-test deletion is not installed in the database yet. Apply supabase/migrations/20261010_delete_mock_test_and_results.sql, then retry.',
+      })
+    }
     res.status(400).json({ success: false, message: 'Delete failed. The test or its schedules may have changed; refresh and retry.' })
   }
 })

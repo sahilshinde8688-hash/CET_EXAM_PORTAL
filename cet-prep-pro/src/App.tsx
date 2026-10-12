@@ -8,6 +8,8 @@ import './results.css'
 import './analysis.css'
 import './settings.css'
 
+import MobileQRModal from './components/MobileQRModal'
+
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const MockTests = lazy(() => import('./components/MockTests'))
 const Results = lazy(() => import('./components/Results'))
@@ -128,6 +130,7 @@ export default function App() {
   const [sessionInactivityTimeoutSeconds, setSessionInactivityTimeoutSeconds] = useState<number | null>(null)
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState('Your session expired because you were inactive. Please sign in again.')
   const [showSessionWarning, setShowSessionWarning] = useState(false)
+  const [showQrModal, setShowQrModal] = useState(false)
   const lastClientActivityRef = useRef(Date.now())
   const lastActivityProjectionRef = useRef(0)
   const activityRequestInProgressRef = useRef(false)
@@ -308,12 +311,15 @@ export default function App() {
     window.addEventListener('auth:expired', handleSessionExpired)
     window.addEventListener('maintenance:active', handleMaintenanceActive)
     document.addEventListener('visibilitychange', handleVisibility)
+    const handleOpenQr = () => setShowQrModal(true)
+    window.addEventListener('cet:open-qr', handleOpenQr)
     return () => {
       window.removeEventListener('popstate', handlePopState)
       window.removeEventListener('pageshow', handlePageShow)
       window.removeEventListener('storage', handleStorage)
       window.removeEventListener('auth:expired', handleSessionExpired)
       window.removeEventListener('maintenance:active', handleMaintenanceActive)
+      window.removeEventListener('cet:open-qr', handleOpenQr)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
@@ -448,6 +454,10 @@ export default function App() {
         </section>
       </div>
     )}
+    <MobileQRModal
+      isOpen={showQrModal}
+      onClose={() => setShowQrModal(false)}
+    />
     </>
   )
 }

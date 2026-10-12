@@ -1,6 +1,7 @@
 const db = require('./dbService')
 const { evaluateAndSaveMockTestAttempt } = require('./mockTestEvaluation')
 const { getMockTestScheduleState } = require('../utils/mockTestSchedule')
+const { runDueEmailNotifications } = require('./emailNotificationService')
 
 const SCHEDULE_SCAN_INTERVAL_MS = 15_000
 let scanTimer = null
@@ -83,6 +84,11 @@ const runMockTestScheduleScan = async () => {
       }
     }
     await evaluateExpiredAttempts()
+    try {
+      await runDueEmailNotifications()
+    } catch (error) {
+      console.error('[email-scheduler] Could not process queued notifications:', error.message)
+    }
   } catch (error) {
     console.error('[mock-test-scheduler] Schedule scan failed; it will retry on the next scan:', error.message)
   } finally {

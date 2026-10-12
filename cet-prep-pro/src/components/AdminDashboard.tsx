@@ -575,8 +575,8 @@ function RegistrationReview() {
                   <span style={{ color: '#005bbf', fontWeight: 700 }}>{viewingStudent.mhcetId || 'Pending Generation'}</span>
                 </div>
                 <div className="rr-detail-item">
-                  <label>Password / Credentials</label>
-                  <span>{viewingStudent.mhcetPassword || (viewingStudent.status === 'pending' ? 'Generated on approval' : '••••••••')}</span>
+                  <label>Account setup</label>
+                  <span>{viewingStudent.status === 'approved' ? 'Secure password setup link sent on approval' : 'Available after approval'}</span>
                 </div>
               </div>
             </div>
@@ -855,7 +855,7 @@ function RegistrationReview() {
             <span className="rr-info-title">Batch Excel Export</span>
           </div>
           <p className="rr-info-text">
-            Click <strong>Export Excel</strong> to download batch-wise spreadsheets containing <em>Student Name</em>, <em>Email ID</em>, <em>Student Unique No.</em>, <em>Username</em>, and <em>Password</em>.
+            Click <strong>Export Excel</strong> to download batch-wise spreadsheets containing student identity and enrollment details. Passwords are never included; approved students receive a secure setup email.
           </p>
         </div>
       </div>
@@ -870,6 +870,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<ChartInstance<'line'> | null>(null)
   const [view, setView] = useState<AdminView>(() => adminPathToView(window.location.pathname))
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [viewProfileId, setViewProfileId] = useState<string | null>(null)
   const [questionIdsForTest, setQuestionIdsForTest] = useState<string[]>([])
   const [showTest, setShowTest] = useState(false)
@@ -908,6 +909,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     && currentAdmin.adminRole === 'Super Admin'
 
   const changeView = (nextView: AdminView) => {
+    setMobileMenuOpen(false)
     if (nextView === 'superadmin' && !isSuperAdmin) return
     if (nextView === view) return
     window.history.pushState({ adminView: nextView }, '', adminViewToPath(nextView))
@@ -1160,6 +1162,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
 
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault()
+    setMobileMenuOpen(false)
     try {
       await authAPI.logout()
     } catch (error) {
@@ -1383,7 +1386,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
             <div className="rr-modal-body">
               <h4 style={{ margin: '0 0 8px', color: '#005bbf' }}>Student Approval & Excel Export</h4>
               <p style={{ fontSize: 13, lineHeight: 1.6, color: '#475569', margin: '0 0 16px' }}>
-                Under <strong>Registrations</strong>, review new student sign-ups. Click <strong>Approve</strong> or <strong>Bulk Approve</strong> to assign an official MHT-CET ID and generate credentials. Use the <strong>Export Excel</strong> button to download batch-wise spreadsheets formatted with <em>Student Name</em>, <em>Email ID</em>, <em>Student Unique No.</em>, <em>Username</em>, and <em>Password</em>.
+                Under <strong>Registrations</strong>, review new student sign-ups. Click <strong>Approve</strong> or <strong>Bulk Approve</strong> to assign an official MHT-CET ID and send a secure password setup link. Use <strong>Resend setup email</strong> from a student's profile when a new link is needed. Excel exports contain student identity and enrollment details only; passwords are never exported.
               </p>
 
               <h4 style={{ margin: '0 0 8px', color: '#005bbf' }}>Mock Tests & Questions</h4>
@@ -1524,12 +1527,30 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
         <SuperAdminPanel onExitSuperAdmin={() => changeView('overview')} />
       ) : (
         <div className={`adb-root${viewProfileId ? ' adb-root--profile' : ''}`}>
+          {/* Mobile Sidebar Backdrop */}
+          {mobileMenuOpen && (
+            <div
+              className="adb-sidebar-backdrop"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-hidden="true"
+            />
+          )}
 
           {/* ── Sidebar ─────────────────────────── */}
-          <aside className="adb-sidebar">
+          <aside className={`adb-sidebar${mobileMenuOpen ? ' adb-sidebar--mobile-open' : ''}`}>
             <div className="adb-brand">
-              <img className="adb-brand-logo" src="/logo.png" alt="CET Admin" />
-              <span className="adb-brand-title">CET Admin</span>
+              <div className="adb-brand-content">
+                <img className="adb-brand-logo" src="/logo.png" alt="CET Admin" />
+                <span className="adb-brand-title">CET Admin</span>
+              </div>
+              <button
+                type="button"
+                className="adb-sidebar-close-btn"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close navigation menu"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
 
             <nav className="adb-nav">
@@ -1570,6 +1591,14 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           <main className="adb-main">
             <header className="adb-topbar">
               <div className="adb-topbar-left">
+                <button
+                  type="button"
+                  className="adb-mobile-menu-btn"
+                  onClick={() => setMobileMenuOpen(true)}
+                  aria-label="Open navigation menu"
+                >
+                  <span className="material-symbols-outlined">menu</span>
+                </button>
                 <div className="adb-topbar-brand"><img src="/logo.png" alt="" /></div>
                 <div className="adb-topbar-sep" />
                 <span className="adb-topbar-sub">{topbarTitle}</span>
@@ -1797,6 +1826,50 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
               </Suspense>
             </div>
           </main>
+
+          {/* ── Admin Mobile Bottom Nav Bar ────────────────────────────── */}
+          <nav className="adb-mobile-bottom-nav" aria-label="Admin mobile quick navigation">
+            <button
+              type="button"
+              className={`adb-mob-nav-btn${view === 'overview' ? ' adb-mob-nav-btn--active' : ''}`}
+              onClick={() => changeView('overview')}
+            >
+              <span className="material-symbols-outlined">dashboard</span>
+              <span>Overview</span>
+            </button>
+            <button
+              type="button"
+              className={`adb-mob-nav-btn${view === 'mocktests' ? ' adb-mob-nav-btn--active' : ''}`}
+              onClick={() => changeView('mocktests')}
+            >
+              <span className="material-symbols-outlined">quiz</span>
+              <span>Mocks</span>
+            </button>
+            <button
+              type="button"
+              className={`adb-mob-nav-btn${view === 'registrations' ? ' adb-mob-nav-btn--active' : ''}`}
+              onClick={() => changeView('registrations')}
+            >
+              <span className="material-symbols-outlined">how_to_reg</span>
+              <span>Regs</span>
+            </button>
+            <button
+              type="button"
+              className={`adb-mob-nav-btn${view === 'students' ? ' adb-mob-nav-btn--active' : ''}`}
+              onClick={() => changeView('students')}
+            >
+              <span className="material-symbols-outlined">group</span>
+              <span>Students</span>
+            </button>
+            <button
+              type="button"
+              className="adb-mob-nav-btn"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <span className="material-symbols-outlined">menu_open</span>
+              <span>Menu</span>
+            </button>
+          </nav>
         </div>
       )}
     </>

@@ -94,7 +94,18 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
 
       {/* ── Top Nav ───────────────────────────── */}
       <nav className="an-topnav">
-        <div className="an-topnav-brand"><img src="/logo.png" alt="" /></div>
+        <div className="an-topnav-brand">
+          <button
+            type="button"
+            className="an-mobile-menu-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('cet:toggle-nav'))}
+            aria-label="Toggle navigation menu"
+          >
+            <span className="material-symbols-outlined">menu</span>
+          </button>
+          <img src="/logo.png" alt="CET NOVA" />
+          <span className="an-brand-text">Analytics</span>
+        </div>
         <div className="an-topnav-right">
           <div className="an-search-wrap">
             <span className="material-symbols-outlined an-search-icon">search</span>

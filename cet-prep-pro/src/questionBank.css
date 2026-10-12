@@ -273,3 +273,33 @@
   transform: translateY(0);
   background: #f1f5f9;
 }
+
+/* KaTeX & Math responsive overflow protection */
+.katex-display,
+.katex {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 480px) {
+  .qb-card {
+    padding: 14px 12px;
+    border-radius: 12px;
+  }
+  .qb-title {
+    font-size: 18px;
+  }
+  .qb-btn {
+    min-height: 44px;
+  }
+  .qb-rich-toolbar {
+    padding: 6px;
+    gap: 4px;
+  }
+  .qb-toolbar-btn {
+    width: 36px;
+    height: 36px;
+  }
+}

@@ -63,7 +63,7 @@ const getApiBase = (): string => {
       return (configuredApiUrl || 'http://localhost:5000').replace(/\/$/, '')
     }
   }
-  return (configuredApiUrl || 'https://cet-portal-3vas.onrender.com').replace(/\/$/, '')
+  return (configuredApiUrl || 'https://cet-portal-api.onrender.com').replace(/\/$/, '')
 }
 
 const API_BASE = getApiBase()

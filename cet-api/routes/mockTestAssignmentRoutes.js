@@ -5,6 +5,7 @@ const { apiLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
 const { evaluateAndSaveMockTestAttempt } = require('../services/mockTestEvaluation')
 const { getMockTestScheduleState } = require('../utils/mockTestSchedule')
+const emailNotifications = require('../services/emailNotificationService')
 
 const adminRouter = express.Router()
 const studentRouter = express.Router()
@@ -627,6 +628,11 @@ studentRouter.post('/attempts/:attemptId/submit', validateCsrfToken, apiLimiter,
       throw error
     }
     const submittedAttempt = await db.updateMockTestAttempt(attempt._id, { resultId: result._id })
+    try {
+      await emailNotifications.sendSavedResultNotifications(result._id || result.id)
+    } catch (emailError) {
+      console.error('[email] Could not queue assigned-test result notification:', emailError.message)
+    }
     return res.json({
       success: true,
       message: 'Mock test submitted successfully.',

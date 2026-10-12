@@ -7,6 +7,7 @@ interface Props {
   onRequestFullscreen: () => Promise<void>
   onDismissFocusWarning: () => void
   onExitExam: () => void
+  timerContinues?: boolean
 }
 
 export default function FullscreenWarningModal({
@@ -15,6 +16,7 @@ export default function FullscreenWarningModal({
   onRequestFullscreen,
   onDismissFocusWarning,
   onExitExam,
+  timerContinues = false,
 }: Props) {
   const btnRef = useRef<HTMLButtonElement>(null)
 
@@ -193,9 +195,13 @@ export default function FullscreenWarningModal({
 
           {/* Description */}
           <p style={{ margin: '0 0 28px', fontSize: '13.5px', color: '#64748b', lineHeight: 1.65 }}>
-            {isFullscreenWarning
-              ? 'Your exam has been paused. Full-screen mode is mandatory for examination integrity. Click the button below to restore full-screen and resume your test.'
-              : 'Your exam has been paused because you switched away from the examination window. Return to this tab to continue.'}
+            {timerContinues
+              ? isFullscreenWarning
+                ? 'Return to full-screen mode to continue. Your assigned-test countdown continues while this warning is displayed.'
+                : 'You switched away from the examination window. Return to this tab; your assigned-test countdown continues.'
+              : isFullscreenWarning
+                ? 'Your exam has been paused. Full-screen mode is mandatory for examination integrity. Click the button below to restore full-screen and resume your test.'
+                : 'Your exam has been paused because you switched away from the examination window. Return to this tab to continue.'}
           </p>
 
           {/* Primary action */}
@@ -232,16 +238,16 @@ export default function FullscreenWarningModal({
             </button>
           )}
 
-          {/* Timer paused indicator */}
+          {/* Timer status */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '20px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#94a3b8', fontVariationSettings: "'FILL' 0" }}>timer_off</span>
-            <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>Exam timer is paused</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#94a3b8', fontVariationSettings: "'FILL' 0" }}>{timerContinues ? 'timer' : 'timer_off'}</span>
+            <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>{timerContinues ? 'Assignment countdown continues' : 'Exam timer is paused'}</span>
           </div>
 
           {/* Exam integrity notice */}
-          <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#94a3b8', lineHeight: 1.5 }}>
+          {!timerContinues && <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#94a3b8', lineHeight: 1.5 }}>
             Your answers and progress are safe. This incident has been logged for exam integrity purposes.
-          </p>
+          </p>}
         </div>
       </div>
     </>

@@ -42,6 +42,8 @@ const userToCamel = (row) => {
     name: row.name,
     email: row.email,
     phone: row.phone,
+    guardianEmail: row.guardian_email || null,
+    parentResultEmailConsent: Boolean(row.parent_result_email_consent),
     password: row.password, // internal only, stripped before client responses
     branch: row.branch,
     batch: row.batch,
@@ -55,6 +57,7 @@ const userToCamel = (row) => {
     rejectedAt: row.rejected_at,
     rejectionReason: row.rejection_reason,
     mustResetPassword: row.must_reset_password,
+    initialPasswordAvailable: Boolean(row.initial_password_ciphertext),
     mhcetPassword: row.mhcet_password,
     isLocked: Boolean(row.is_locked),
     lockedReason: row.locked_reason || null,
@@ -221,6 +224,8 @@ const createUser = async (userData) => {
     name: userData.name,
     email: cleanEmail,
     phone: userData.phone || null,
+    guardian_email: userData.guardianEmail || null,
+    parent_result_email_consent: Boolean(userData.parentResultEmailConsent),
     password: userData.password || null, // expects pre-hashed password if present
     branch: userData.branch,
     batch: Number(userData.batch),
@@ -269,10 +274,16 @@ const updateUser = async (id, updates) => {
     mhcetId: updates.mhcetId !== undefined ? updates.mhcetId : existingUser?.mhcetId || null,
     mhcetPassword: updates.mhcetPassword !== undefined ? updates.mhcetPassword : existingUser?.mhcetPassword || null,
     photo: updates.photo !== undefined ? updates.photo : existingUser?.photo || null,
+    initialPasswordAvailable: updates.initialPasswordCiphertext !== undefined
+      ? Boolean(updates.initialPasswordCiphertext)
+      : Boolean(existingUser?.initialPasswordAvailable),
     mustResetPassword:
       updates.mustResetPassword !== undefined ? updates.mustResetPassword : existingUser?.mustResetPassword ?? false,
     approvedAt: updates.approvedAt !== undefined ? updates.approvedAt : existingUser?.approvedAt || null,
   }
+
+  const safeUpdatedUserObj = { ...updatedUserObj }
+  delete safeUpdatedUserObj.initialPasswordCiphertext
 
   // Remove from pending memory store if approving
   if (pendingMemoryStore.has(cleanEmail)) {
@@ -283,9 +294,9 @@ const updateUser = async (id, updates) => {
   }
 
   if (updatedUserObj.status === 'approved') {
-    approvedMemoryStore.set(cleanEmail, updatedUserObj)
+    approvedMemoryStore.set(cleanEmail, safeUpdatedUserObj)
     if (updatedUserObj.mhcetId) {
-      approvedMemoryStore.set(updatedUserObj.mhcetId.toUpperCase(), updatedUserObj)
+      approvedMemoryStore.set(updatedUserObj.mhcetId.toUpperCase(), safeUpdatedUserObj)
     }
   }
 
@@ -295,6 +306,8 @@ const updateUser = async (id, updates) => {
       name: updatedUserObj.name,
       email: cleanEmail,
       phone: updatedUserObj.phone || null,
+      guardian_email: updatedUserObj.guardianEmail || null,
+      parent_result_email_consent: Boolean(updatedUserObj.parentResultEmailConsent),
       branch: updatedUserObj.branch,
       batch: Number(updatedUserObj.batch),
       exam_type: updatedUserObj.examType || null,
@@ -307,7 +320,10 @@ const updateUser = async (id, updates) => {
       must_reset_password: Boolean(updatedUserObj.mustResetPassword),
       updated_at: new Date().toISOString(),
     }
-    if (updates.password) {
+    if (updates.initialPasswordCiphertext !== undefined) {
+      updatePayload.initial_password_ciphertext = updates.initialPasswordCiphertext
+    }
+    if (updates.password !== undefined) {
       updatePayload.password = updates.password // Must be hashed before calling updateUser
     }
 
@@ -321,16 +337,33 @@ const updateUser = async (id, updates) => {
     if (!updateErr && updatedDbData) {
       const camel = userToCamel(updatedDbData)
       approvedMemoryStore.set(cleanEmail, camel)
+      if (camel.mhcetId) approvedMemoryStore.set(camel.mhcetId.toUpperCase(), camel)
       return camel
     } else if (updateErr) {
       throw updateErr
     }
 
-    return updatedUserObj
+    return safeUpdatedUserObj
   } catch (err) {
     console.warn('Supabase DB sync exception in updateUser:', err.message)
     throw err
   }
+}
+
+const consumeInitialTemporaryPassword = async userId => {
+  const { data, error } = await supabase.rpc('consume_initial_temporary_password', {
+    p_user_id: userId,
+  })
+  if (error) throw error
+
+  for (const store of [approvedMemoryStore, pendingMemoryStore]) {
+    for (const [key, user] of store.entries()) {
+      if (user.id === userId || user._id === userId) {
+        store.set(key, { ...user, initialPasswordAvailable: false })
+      }
+    }
+  }
+  return Boolean(data)
 }
 
 const deleteUser = async (id) => {
@@ -714,9 +747,11 @@ const updateMockTest = async (id, updates) => {
 }
 
 const deleteMockTest = async (id) => {
-  const { data, error } = await supabase.from('mock_tests').delete().eq('id', id).select().single()
+  const { data, error } = await supabase.rpc('delete_mock_test_and_results', {
+    p_mock_test_id: id,
+  })
   if (error) throw error
-  return mockTestToCamel(data)
+  return data
 }
 
 // ---------------- MOCK TEST ASSIGNMENTS & ATTEMPTS ----------------
@@ -1090,6 +1125,7 @@ const createTestResult = async (resultData) => {
     question_ids: resultData.questionIds || [],
     ...(resultData.mockTestId ? { mock_test_id: resultData.mockTestId } : {}),
     ...(resultData.mockTestAttemptId ? { mock_test_attempt_id: resultData.mockTestAttemptId } : {}),
+    ...(resultData.submissionKey ? { submission_key: resultData.submissionKey } : {}),
   }
   let data
   let error
@@ -1106,12 +1142,16 @@ const createTestResult = async (resultData) => {
     data = response.data
     error = response.error
   }
-  if (error?.code === '23505' && resultData.mockTestAttemptId) {
-    const { data: existing, error: lookupError } = await supabase
+  if (error?.code === '23505' && (resultData.mockTestAttemptId || resultData.submissionKey)) {
+    let lookup = supabase
       .from('test_results')
       .select('*')
-      .eq('mock_test_attempt_id', resultData.mockTestAttemptId)
-      .maybeSingle()
+    if (resultData.mockTestAttemptId) {
+      lookup = lookup.eq('mock_test_attempt_id', resultData.mockTestAttemptId)
+    } else {
+      lookup = lookup.eq('user_id', resultData.userId).eq('submission_key', resultData.submissionKey)
+    }
+    const { data: existing, error: lookupError } = await lookup.maybeSingle()
     if (lookupError) throw lookupError
     if (!existing) throw error
     data = existing
@@ -1138,7 +1178,7 @@ const createTestResult = async (resultData) => {
  * Authoritative server-side test scoring
  * Calculates official score and breakdown from verified questions and submitted answers
  */
-const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, duration = 0, questionIds = [], mockTestId = null }) => {
+const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, duration = 0, questionIds = [], mockTestId = null, submissionKey = null }) => {
   let mockTest = null
   if (mockTestId) {
     mockTest = await getMockTestById(mockTestId)
@@ -1219,6 +1259,7 @@ const calculateAndCreateTestResult = async ({ userId, testName, answers = {}, du
 
   const payload = {
     userId,
+    submissionKey,
     mockTestId: mockTest?._id || null,
     testName: testName || 'MHT-CET Mock Test',
     subject: 'Mock Test',
@@ -1377,6 +1418,7 @@ module.exports = {
   findUserByMhcetId,
   createUser,
   updateUser,
+  consumeInitialTemporaryPassword,
   deleteUser,
   getAllUsers,
   getApprovedStudentsForAssignment,
