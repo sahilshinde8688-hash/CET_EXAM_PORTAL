@@ -3,14 +3,9 @@ const router = express.Router()
 const bcrypt = require('bcryptjs')
 const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
-const { apiLimiter, passwordResetLimiter, createLimiter } = require('../middleware/rateLimit')
+const { apiLimiter, passwordResetLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
 const emailNotifications = require('../services/emailNotificationService')
-const credentialResendLimiter = createLimiter({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  message: 'Too many account setup emails requested. Please try again later.',
-})
 
 // Generate the next MHT-CET ID from the highest assigned number, not total
 // users, because IDs can remain after users are deleted.
@@ -396,7 +391,7 @@ router.post('/:id/approve', protect, adminOnly, validateCsrfToken, apiLimiter, a
 })
 
 // POST /api/users/:id/resend-credentials — ADMIN ONLY: issue new credentials & email
-router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, credentialResendLimiter, async (req, res) => {
+router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, async (req, res) => {
   try {
     const user = await db.findUserById(req.params.id)
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
