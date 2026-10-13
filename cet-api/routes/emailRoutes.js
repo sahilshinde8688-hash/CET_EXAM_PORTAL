@@ -32,11 +32,11 @@ router.post('/admin/validate', protect, adminOnly, validateCsrfToken, validateEm
     return res.json({
       success: true,
       valid: true,
-      message: 'Python email service is configured. Send a test email to verify SMTP authentication.',
+      message: 'Mailer configuration is complete. This check does not test SMTP connectivity; send a test email to verify delivery.',
     })
   } catch (error) {
     console.error('[email] Python email service validation failed:', error.message)
-    const statusCode = error.statusCode === 503 ? 503 : 502
+    const statusCode = [400, 401, 403, 503].includes(error.statusCode) ? error.statusCode : 502
     return res.status(statusCode).json({
       success: false,
       valid: false,
@@ -56,6 +56,9 @@ router.post('/admin/test', protect, adminOnly, validateCsrfToken, testEmailLimit
       message: result.safe_error || 'The SMTP server could not accept the test email. Verify the mailer configuration.',
     })
   } catch (error) {
+    if (error.code === 'ADMIN_EMAIL_INVALID') {
+      return res.status(400).json({ success: false, code: error.code, message: error.message })
+    }
     console.error('[email] Administrator test email failed:', error.message)
     return res.status(503).json({
       success: false,

@@ -27,6 +27,9 @@ const isMhcetIdConflict = (error) => error?.code === '23505'
 const setupPreparationErrorMessage = error => {
   const message = String(error?.message || '')
   const code = String(error?.code || '')
+  if (code === 'SETUP_TOKEN_KEY_MISMATCH') {
+    return 'The existing setup link was encrypted with a different key. Restore the original key, or confirm issuing a new link to invalidate this unrecoverable link.'
+  }
   if (/EMAIL_TOKEN_ENCRYPTION_KEY/.test(message)) {
     return 'Account setup encryption is not configured. Set EMAIL_TOKEN_ENCRYPTION_KEY (32+ characters) on both the API and scheduler services.'
   }
@@ -399,7 +402,9 @@ router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, as
       return res.status(400).json({ success: false, message: 'User is not approved yet' })
     }
 
-    const invitation = await emailNotifications.createAccountSetupInvitation(user.id)
+    const invitation = await emailNotifications.createAccountSetupInvitation(user.id, {
+      resetUnrecoverableToken: req.body?.resetUnrecoverableToken === true,
+    })
     try {
       const delivery = await emailNotifications.sendStudentWelcome(user, invitation, { forceResend: true })
       const statusMessages = {
@@ -429,6 +434,13 @@ router.post('/:id/resend-credentials', protect, adminOnly, validateCsrfToken, as
     }
   } catch (err) {
     if (err.operation && !err.emailDiagnosticLogged) emailNotifications.logEmailFailure(err.operation, err)
+    if (err.code === 'SETUP_TOKEN_KEY_MISMATCH') {
+      return res.status(409).json({
+        success: false,
+        code: err.code,
+        message: setupPreparationErrorMessage(err),
+      })
+    }
     res.status(500).json({
       success: false,
       message: setupPreparationErrorMessage(err),

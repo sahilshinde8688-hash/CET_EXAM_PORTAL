@@ -23,37 +23,55 @@ const requestOptions = () => ({
 })
 
 class EmailDeliveryError extends Error {
-  constructor(message, { statusCode = null, retryable = false, uncertain = false } = {}) {
+  constructor(message, { statusCode = null, category = null, retryable = false, uncertain = false } = {}) {
     super(message)
     this.name = 'EmailDeliveryError'
     this.statusCode = statusCode
+    this.category = category
     this.retryable = retryable
     this.uncertain = uncertain
   }
 }
 
-const requestError = error => {
+const requestError = (error, { validation = false } = {}) => {
   const response = error.response
   if (!response) {
     const code = String(error.code || '')
-    if (['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'].includes(code)) {
+    if (code === 'ECONNREFUSED') {
       return new EmailDeliveryError(
-        `Could not connect to the Python email service (${code}); the email was not submitted.`,
-        { retryable: true },
+        validation
+          ? `Could not connect to the Python email service (${code}). Check the mailer URL and Render service status.`
+          : `Could not connect to the Python email service (${code}); the email was not submitted.`,
+        { category: 'mailer_connection_refused', retryable: true },
+      )
+    }
+    if (['ENOTFOUND', 'EAI_AGAIN'].includes(code)) {
+      return new EmailDeliveryError(
+        'DNS lookup for the Python email service failed. Check PYTHON_EMAIL_SERVICE_URL.',
+        { category: 'mailer_dns', retryable: true },
       )
     }
     return new EmailDeliveryError(
-      'The Python email service did not respond; delivery status is unknown.',
-      { uncertain: true },
+      validation
+        ? 'The Python email service readiness check timed out or could not connect. Check Render service status and URL.'
+        : 'The Python email service did not respond; delivery status is unknown.',
+      { category: 'mailer_timeout_or_transport', uncertain: !validation, retryable: validation },
     )
   }
 
   const responseError = response.data || {}
-  const message = typeof responseError.error === 'string'
-    ? responseError.error.slice(0, 240)
-    : 'The Python email service could not send the message.'
+  const category = typeof responseError.category === 'string' ? responseError.category : null
+  const missing = Array.isArray(responseError.missing)
+    ? responseError.missing.filter(value => typeof value === 'string')
+    : []
+  const message = response.status === 401 ? 'The Python email service rejected its service token. Ensure the API and mailer tokens match.'
+    : missing.length ? `Python mailer configuration is incomplete. Missing: ${missing.join(', ')}.`
+    : typeof responseError.error === 'string' ? responseError.error.slice(0, 240)
+      : response.status === 503 ? 'The Python email service is not ready or SMTP is temporarily unavailable. Check mailer configuration and Render logs.'
+        : 'The Python email service could not send the message.'
   return new EmailDeliveryError(message, {
     statusCode: Number(response.status) || null,
+    category,
     retryable: responseError.retryable === true,
     uncertain: responseError.uncertain === true,
   })
@@ -63,15 +81,32 @@ const validateEmailService = async () => {
   const configurationError = getConfigurationError()
   if (configurationError) throw new EmailDeliveryError(configurationError)
   try {
-    const url = `${process.env.PYTHON_EMAIL_SERVICE_URL.replace(/\/+$/, '')}/health`
-    const { data } = await axios.get(url, requestOptions())
-    if (data?.configured !== true) {
-      throw new EmailDeliveryError('The Python email service is running but its SMTP configuration is incomplete.')
+    const baseUrl = process.env.PYTHON_EMAIL_SERVICE_URL.replace(/\/+$/, '')
+    const health = await axios.get(`${baseUrl}/health`, {
+      ...requestOptions(),
+      timeout: 65_000,
+    })
+    if (health.data?.status !== 'ok') {
+      throw new EmailDeliveryError('The Python email service health check returned an unexpected response.', {
+        category: 'mailer_health_response',
+      })
     }
-    return { valid: true }
+    const { data } = await axios.get(`${baseUrl}/ready`, {
+      ...requestOptions(),
+      timeout: 15_000,
+    })
+    if (data?.configured !== true) {
+      const missing = Array.isArray(data?.missing) ? data.missing.filter(value => typeof value === 'string') : []
+      const detail = missing.length ? ` Missing configuration: ${missing.join(', ')}.` : ''
+      throw new EmailDeliveryError(`The Python email service is running but SMTP configuration is incomplete.${detail}`, {
+        statusCode: 503,
+        category: 'mailer_configuration',
+      })
+    }
+    return { valid: true, message: 'Mailer configuration is complete. This check does not test SMTP connectivity; send a test email to verify delivery.' }
   } catch (error) {
     if (error instanceof EmailDeliveryError) throw error
-    throw requestError(error)
+    throw requestError(error, { validation: true })
   }
 }
 

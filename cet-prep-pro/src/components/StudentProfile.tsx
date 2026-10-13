@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { usersAPI, testsAPI, type AuthUser, type TestResult } from '../lib/api'
+import { ApiResponseError, usersAPI, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import { downloadTestHistoryCSV } from '../lib/exportUtils'
 import GlobalLoader from './GlobalLoader'
 import '../studentProfile.css'
@@ -149,7 +149,20 @@ export default function StudentProfile({ studentId, onBack }: Props) {
     setCredentialMessage('')
     try {
       const id = student._id || student.id || studentId
-      const response = await usersAPI.resendCredentials(id)
+      let response
+      try {
+        response = await usersAPI.resendCredentials(id)
+      } catch (error) {
+        if (!(error instanceof ApiResponseError) || error.code !== 'SETUP_TOKEN_KEY_MISMATCH') throw error
+        const confirmed = window.confirm(
+          'The existing setup link cannot be decrypted with the current server key. Restore the original encryption key if available. If it is lost, confirm to invalidate that link and create a new setup link for this student.',
+        )
+        if (!confirmed) {
+          setCredentialMessage('No changes were made. Restore the original encryption key or confirm a new setup link reset.')
+          return
+        }
+        response = await usersAPI.resendCredentials(id, true)
+      }
       setCredentialMessage(response.message)
     } catch (error) {
       console.error('Failed to resend student setup email:', error)

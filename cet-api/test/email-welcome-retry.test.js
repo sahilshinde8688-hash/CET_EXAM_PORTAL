@@ -139,6 +139,71 @@ test('retry reuses the same valid setup link and does not send a duplicate after
   assert.equal(sentMessages.length, 1)
 })
 
+test('unrecoverable setup link requires explicit reset and only then invalidates the old token', async t => {
+  t.after(() => {
+    resetState()
+    if (originalEncryptionKey === undefined) delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
+    else process.env.EMAIL_TOKEN_ENCRYPTION_KEY = originalEncryptionKey
+  })
+  resetState()
+  const first = await emailNotifications.createAccountSetupInvitation(student.id)
+  process.env.EMAIL_TOKEN_ENCRYPTION_KEY = 'different-test-encryption-key-that-is-also-long-enough'
+
+  await assert.rejects(
+    emailNotifications.createAccountSetupInvitation(student.id),
+    error => error.code === 'SETUP_TOKEN_KEY_MISMATCH',
+  )
+  assert.equal(rows.account_setup_tokens[0].used_at, null)
+  assert.ok(rows.account_setup_tokens[0].token_ciphertext)
+
+  const replacement = await emailNotifications.createAccountSetupInvitation(student.id, {
+    resetUnrecoverableToken: true,
+  })
+  assert.notEqual(replacement.id, first.id)
+  assert.notEqual(replacement.token, first.token)
+  assert.ok(rows.account_setup_tokens[0].used_at)
+  assert.equal(rows.account_setup_tokens[0].token_ciphertext, first.tokenCiphertext)
+  assert.equal(rows.account_setup_tokens[1].used_at, null)
+  assert.ok(rows.account_setup_tokens[1].token_ciphertext)
+})
+
+test('administrator test email refuses missing or malformed authenticated profile email', async t => {
+  t.after(() => {
+    resetState()
+    if (originalEncryptionKey === undefined) delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
+    else process.env.EMAIL_TOKEN_ENCRYPTION_KEY = originalEncryptionKey
+  })
+  resetState()
+
+  await assert.rejects(
+    emailNotifications.sendAdminTestEmail({ name: 'Admin', email: null }),
+    error => error.code === 'ADMIN_EMAIL_INVALID',
+  )
+  await assert.rejects(
+    emailNotifications.sendAdminTestEmail({ name: 'Admin', email: 'not-an-address' }),
+    error => error.code === 'ADMIN_EMAIL_INVALID',
+  )
+  assert.equal(rows.email_notifications.length, 0)
+  assert.equal(sentMessages.length, 0)
+})
+
+test('administrator test email is sent only to the authenticated profile email', async t => {
+  t.after(() => {
+    resetState()
+    if (originalEncryptionKey === undefined) delete process.env.EMAIL_TOKEN_ENCRYPTION_KEY
+    else process.env.EMAIL_TOKEN_ENCRYPTION_KEY = originalEncryptionKey
+  })
+  resetState()
+
+  const result = await emailNotifications.sendAdminTestEmail({
+    id: 'admin-1',
+    name: 'Test Admin',
+    email: 'Admin@Example.test',
+  })
+  assert.equal(result.status, 'accepted')
+  assert.deepEqual(sentMessages[0].to, [{ email: 'admin@example.test', name: 'Test Admin' }])
+})
+
 test('initial temporary password is encrypted in the outbox and recoverable for an admin until consumed', async t => {
   t.after(() => {
     resetState()

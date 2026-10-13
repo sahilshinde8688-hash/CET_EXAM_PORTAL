@@ -421,7 +421,7 @@ const sendSavedResultNotifications = async resultId => {
   }
 }
 
-const createAccountSetupInvitation = async userId => {
+const createAccountSetupInvitation = async (userId, { resetUnrecoverableToken = false } = {}) => {
   const now = new Date().toISOString()
   try {
     const { data: existing, error: lookupError } = await supabase.from('account_setup_tokens')
@@ -438,13 +438,19 @@ const createAccountSetupInvitation = async userId => {
       try {
         token = decryptSecret(existing.token_ciphertext)
       } catch {
-        throw new Error('The existing setup link cannot be decrypted. Restore the EMAIL_TOKEN_ENCRYPTION_KEY that was used to create it.')
+        if (!resetUnrecoverableToken) {
+          const error = new Error('The existing setup link cannot be decrypted. Restore the original EMAIL_TOKEN_ENCRYPTION_KEY, or explicitly confirm issuing a new setup link to invalidate this unrecoverable link.')
+          error.code = 'SETUP_TOKEN_KEY_MISMATCH'
+          throw error
+        }
       }
-      return {
-        token,
-        tokenCiphertext: existing.token_ciphertext,
-        id: existing.id,
-        expiresAt: existing.expires_at,
+      if (token) {
+        return {
+          token,
+          tokenCiphertext: existing.token_ciphertext,
+          id: existing.id,
+          expiresAt: existing.expires_at,
+        }
       }
     }
 
@@ -564,8 +570,12 @@ const sendPasswordChangedNotification = async user => {
 }
 
 const sendAdminTestEmail = async admin => {
-  const recipient = String(admin.email || '').trim().toLowerCase()
-  if (!emailPattern.test(recipient)) throw new Error('The authenticated administrator does not have a valid email address.')
+  const recipient = String(admin?.email || '').trim().toLowerCase()
+  if (!emailPattern.test(recipient) || recipient.length > 254) {
+    const error = new Error('The signed-in administrator account has no valid email address. Update that administrator account before sending a test email.')
+    error.code = 'ADMIN_EMAIL_INVALID'
+    throw error
+  }
   const notificationId = await deliverQueuedNotification({
     type: 'admin_test',
     recipient,

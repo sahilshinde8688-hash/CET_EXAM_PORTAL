@@ -10,7 +10,9 @@ const originalEnvironment = {
   EMAIL_SENDER_NAME: process.env.EMAIL_SENDER_NAME,
 }
 const requests = []
-let getImplementation = async () => ({ data: { configured: true } })
+let getImplementation = async url => ({
+  data: url.endsWith('/health') ? { status: 'ok' } : { configured: true, missing: [] },
+})
 let postImplementation = async () => ({ data: { messageId: '<message-1>' } })
 
 Module._load = function (request, parent, isMain) {
@@ -49,7 +51,9 @@ const restoreEnvironment = () => {
     else process.env[key] = value
   }
   requests.length = 0
-  getImplementation = async () => ({ data: { configured: true } })
+  getImplementation = async url => ({
+    data: url.endsWith('/health') ? { status: 'ok' } : { configured: true, missing: [] },
+  })
   postImplementation = async () => ({ data: { messageId: '<message-1>' } })
 }
 
@@ -88,9 +92,50 @@ test('checks that the Python mailer and its SMTP configuration are ready', async
   t.after(restoreEnvironment)
   configure()
 
-  assert.deepEqual(await emailService.validateEmailService(), { valid: true })
+  assert.equal((await emailService.validateEmailService()).valid, true)
   assert.equal(requests[0][0], 'https://mailer.example.test/health')
+  assert.equal(requests[1][0], 'https://mailer.example.test/ready')
   assert.equal(requests[0][1].headers.Authorization, 'Bearer test-only-service-token')
+})
+
+test('readiness reports missing mailer variable names without exposing values', async t => {
+  t.after(restoreEnvironment)
+  configure()
+  getImplementation = async url => {
+    if (url.endsWith('/health')) return { data: { status: 'ok' } }
+    throw {
+      response: {
+        status: 503,
+        data: { status: 'not_configured', configured: false, missing: ['EMAIL_SMTP_PASSWORD'] },
+      },
+    }
+  }
+
+  await assert.rejects(
+    emailService.validateEmailService(),
+    error => error.statusCode === 503
+      && /EMAIL_SMTP_PASSWORD/.test(error.message)
+      && !/test-only-service-token/.test(error.message),
+  )
+})
+
+test('service authentication mismatch is actionable and DNS failures are classified', async t => {
+  t.after(restoreEnvironment)
+  configure()
+  getImplementation = async url => {
+    if (url.endsWith('/health')) return { data: { status: 'ok' } }
+    throw { response: { status: 401, data: { error: 'Unauthorized.' } } }
+  }
+  await assert.rejects(
+    emailService.validateEmailService(),
+    error => error.statusCode === 401 && /service token/i.test(error.message),
+  )
+
+  getImplementation = async () => { throw Object.assign(new Error('lookup failed'), { code: 'ENOTFOUND' }) }
+  await assert.rejects(
+    emailService.validateEmailService(),
+    error => error.category === 'mailer_dns' && /PYTHON_EMAIL_SERVICE_URL/.test(error.message),
+  )
 })
 
 test('classifies transient service errors and uncertain transport failures', async t => {

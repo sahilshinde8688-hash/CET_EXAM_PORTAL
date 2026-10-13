@@ -42,23 +42,41 @@ connection.
 
 Set these backend-only environment variables in Render:
 
-- On the API and scheduler: `PYTHON_EMAIL_SERVICE_URL`,
-  `PYTHON_EMAIL_SERVICE_TOKEN`, `EMAIL_SENDER_EMAIL`, and `EMAIL_SENDER_NAME`.
-- On the Python mailer: the same `PYTHON_EMAIL_SERVICE_TOKEN`,
-  `EMAIL_SMTP_HOST` (`smtp.gmail.com`), `EMAIL_SMTP_PORT` (`587`),
-  `EMAIL_SMTP_USERNAME`, `EMAIL_SMTP_PASSWORD`, and `EMAIL_SMTP_FROM`.
-- `EMAIL_TOKEN_ENCRYPTION_KEY`: a random secret of at least 32 characters,
-  identical on the API and scheduler, used to encrypt setup-link tokens and
-  temporary passwords at rest.
-- `FRONTEND_URL`: the deployed frontend origin, used for login and report links.
-- `PUBLIC_API_URL`: the public API origin, used for expiring parent report links.
+- On `cet-portal-api` and `cet-portal-scheduler`: `PYTHON_EMAIL_SERVICE_URL`
+  (Python mailer base URL, without `/health` or `/send`),
+  `PYTHON_EMAIL_SERVICE_TOKEN` (same value as on the mailer),
+  `EMAIL_SENDER_EMAIL`, `EMAIL_SENDER_NAME`, and the same stable
+  `EMAIL_TOKEN_ENCRYPTION_KEY` (at least 32 characters). Only Node API and
+  scheduler use the encryption key; it protects setup tokens and temporary
+  passwords with AES-256-GCM.
+- On `cet-portal-python-mailer`: the same `PYTHON_EMAIL_SERVICE_TOKEN`,
+  `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USERNAME`,
+  `EMAIL_SMTP_PASSWORD`, and `EMAIL_SMTP_FROM`. For Gmail use host
+  `smtp.gmail.com`, port `587` (STARTTLS) or `465` (implicit TLS), and an
+  app password. `render.yaml` sets `EMAIL_SERVICE_HOST=0.0.0.0`; Render
+  supplies `PORT`.
+- On the API: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`,
+  `FRONTEND_URL`, and other API variables listed in `render.yaml`.
+- On the scheduler: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `FRONTEND_URL`/`CLIENT_URL`, and `PUBLIC_API_URL` for parent report links.
+- On Vercel, set the public `VITE_API_URL` to the Node API origin if it differs
+  from the default in `src/lib/api.ts`. Never place backend tokens, encryption
+  keys, SMTP passwords, or Supabase service-role credentials in Vite variables.
+
+`EMAIL_SERVICE_URL` is not used in this repository; the existing name is
+`PYTHON_EMAIL_SERVICE_URL`. SMTP configuration comes from environment
+variables, not Supabase. Supabase stores delivery/outbox state in
+`email_notifications`, setup-token hashes and encrypted token copies in
+`account_setup_tokens`, and email feature toggles in `system_settings`.
 
 Do not put secrets in Vite variables, the frontend, or committed files. Use a
 fresh, long random `PYTHON_EMAIL_SERVICE_TOKEN` on the mailer, API, and
 scheduler. For Gmail, enable two-step verification and generate an app
 password; use that app password for `EMAIL_SMTP_PASSWORD`, not the normal
 account password. Rotate any app password that has been pasted into a chat or
-other shared system.
+other shared system. In Render's environment editor, enter values only (do
+not include `.env` quote marks); paste Gmail's app password without grouping
+spaces.
 
 For local development, copy `.env.example` to `.env`, configure the mailer
 variables with local secrets, then run `python python-email-service/server.py`
@@ -67,11 +85,29 @@ loads `cet-api/.env` for local runs and listens on `127.0.0.1` by default;
 Render sets `EMAIL_SERVICE_HOST=0.0.0.0` so its proxy can reach the service.
 
 Deploy the Python mailer from the included `render.yaml` alongside the API and
-scheduler. Set the same service token in all three services. After deployment,
-open **Admin → Settings → Notifications**, check the Python email service, and
-send a test email to the signed-in administrator. SMTP acceptance means the
-mail server accepted the message; it does not confirm delivery to the final
-mailbox because SMTP has no delivery callback in this setup.
+scheduler. Set the same service token in all three services. The public
+`GET /health` endpoint checks liveness only. Authenticated `GET /ready` reports
+whether required SMTP configuration values are present; it does not connect
+to SMTP. In **Admin → Settings → Notifications**, use **Check Python email
+service** for liveness/configuration, then **Send test email to my admin
+address** to attempt a real send. The test recipient is the email address on
+the signed-in administrator's `users` profile; a missing or invalid profile
+email stops the send.
+
+Pre-submission SMTP failures mean no email was sent. Mailer logs distinguish
+DNS, refused connection, timeout, TLS, authentication, and SMTP response
+failures without logging credentials or message content. If the Render plan
+or network cannot establish outbound SMTP, use a transactional provider's
+HTTPS API through a deliberate implementation change rather than retrying
+blocked SMTP indefinitely. SMTP acceptance is not final mailbox delivery.
+
+Keep `EMAIL_TOKEN_ENCRYPTION_KEY` stable. If the original key is available,
+restore it on API and scheduler to recover existing ciphertext. If it is lost,
+an authorized admin can use **Resend setup email** and explicitly confirm the
+reset prompt; this invalidates only that student's unrecoverable active setup
+token and issues a new link. No user or unrelated row is deleted. Temporary
+passwords encrypted under a lost key cannot be recovered; reset the password
+through the authorized account workflow.
 
 All transactional and application-rejection email uses this Python mailer.
 Failed messages remain in the admin delivery log and can be retried. Uncertain
@@ -83,6 +119,11 @@ Run focused email checks from `cet-api` with:
 npm test -- test/python-email-service.test.js test/email-account-setup.test.js test/email-templates.test.js test/email-welcome-retry.test.js test/result-email-trigger.test.js
 python -m unittest discover -s python-email-service -p "test_*.py"
 ```
+
+The Python mailer uses only the standard library; this repository does not
+have a Python `requirements.txt`. Keep production secrets out of `.env.example`
+and Git. Rotate any credentials exposed in chat or logs. Rotate the encryption
+key only with an explicit plan for existing encrypted records.
 
 If a welcome-email enqueue fails, the student's existing unexpired setup token
 is retained encrypted in the database. The administrator can use **Resend setup

@@ -1,5 +1,7 @@
 import http.client
 import json
+import socket
+import ssl
 import unittest
 import threading
 from http.server import ThreadingHTTPServer
@@ -34,6 +36,8 @@ class MailerTests(unittest.TestCase):
         self.assertTrue(server.is_configured(TEST_ENV))
         self.assertFalse(server.is_configured({**TEST_ENV, "EMAIL_SMTP_PASSWORD": ""}))
         self.assertFalse(server.is_configured({**TEST_ENV, "PYTHON_EMAIL_SERVICE_TOKEN": ""}))
+        diagnostics = server.configuration_diagnostics({**TEST_ENV, "EMAIL_SMTP_PASSWORD": ""})
+        self.assertEqual(diagnostics, {"configured": False, "missing": ["EMAIL_SMTP_PASSWORD"]})
 
     @patch("server.smtplib.SMTP")
     def test_sends_text_and_html_over_starttls(self, smtp_class):
@@ -54,6 +58,23 @@ class MailerTests(unittest.TestCase):
         smtp.send_message.assert_called_once()
         self.assertTrue(result["messageId"].startswith("<"))
         self.assertTrue(result["messageId"].endswith(">"))
+
+    @patch("server.smtplib.SMTP_SSL")
+    def test_port_465_uses_implicit_tls(self, smtp_class):
+        smtp = MagicMock()
+        smtp_class.return_value.__enter__.return_value = smtp
+        payload = {
+            "to": [{"email": "student@example.test"}],
+            "subject": "Test subject",
+            "htmlContent": "<p>Hello</p>",
+            "textContent": "Hello",
+        }
+        server.send_email(payload, {**TEST_ENV, "EMAIL_SMTP_PORT": "465"})
+
+        smtp_class.assert_called_once()
+        smtp.login.assert_called_once_with("sender@example.test", "test-only-password")
+        smtp.send_message.assert_called_once()
+        smtp.starttls.assert_not_called()
 
     def test_rejects_bad_addresses_and_header_injection(self):
         with self.assertRaises(server.EmailDeliveryError):
@@ -117,7 +138,7 @@ class MailerTests(unittest.TestCase):
 
     @patch("server.smtplib.SMTP")
     def test_smtp_connection_failure_before_send_is_retryable(self, smtp_class):
-        smtp_class.side_effect = OSError("connection refused")
+        smtp_class.side_effect = ConnectionRefusedError("connection refused")
         payload = {
             "to": [{"email": "student@example.test"}],
             "subject": "Test subject",
@@ -130,7 +151,48 @@ class MailerTests(unittest.TestCase):
 
         self.assertTrue(raised.exception.retryable)
         self.assertFalse(raised.exception.uncertain)
+        self.assertEqual(raised.exception.category, "smtp_connection_refused")
         self.assertIn("no email was submitted", str(raised.exception))
+
+    @patch("server.smtplib.SMTP")
+    def test_smtp_dns_failure_is_reported_without_host_details(self, smtp_class):
+        smtp_class.side_effect = socket.gaierror("sensitive DNS details")
+        with self.assertRaises(server.EmailDeliveryError) as raised:
+            server.send_email({
+                "to": [{"email": "student@example.test"}],
+                "subject": "Test",
+                "htmlContent": "<p>Test</p>",
+                "textContent": "Test",
+            }, TEST_ENV)
+        self.assertEqual(raised.exception.category, "smtp_dns")
+        self.assertNotIn("sensitive DNS details", str(raised.exception))
+
+    @patch("server.smtplib.SMTP")
+    def test_smtp_timeout_is_classified_separately(self, smtp_class):
+        smtp_class.side_effect = TimeoutError("socket timed out")
+        with self.assertRaises(server.EmailDeliveryError) as raised:
+            server.send_email({
+                "to": [{"email": "student@example.test"}],
+                "subject": "Test",
+                "htmlContent": "<p>Test</p>",
+                "textContent": "Test",
+            }, TEST_ENV)
+        self.assertEqual(raised.exception.category, "smtp_timeout")
+
+    @patch("server.smtplib.SMTP")
+    def test_smtp_tls_failure_is_classified_separately(self, smtp_class):
+        smtp = MagicMock()
+        smtp_class.return_value.__enter__.return_value = smtp
+        smtp.starttls.side_effect = ssl.SSLError("private TLS diagnostics")
+        with self.assertRaises(server.EmailDeliveryError) as raised:
+            server.send_email({
+                "to": [{"email": "student@example.test"}],
+                "subject": "Test",
+                "htmlContent": "<p>Test</p>",
+                "textContent": "Test",
+            }, TEST_ENV)
+        self.assertEqual(raised.exception.category, "smtp_tls")
+        self.assertNotIn("private TLS diagnostics", str(raised.exception))
 
 
 class MailerEndpointTests(unittest.TestCase):
@@ -147,23 +209,29 @@ class MailerEndpointTests(unittest.TestCase):
         self.thread.join(timeout=2)
         self.environment.stop()
 
-    def _get_health(self, token=None):
+    def _get(self, path, token=None):
         connection = http.client.HTTPConnection("127.0.0.1", self.httpd.server_port)
         headers = {"Authorization": f"Bearer {token}"} if token else {}
-        connection.request("GET", "/health", headers=headers)
+        connection.request("GET", path, headers=headers)
         response = connection.getresponse()
         result = json.loads(response.read())
         connection.close()
         return response.status, result
 
-    def test_health_endpoint_requires_service_token(self):
-        status, body = self._get_health()
+    def test_health_endpoint_is_public_liveness_only(self):
+        status, body = self._get("/health")
+        self.assertEqual(status, 200)
+        self.assertEqual(body, {"status": "ok"})
+
+    def test_readiness_endpoint_requires_service_token(self):
+        status, body = self._get("/ready")
         self.assertEqual(status, 401)
         self.assertEqual(body["error"], "Unauthorized.")
 
-        status, body = self._get_health(TEST_ENV["PYTHON_EMAIL_SERVICE_TOKEN"])
+        status, body = self._get("/ready", TEST_ENV["PYTHON_EMAIL_SERVICE_TOKEN"])
         self.assertEqual(status, 200)
         self.assertTrue(body["configured"])
+        self.assertEqual(body["missing"], [])
 
 
 if __name__ == "__main__":

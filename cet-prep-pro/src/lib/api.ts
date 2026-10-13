@@ -116,7 +116,7 @@ export class SessionExpiredError extends Error {
 }
 
 export class ApiResponseError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code: string | null = null) {
     super(message)
     this.name = 'ApiResponseError'
   }
@@ -199,15 +199,17 @@ async function handle(res: Response) {
     const text = await res.text().catch(() => '')
     let msg = text || `HTTP ${res.status}`
     let details: any = undefined
+    let code: string | null = null
     try {
       const body = JSON.parse(text)
       msg = body.message || msg
       details = body.details
+      code = typeof body.code === 'string' ? body.code : null
       if (body.code === 'MAINTENANCE_MODE' && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('maintenance:active', { detail: { message: msg } }))
       }
     } catch {}
-    const error = new ApiResponseError(msg, res.status)
+    const error = new ApiResponseError(msg, res.status, code)
     if (details !== undefined) Object.assign(error, { details })
     throw error
   }
@@ -562,7 +564,7 @@ export const usersAPI = {
     })
     return await handle(res).then(response => response.json())
   },
-  async resendCredentials(id: string) {
+  async resendCredentials(id: string, resetUnrecoverableToken = false) {
     const csrfToken = getCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
@@ -571,6 +573,7 @@ export const usersAPI = {
       method: 'POST',
       credentials: 'include',
       headers,
+      body: JSON.stringify({ resetUnrecoverableToken }),
     })
     const data = await handle(res).then(() => res.json())
     return data as {

@@ -139,6 +139,7 @@ export default function AdminSettings() {
   const [emailLoading, setEmailLoading] = useState(false)
   const [emailAction, setEmailAction] = useState<'validate' | 'test' | null>(null)
   const [emailServiceValidation, setEmailServiceValidation] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked')
+  const [emailServiceMessage, setEmailServiceMessage] = useState('')
   const [retryingNotification, setRetryingNotification] = useState<string | null>(null)
   const activeSection = sections.find(section => section.key === active) || sections[0]
 
@@ -229,10 +230,13 @@ export default function AdminSettings() {
     try {
       const result = await adminSettingsAPI.validateEmailService()
       setEmailServiceValidation(result.valid ? 'valid' : 'invalid')
+      setEmailServiceMessage(result.message)
       notify(result.message)
     } catch (emailError) {
       setEmailServiceValidation('invalid')
-      setError(emailError instanceof Error ? emailError.message : 'Unable to validate the Python email service.')
+      const message = emailError instanceof Error ? emailError.message : 'Unable to validate the Python email service.'
+      setEmailServiceMessage(message)
+      setError(message)
     } finally {
       setEmailAction(null)
     }
@@ -396,11 +400,12 @@ export default function AdminSettings() {
               <div><span>Sender name</span><strong>{emailConfiguration?.senderName || 'CETNova'}</strong></div>
               <div><span>Python email service</span><strong>{emailConfiguration?.serviceUrlConfigured ? 'Configured' : 'Not configured'}</strong></div>
               <div><span>Service authentication</span><strong>{emailConfiguration?.serviceTokenConfigured ? 'Configured (hidden)' : 'Not configured'}</strong></div>
-              <div><span>SMTP service check</span><strong>{emailServiceValidation === 'valid' ? 'Ready' : emailServiceValidation === 'invalid' ? 'Unavailable or misconfigured' : 'Not checked'}</strong></div>
+              <div><span>Mailer configuration</span><strong>{emailServiceValidation === 'valid' ? 'Configured' : emailServiceValidation === 'invalid' ? 'Unavailable or misconfigured' : 'Not checked'}</strong></div>
               <div><span>Secure setup-link encryption</span><strong>{emailConfiguration?.setupEncryptionConfigured ? 'Configured' : 'Needs a shared API and scheduler secret'}</strong></div>
             </div>
             {emailConfiguration?.error && <p className="as-email-warning" role="status">{emailConfiguration.error}</p>}
             {emailConfiguration && !emailConfiguration.setupEncryptionConfigured && <p className="as-email-warning" role="status">Set the same EMAIL_TOKEN_ENCRYPTION_KEY (at least 32 characters) on the API and scheduler to deliver account setup emails.</p>}
+            {emailServiceMessage && emailServiceValidation === 'valid' && <p className="as-card-intro" role="status">{emailServiceMessage}</p>}
             <div className="as-card-actions">
               <button className="as-secondary" type="button" onClick={validateEmailService} disabled={emailAction !== null}>
                 {emailAction === 'validate' ? 'Checking…' : 'Check Python email service'}

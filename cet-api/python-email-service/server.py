@@ -3,6 +3,7 @@ import json
 import os
 import re
 import smtplib
+import socket
 import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
@@ -16,8 +17,9 @@ MAX_REQUEST_BYTES = 2 * 1024 * 1024
 
 
 class EmailDeliveryError(Exception):
-    def __init__(self, message, *, retryable=False, uncertain=False, status_code=502):
+    def __init__(self, message, *, category="smtp_error", retryable=False, uncertain=False, status_code=502):
         super().__init__(message)
+        self.category = category
         self.retryable = retryable
         self.uncertain = uncertain
         self.status_code = status_code
@@ -63,6 +65,24 @@ def is_configured(environ=None):
     )
 
 
+def configuration_diagnostics(environ=None):
+    config = mailer_configuration(environ)
+    missing = []
+    if not config["host"]:
+        missing.append("EMAIL_SMTP_HOST")
+    if not 1 <= config["port"] <= 65535:
+        missing.append("EMAIL_SMTP_PORT")
+    if not EMAIL_PATTERN.fullmatch(config["username"]):
+        missing.append("EMAIL_SMTP_USERNAME")
+    if not config["password"]:
+        missing.append("EMAIL_SMTP_PASSWORD")
+    if not EMAIL_PATTERN.fullmatch(config["sender"]):
+        missing.append("EMAIL_SMTP_FROM")
+    if not config["service_token"]:
+        missing.append("PYTHON_EMAIL_SERVICE_TOKEN")
+    return {"configured": not missing, "missing": missing}
+
+
 def local_service_port(environ=None):
     values = os.environ if environ is None else environ
     host = values.get("EMAIL_SERVICE_HOST", "127.0.0.1")
@@ -74,9 +94,13 @@ def local_service_port(environ=None):
 def send_email(payload, environ=None):
     config = mailer_configuration(environ)
     if not is_configured(environ):
-        raise EmailDeliveryError("Python mailer SMTP configuration is incomplete.", status_code=503)
+        raise EmailDeliveryError(
+            "Python mailer SMTP configuration is incomplete.",
+            category="mailer_configuration",
+            status_code=503,
+        )
     if not isinstance(payload, dict):
-        raise EmailDeliveryError("Email payload must be an object.", status_code=400)
+        raise EmailDeliveryError("Email payload must be an object.", category="request_validation", status_code=400)
 
     recipients = payload.get("to")
     if (
@@ -89,7 +113,7 @@ def send_email(payload, environ=None):
             for recipient in recipients
         )
     ):
-        raise EmailDeliveryError("The notification recipient address is invalid.", status_code=400)
+        raise EmailDeliveryError("The notification recipient address is invalid.", category="request_validation", status_code=400)
 
     subject = payload.get("subject")
     html_content = payload.get("htmlContent")
@@ -102,7 +126,7 @@ def send_email(payload, environ=None):
         or not isinstance(html_content, str)
         or not isinstance(text_content, str)
     ):
-        raise EmailDeliveryError("Email subject and message content are required.", status_code=400)
+        raise EmailDeliveryError("Email subject and message content are required.", category="request_validation", status_code=400)
 
     message = EmailMessage()
     message["Subject"] = subject.strip()
@@ -124,6 +148,12 @@ def send_email(payload, environ=None):
     send_started = False
     try:
         context = ssl.create_default_context()
+        print("[python-mailer] " + json.dumps({
+            "event": "smtp_connect",
+            "host": config["host"],
+            "port": config["port"],
+            "tls_mode": "implicit_tls" if config["port"] == 465 else "starttls",
+        }))
         if config["port"] == 465:
             with smtplib.SMTP_SSL(config["host"], config["port"], timeout=20, context=context) as smtp:
                 smtp.login(config["username"], config["password"])
@@ -140,6 +170,7 @@ def send_email(payload, environ=None):
     except smtplib.SMTPAuthenticationError as error:
         raise EmailDeliveryError(
             "SMTP authentication failed. Check the mailer username and app password.",
+            category="smtp_authentication",
             status_code=502,
         ) from error
     except smtplib.SMTPRecipientsRefused as error:
@@ -150,6 +181,7 @@ def send_email(payload, environ=None):
         )
         raise EmailDeliveryError(
             "The SMTP server rejected the recipient.",
+            category="smtp_recipient_rejected",
             retryable=retryable,
             status_code=503 if retryable else 502,
         ) from error
@@ -157,27 +189,62 @@ def send_email(payload, environ=None):
         retryable = 400 <= error.smtp_code < 500
         raise EmailDeliveryError(
             "The SMTP server rejected the email.",
+            category="smtp_response",
             retryable=retryable,
             status_code=503 if retryable else 502,
         ) from error
-    except (TimeoutError, OSError, smtplib.SMTPServerDisconnected) as error:
+    except ssl.SSLError as error:
+        raise EmailDeliveryError(
+            "TLS negotiation with the SMTP server failed. Check the provider's port and TLS settings.",
+            category="smtp_tls",
+            retryable=False,
+            status_code=502,
+        ) from error
+    except smtplib.SMTPNotSupportedError as error:
+        raise EmailDeliveryError(
+            "The SMTP server does not support the configured TLS mode. Check the provider's port and TLS settings.",
+            category="smtp_tls",
+            retryable=False,
+            status_code=502,
+        ) from error
+    except socket.gaierror as error:
+        raise EmailDeliveryError(
+            "DNS lookup for the SMTP server failed. Check EMAIL_SMTP_HOST and the mailer network.",
+            category="smtp_dns",
+            retryable=True,
+            status_code=503,
+        ) from error
+    except (TimeoutError, socket.timeout, ConnectionRefusedError, OSError, smtplib.SMTPServerDisconnected) as error:
         if not send_started:
+            if isinstance(error, (TimeoutError, socket.timeout)):
+                message = "Timed out connecting to the SMTP server before sending; no email was submitted."
+                category = "smtp_timeout"
+            elif isinstance(error, ConnectionRefusedError):
+                message = "The SMTP server refused the connection before sending; no email was submitted."
+                category = "smtp_connection_refused"
+            else:
+                message = "Could not connect to the SMTP server before sending; no email was submitted."
+                category = "smtp_connection"
             raise EmailDeliveryError(
-                "Could not connect to the SMTP server before sending; no email was submitted.",
+                message,
+                category=category,
                 retryable=True,
                 status_code=503,
             ) from error
         raise EmailDeliveryError(
             "The SMTP connection closed during sending; delivery status is unknown.",
+            category="smtp_delivery_unknown",
             uncertain=True,
             status_code=502,
         ) from error
     except smtplib.SMTPException as error:
         raise EmailDeliveryError(
             "The SMTP server could not process the email.",
+            category="smtp_protocol",
             status_code=502,
         ) from error
 
+    print("[python-mailer] " + json.dumps({"event": "provider_accepted", "messageId": message["Message-ID"]}))
     return {"messageId": message["Message-ID"]}
 
 
@@ -200,18 +267,22 @@ class MailerHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if urlparse(self.path).path != "/health":
+        path = urlparse(self.path).path
+        if path == "/health":
+            self._respond(200, {"status": "ok"})
+            return
+        if path != "/ready":
             self._respond(404, {"error": "Not found."})
             return
         if not self._authorized():
             self._respond(401, {"error": "Unauthorized."})
             return
-        configured = is_configured()
+        diagnostics = configuration_diagnostics()
         self._respond(
-            200 if configured else 503,
+            200 if diagnostics["configured"] else 503,
             {
-                "status": "ok" if configured else "not_configured",
-                "configured": configured,
+                "status": "configured" if diagnostics["configured"] else "not_configured",
+                **diagnostics,
             },
         )
 
@@ -222,6 +293,7 @@ class MailerHandler(BaseHTTPRequestHandler):
         if not self._authorized():
             self._respond(401, {"error": "Unauthorized."})
             return
+        print("[python-mailer] " + json.dumps({"event": "send_request_received"}))
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -237,15 +309,19 @@ class MailerHandler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, UnicodeDecodeError):
             self._respond(400, {"error": "Request body must contain valid JSON."})
         except EmailDeliveryError as error:
-            print(
-                "[python-mailer] Email send failed: "
-                f"status={error.status_code} retryable={error.retryable} "
-                f"uncertain={error.uncertain} detail={error}"
-            )
+            print("[python-mailer] " + json.dumps({
+                "event": "send_failed",
+                "category": error.category,
+                "status": error.status_code,
+                "retryable": error.retryable,
+                "uncertain": error.uncertain,
+                "message": str(error),
+            }))
             self._respond(
                 error.status_code,
                 {
                     "error": str(error),
+                    "category": error.category,
                     "retryable": error.retryable,
                     "uncertain": error.uncertain,
                 },
@@ -259,6 +335,12 @@ def main():
     load_local_environment()
     host = os.environ.get("EMAIL_SERVICE_HOST", "127.0.0.1")
     port = local_service_port()
+    diagnostics = configuration_diagnostics()
+    print("[python-mailer] " + json.dumps({
+        "event": "startup_configuration",
+        "configured": diagnostics["configured"],
+        "missing": diagnostics["missing"],
+    }))
     server = ThreadingHTTPServer((host, port), MailerHandler)
     print(f"[python-mailer] Listening on {host}:{port}")
     server.serve_forever()
