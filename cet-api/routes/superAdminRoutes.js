@@ -157,6 +157,47 @@ router.get('/system/stats', protect, requireSuperAdmin, apiLimiter, async (req, 
   }
 })
 
+router.get('/storage-optimization', protect, requireSuperAdmin, apiLimiter, async (req, res) => {
+  try {
+    const { data, error } = await supabase.rpc('get_storage_optimization_metrics')
+    if (error) throw error
+    if (!data || typeof data !== 'object') {
+      throw new Error('Storage metrics function returned an invalid response')
+    }
+
+    const snapshotDate = new Date().toISOString().slice(0, 10)
+    const { error: snapshotError } = await supabase
+      .from('storage_usage_snapshots')
+      .upsert({
+        snapshot_date: snapshotDate,
+        captured_at: data.measuredAt || new Date().toISOString(),
+        database_bytes: data.databaseBytes,
+        storage_bytes: data.storageBytes,
+        object_count: data.storageObjectCount,
+      }, { onConflict: 'snapshot_date' })
+    if (snapshotError) throw snapshotError
+
+    const historyStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10)
+    const { data: history, error: historyError } = await supabase
+      .from('storage_usage_snapshots')
+      .select('snapshot_date,captured_at,database_bytes,storage_bytes,object_count')
+      .gte('snapshot_date', historyStart)
+      .order('snapshot_date', { ascending: true })
+    if (historyError) throw historyError
+
+    res.json({
+      success: true,
+      data: { ...data, history: history || [] },
+      message: 'Measured database and object storage metrics loaded.',
+    })
+  } catch (error) {
+    console.error('Storage optimization metrics error:', error)
+    res.status(500).json({ success: false, message: 'Unable to load measured storage metrics.' })
+  }
+})
+
 router.get('/system/performance', protect, requireSuperAdmin, apiLimiter, async (req, res) => {
   const range = String(req.query.range || '1h')
   const rangeOptions = {

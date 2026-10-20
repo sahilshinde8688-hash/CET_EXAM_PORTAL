@@ -1,6 +1,7 @@
 export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
 
 import { useEffect, useState } from 'react'
+import { Lottie } from 'lottie-react'
 import { authAPI, session } from '../lib/api'
 
 interface SidebarProps {
@@ -11,21 +12,33 @@ interface SidebarProps {
   onCloseMobile?: () => void
 }
 
-const NAV_ITEMS = [
-  { icon: 'dashboard', label: 'Dashboard', page: 'dashboard' as Page },
-  { icon: 'quiz', label: 'Mock Tests', page: 'mocktests' as Page },
-  { icon: 'bar_chart', label: 'Result', page: 'results' as Page },
-  { icon: 'analytics', label: 'Analytics', page: 'analytics' as Page },
-  { icon: 'settings', label: 'Settings', page: 'settings' as Page },
+type AnimatedPage = Exclude<Page, 'signin' | 'admin-dashboard'>
+type NavItem = { icon: string; label: string; page: Page; animation?: string }
+type AnimatedNavItem = NavItem & { page: AnimatedPage; animation: string }
+
+const NAV_ANIMATIONS: Record<AnimatedPage, string> = {
+  dashboard: '/icon-animation/DASHBOARD.json',
+  mocktests: '/icon-animation/Test.json',
+  results: '/icon-animation/result.json',
+  analytics: '/icon-animation/Analysis.json',
+  settings: '/icon-animation/PROFILE.json',
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { icon: 'dashboard', animation: NAV_ANIMATIONS.dashboard, label: 'Dashboard', page: 'dashboard' },
+  { icon: 'quiz', animation: NAV_ANIMATIONS.mocktests, label: 'Mock Tests', page: 'mocktests' },
+  { icon: 'bar_chart', animation: NAV_ANIMATIONS.results, label: 'Result', page: 'results' },
+  { icon: 'analytics', animation: NAV_ANIMATIONS.analytics, label: 'Analytics', page: 'analytics' },
+  { icon: 'settings', animation: NAV_ANIMATIONS.settings, label: 'Settings', page: 'settings' },
   { icon: 'admin_panel_settings', label: 'Admin', page: 'admin-dashboard' as Page },
 ]
 
-const BOTTOM_NAV_ITEMS = [
-  { icon: 'dashboard', label: 'Home', page: 'dashboard' as Page },
-  { icon: 'quiz', label: 'Tests', page: 'mocktests' as Page },
-  { icon: 'bar_chart', label: 'Result', page: 'results' as Page },
-  { icon: 'analytics', label: 'Analytics', page: 'analytics' as Page },
-  { icon: 'person', label: 'Profile', page: 'settings' as Page },
+const BOTTOM_NAV_ITEMS: AnimatedNavItem[] = [
+  { icon: 'dashboard', animation: NAV_ANIMATIONS.dashboard, label: 'Home', page: 'dashboard' },
+  { icon: 'quiz', animation: NAV_ANIMATIONS.mocktests, label: 'Tests', page: 'mocktests' },
+  { icon: 'bar_chart', animation: NAV_ANIMATIONS.results, label: 'Result', page: 'results' },
+  { icon: 'analytics', animation: NAV_ANIMATIONS.analytics, label: 'Analytics', page: 'analytics' },
+  { icon: 'person', animation: NAV_ANIMATIONS.settings, label: 'Profile', page: 'settings' },
 ]
 
 export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpen: controlledOpen, onCloseMobile }: SidebarProps) {
@@ -169,17 +182,31 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
             </div>
 
             <nav className="db-mobile-drawer-items">
-              {navItems.map(item => (
-                <button
-                  key={item.label}
-                  type="button"
-                  className={`db-nav-item${activePage === item.page ? ' db-nav-item--active' : ''}`}
-                  onClick={() => handleNavClick(item.page)}
-                >
-                  <span className="material-symbols-outlined">{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              ))}
+              {navItems.map(item => {
+                const isActive = activePage === item.page
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`db-nav-item${isActive ? ' db-nav-item--active' : ''}`}
+                    onClick={() => handleNavClick(item.page)}
+                  >
+                    {isActive && item.animation ? (
+                      <Lottie
+                        className="db-mobile-nav-animation"
+                        src={item.animation}
+                        loop
+                        autoplay
+                        aria-hidden="true"
+                        rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+                      />
+                    ) : (
+                      <span className="material-symbols-outlined">{item.icon}</span>
+                    )}
+                    <span>{item.label}</span>
+                  </button>
+                )
+              })}
             </nav>
 
             <div className="db-mobile-drawer-footer">
@@ -232,7 +259,18 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
               onClick={() => onNavigate?.(item.page)}
               aria-current={isActive ? 'page' : undefined}
             >
-              <span className="material-symbols-outlined">{item.icon}</span>
+              {isActive ? (
+                <Lottie
+                  className="db-mobile-nav-animation"
+                  src={item.animation}
+                  loop
+                  autoplay
+                  aria-hidden="true"
+                  rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+                />
+              ) : (
+                <span className="material-symbols-outlined">{item.icon}</span>
+              )}
               <span className="db-mobile-nav-label">{item.label}</span>
               {isActive && <span className="db-mobile-nav-dot" />}
             </button>

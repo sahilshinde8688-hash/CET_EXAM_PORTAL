@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { testsAPI, type Question, type TestResult } from '../lib/api'
-import { MathRenderer } from '../lib/mathDisplay'
 import FormattedSolution from './FormattedSolution'
+import RichQuestionContent from './RichQuestionContent'
 import {
   generateResultAnalytics,
   generateQuestionExplanation,
@@ -277,7 +277,7 @@ export default function ExamResultDashboard({
       </header>
 
       {/* ── Tabs Navigation Bar ───────────────────────────────── */}
-      <nav style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid #e2e8f0', paddingBottom: '2px' }}>
+      <nav className="exam-result-tabs-nav" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid #e2e8f0', paddingBottom: '2px' }}>
         {[
           { key: 'overview', label: 'Overview & Scorecard', icon: 'analytics' },
           { key: 'aiCoach', label: 'AI Diagnostic Coach', icon: 'psychology', badge: 'AI Powered' },
@@ -684,54 +684,53 @@ export default function ExamResultDashboard({
 
       {/* ── TAB 3: STEP-BY-STEP SOLUTIONS ─────────────────────── */}
       {activeTab === 'solutions' && (
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '28px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '24px' }}>
-            <div>
-              <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+        <div style={{ background: '#f4f7f9', borderRadius: '18px', border: '1px solid #dfe8ee', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.04)', padding: '20px 18px 18px', maxWidth: '760px', margin: '0 auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '18px' }}>
+            <div style={{ flex: 1, minWidth: '240px' }}>
+              <h2 style={{ fontSize: '30px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px', lineHeight: 1.1 }}>
                 Complete Solution Booklet
               </h2>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '15px', maxWidth: '520px', lineHeight: 1.5 }}>
                 Detailed conceptual breakdowns and AI step-by-step solutions for every test question.
               </p>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => void handleDownloadBooklet()}
                   disabled={downloadingBooklet}
                   style={{
-                    padding: '8px 16px', borderRadius: '8px', background: '#2563eb', color: '#fff',
-                    border: 'none', fontWeight: 600, fontSize: '13px', cursor: downloadingBooklet ? 'wait' : 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '6px'
+                    padding: '12px 18px', borderRadius: '10px', background: '#2563eb', color: '#fff',
+                    border: 'none', fontWeight: 700, fontSize: '14px', cursor: downloadingBooklet ? 'wait' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 6px 18px rgba(37, 99, 235, 0.18)'
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>{downloadingBooklet ? 'hourglass_top' : 'download'}</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{downloadingBooklet ? 'hourglass_top' : 'download'}</span>
                   {downloadingBooklet ? 'Generating Solutions Booklet...' : 'Download Solutions Booklet'}
                 </button>
                 <button
                   onClick={() => shareTestReport(examName, score, maxScore, aiAnalytics?.projectedPercentile || String(percentage.toFixed(1)))}
                   style={{
-                    padding: '8px 16px', borderRadius: '8px', background: '#f1f5f9', color: '#334155',
-                    border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '6px'
+                    padding: '12px 18px', borderRadius: '10px', background: '#f1f5f9', color: '#334155',
+                    border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '14px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px'
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>share</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>share</span>
                   Share Result
                 </button>
               </div>
               {bookletMessage && (
                 <p role={bookletMessage.type === 'error' ? 'alert' : 'status'} style={{
-                  margin: '9px 0 0',
+                  margin: '10px 0 0',
                   color: bookletMessage.type === 'error' ? '#b91c1c' : '#15803d',
                   fontSize: '13px',
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}>
                   {bookletMessage.text}
                 </p>
               )}
             </div>
 
-            {/* Filter Pills */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', alignContent: 'flex-start' }}>
               {[
                 { key: 'all', label: `All (${questions.length})` },
                 { key: 'incorrect', label: `❌ Mistakes (${wrongAnswers})`, count: wrongAnswers },
@@ -742,15 +741,16 @@ export default function ExamResultDashboard({
                   key={f.key}
                   onClick={() => setSolutionFilter(f.key as SolutionFilter)}
                   style={{
-                    padding: '7px 14px',
-                    borderRadius: '20px',
-                    border: solutionFilter === f.key ? '1px solid #2563eb' : '1px solid #cbd5e1',
-                    background: solutionFilter === f.key ? '#eff6ff' : '#f8fafc',
+                    padding: '8px 14px',
+                    borderRadius: '999px',
+                    border: solutionFilter === f.key ? '1px solid #2563eb' : '1px solid #d8e1ea',
+                    background: solutionFilter === f.key ? '#eaf3ff' : '#f8fafc',
                     color: solutionFilter === f.key ? '#1d4ed8' : '#475569',
-                    fontWeight: solutionFilter === f.key ? 700 : 500,
+                    fontWeight: solutionFilter === f.key ? 700 : 600,
                     fontSize: '13px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
+                    boxShadow: solutionFilter === f.key ? 'inset 0 0 0 1px rgba(37,99,235,0.08)' : 'none',
                   }}
                 >
                   {f.label}
@@ -786,29 +786,30 @@ export default function ExamResultDashboard({
                     key={qKey}
                     id={`question-card-${originalIndex}`}
                     style={{
-                      border: `1px solid ${isIncorrect ? '#fca5a5' : isCorrect ? '#bbf7d0' : '#e2e8f0'}`,
+                      border: `1px solid ${isIncorrect ? '#fca5a5' : isCorrect ? '#bbf7d0' : '#dbe4f0'}`,
                       borderRadius: '14px',
-                      padding: '24px',
+                      padding: '18px',
                       background: '#fff',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)',
                     }}
                   >
                     {/* Header: Q Number, Badges, Status */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
                           Q{originalIndex + 1}
                         </span>
-                        <span style={{ fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
                           {q.subject || 'General'}
                         </span>
                         {q.topic && (
-                          <span style={{ fontSize: '12px', background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '6px' }}>
+                          <span style={{ fontSize: '12px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 600 }}>
                             {q.topic}
                           </span>
                         )}
-                        <span style={{ fontSize: '12px', color: '#64748b' }}>
-                          +{q.marks || 1} {Number(q.negativeMarks || 0) > 0 ? `/ -${q.negativeMarks}` : '• No Negative Marking'}
+                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                          +{q.marks || 1}
+                          {Number(q.negativeMarks || 0) > 0 ? ` / -${q.negativeMarks}` : ' / 0'}
                         </span>
                       </div>
 
@@ -837,7 +838,7 @@ export default function ExamResultDashboard({
 
                     {/* Question Statement */}
                     <div style={{ fontSize: '15.5px', fontWeight: 500, color: '#0f172a', marginBottom: '18px', lineHeight: 1.6, minWidth: 0, overflowWrap: 'anywhere' }}>
-                      <MathRenderer value={q.text} />
+                      <RichQuestionContent content={q.text} />
                     </div>
 
                     {/* Options List */}
@@ -879,7 +880,7 @@ export default function ExamResultDashboard({
                               <span style={{ fontWeight: 700, color: badgeColor, minWidth: '22px' }}>
                                 {String.fromCharCode(65 + optIdx)})
                               </span>
-                              <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><MathRenderer value={opt} /></span>
+                              <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}><RichQuestionContent content={opt} /></span>
                             </div>
                             <div>
                               {isThisCorrect && (

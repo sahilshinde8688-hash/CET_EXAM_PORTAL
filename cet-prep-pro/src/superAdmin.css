@@ -3417,6 +3417,83 @@
   }
 }
 
+/* Mobile Sidebar Drawer & Overlay */
+.sap-sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sap-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 998;
+  }
+
+  .sap-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 82vw);
+    min-width: 0;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 999;
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.15);
+  }
+
+  .sap-sidebar--mobile-open {
+    transform: translateX(0);
+  }
+
+  .sap-main-content {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  .sap-header-topbar {
+    padding: 0.6rem 0.85rem;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .sap-topbar-breadcrumb {
+    display: none;
+  }
+
+  .sap-topbar-search {
+    width: 100%;
+    order: 3;
+    margin-top: 0.25rem;
+  }
+
+  .sap-topbar-search input {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .sap-topbar-right {
+    margin-left: auto;
+    gap: 0.5rem;
+  }
+
+  .sap-card-table,
+  .sap-table-container,
+  .sap-audit-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  .sap-table {
+    min-width: 600px;
+  }
+}
+
 @media (max-width: 640px) {
   .sap-stats-row-5 {
     grid-template-columns: 1fr;
@@ -3427,4 +3504,34 @@
   .sap-locations-wrap {
     grid-template-columns: 1fr;
   }
+  .sap-tab-pills {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+  }
+  .sap-tab-pills::-webkit-scrollbar {
+    display: none;
+  }
+  .sap-tab-pill {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 }
+
+@media (max-width: 480px) {
+  .sap-content-body {
+    padding: 12px 10px 32px;
+  }
+  .sap-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .sap-section-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+

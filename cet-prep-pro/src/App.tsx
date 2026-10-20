@@ -122,6 +122,7 @@ function PageLoader({ target }: { target: Page }) {
 
 export default function App() {
   const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
+  const [navigatingTo, setNavigatingTo] = useState<Page | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [sessionExpired, setSessionExpired] = useState(false)
   const [sessionCheckError, setSessionCheckError] = useState<string | null>(null)
@@ -338,6 +339,7 @@ export default function App() {
       return
     }
     setSessionCheckError(null)
+    setNavigatingTo(resolvedTarget)
     void authAPI.checkSession().then(checkedSession => {
       if (!checkedSession.authenticated || !checkedSession.user) throw new SessionExpiredError()
       const user = checkedSession.user
@@ -366,7 +368,7 @@ export default function App() {
       }
       window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
       setPage('signin')
-    })
+    }).finally(() => setNavigatingTo(null))
   }
 
   if (maintenanceMessage !== null) {
@@ -381,6 +383,7 @@ export default function App() {
     )
   }
   if (authLoading) return <PageLoader target={page} />
+  if (navigatingTo) return <PageLoader target={navigatingTo} />
   return (
     <>
     <Suspense fallback={<PageLoader target={page} />}>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { adminSettingsAPI, getApiUrl } from '../lib/api'
+import { adminSettingsAPI, getApiUrl, notificationsAPI, type NotificationPage } from '../lib/api'
 import '../adminSettings.css'
 import '../adminEmailNotifications.css'
 import '../adminSettingsLayout.css'
@@ -141,6 +141,11 @@ export default function AdminSettings() {
   const [emailServiceValidation, setEmailServiceValidation] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked')
   const [emailServiceMessage, setEmailServiceMessage] = useState('')
   const [retryingNotification, setRetryingNotification] = useState<string | null>(null)
+  const [announcementTitle, setAnnouncementTitle] = useState('')
+  const [announcementMessage, setAnnouncementMessage] = useState('')
+  const [announcementPage, setAnnouncementPage] = useState<NotificationPage>('dashboard')
+  const [announcementRequestId, setAnnouncementRequestId] = useState<string | null>(null)
+  const [publishingAnnouncement, setPublishingAnnouncement] = useState(false)
   const activeSection = sections.find(section => section.key === active) || sections[0]
 
   const loadEmailNotifications = async () => {
@@ -220,6 +225,33 @@ export default function AdminSettings() {
       await loadEmailNotifications()
     } finally {
       setEmailAction(null)
+    }
+  }
+
+  const publishAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+      setError('Enter an announcement title and message.')
+      return
+    }
+    setPublishingAnnouncement(true)
+    setError('')
+    const requestId = announcementRequestId || crypto.randomUUID()
+    setAnnouncementRequestId(requestId)
+    try {
+      const result = await notificationsAPI.publishAnnouncement({
+        title: announcementTitle.trim(),
+        message: announcementMessage.trim(),
+        targetPage: announcementPage,
+        requestId,
+      })
+      notify(result.message)
+      setAnnouncementTitle('')
+      setAnnouncementMessage('')
+      setAnnouncementRequestId(null)
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : 'Unable to publish the announcement.')
+    } finally {
+      setPublishingAnnouncement(false)
     }
   }
 
@@ -390,6 +422,62 @@ export default function AdminSettings() {
             <SwitchRow label="Mock test completion" checked={bool('completion_notifications')} onChange={v => update('completion_notifications', v)} />
             <SwitchRow label="Result notifications" checked={bool('result_notifications')} onChange={v => update('result_notifications', v)} />
             <SwitchRow label="System announcements" checked={bool('announcements')} onChange={v => update('announcements', v)} />
+          </Card>
+          <Card title="Publish student announcement" icon="campaign">
+            <p className="as-card-intro">Send a persistent in-app system alert to all approved student accounts.</p>
+            <label className="as-field">
+              <span>Title</span>
+              <input
+                value={announcementTitle}
+                maxLength={120}
+                placeholder="For example, exam schedule update"
+                onChange={event => {
+                  setAnnouncementTitle(event.target.value)
+                  setAnnouncementRequestId(null)
+                }}
+              />
+            </label>
+            <label className="as-field">
+              <span>Message</span>
+              <textarea
+                value={announcementMessage}
+                maxLength={1000}
+                rows={4}
+                placeholder="Write the information students need to know."
+                style={{ width: '100%', minHeight: 96, resize: 'vertical', padding: '11px 12px', border: '1px solid #cbd5e1', borderRadius: 9, font: 'inherit', color: '#172033' }}
+                onChange={event => {
+                  setAnnouncementMessage(event.target.value)
+                  setAnnouncementRequestId(null)
+                }}
+              />
+            </label>
+            <label className="as-field">
+              <span>Open destination</span>
+              <select
+                value={announcementPage}
+                onChange={event => {
+                  setAnnouncementPage(event.target.value as NotificationPage)
+                  setAnnouncementRequestId(null)
+                }}
+              >
+                <option value="dashboard">Dashboard</option>
+                <option value="mocktests">Mock Tests</option>
+                <option value="results">Results</option>
+                <option value="analytics">Analytics</option>
+                <option value="settings">Profile</option>
+              </select>
+            </label>
+            {(!bool('announcements') || !bool('in_app_notifications')) && <p className="as-email-warning" role="status">Enable System announcements and in-app notifications, then save notification settings before publishing.</p>}
+            <div className="as-card-actions">
+              <button
+                className="as-secondary"
+                type="button"
+                onClick={() => void publishAnnouncement()}
+                disabled={publishingAnnouncement || !bool('announcements') || !bool('in_app_notifications')}
+              >
+                {publishingAnnouncement ? 'Publishing…' : announcementRequestId ? 'Retry publishing' : 'Publish to students'}
+              </button>
+            </div>
           </Card>
           <Card title="Python SMTP email notifications" icon="mail">
             <SwitchRow label="Automatic student result emails" description="Send authoritative result summaries after a regular or assigned test is finalized." checked={bool('transactional_result_emails_enabled')} onChange={v => update('transactional_result_emails_enabled', v)} />

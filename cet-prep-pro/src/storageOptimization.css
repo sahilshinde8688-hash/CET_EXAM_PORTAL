@@ -1,0 +1,170 @@
+.storage-optimization {
+  color: var(--sap-text-main, #0f172a);
+}
+
+.storage-optimization-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.storage-optimization-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.storage-optimization-header p,
+.storage-measured-at {
+  color: var(--sap-text-muted, #64748b);
+  font-size: 0.875rem;
+  margin: 0.4rem 0 0;
+}
+
+.storage-optimization-header button {
+  align-items: center;
+  background: #2563eb;
+  border: 0;
+  border-radius: 0.5rem;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+}
+
+.storage-optimization-header button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.storage-refreshing {
+  animation: storage-spin 1s linear infinite;
+}
+
+@keyframes storage-spin {
+  to { transform: rotate(360deg); }
+}
+
+.storage-metric-cards {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-bottom: 1rem;
+}
+
+.storage-metric-cards article,
+.storage-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+
+.storage-metric-cards article {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.storage-metric-cards article svg {
+  color: #2563eb;
+}
+
+.storage-metric-cards article span,
+.storage-metric-cards article small {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.storage-metric-cards article strong {
+  font-size: 1.25rem;
+}
+
+.storage-info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.6rem;
+  color: #1e3a8a;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.storage-info strong {
+  display: block;
+}
+
+.storage-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+}
+
+.storage-card h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.storage-table-wrap {
+  overflow-x: auto;
+}
+
+.storage-card table {
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  text-align: left;
+  width: 100%;
+}
+
+.storage-card th,
+.storage-card td {
+  border-bottom: 1px solid #edf2f7;
+  padding: 0.65rem 0.5rem;
+  white-space: nowrap;
+}
+
+.storage-card th {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.storage-card td code,
+.storage-card td span {
+  display: block;
+}
+
+.storage-card td code {
+  color: #64748b;
+  font-size: 0.75rem;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.storage-measured-at {
+  margin-top: 1rem;
+}
+
+.storage-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  color: #b91c1c;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.storage-status {
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .storage-optimization-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}

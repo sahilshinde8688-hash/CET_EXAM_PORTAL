@@ -33,13 +33,13 @@ const upload = multer({
 /**
  * Upload a buffer to Cloudinary
  */
-const uploadToCloudinary = (buffer, folder = 'cet-students', publicId = undefined) => {
+const uploadToCloudinary = (buffer, folder = 'cet-students', publicId = undefined, mimeType = 'image/jpeg') => {
   return new Promise((resolve, reject) => {
     if (!isConfigured(process.env.CLOUDINARY_CLOUD_NAME) || !isConfigured(process.env.CLOUDINARY_API_KEY) || !isConfigured(process.env.CLOUDINARY_API_SECRET)) {
       // In local dev without Cloudinary, return fallback data URI
       const base64 = buffer.toString('base64')
       return resolve({
-        secure_url: `data:image/jpeg;base64,${base64}`,
+        secure_url: `data:${mimeType};base64,${base64}`,
         public_id: publicId || `mock_${Date.now()}`,
       })
     }

@@ -5,7 +5,7 @@ import {
   ChevronLeft, ChevronRight, Info, HelpCircle, Lock, ClipboardList, UserCheck
 } from 'lucide-react'
 import { mockTestsAPI, mockTestAssignmentsAPI, MockTest, questionsAPI, testsAPI, usersAPI, session, type AuthUser, type Question, type TestResult } from '../lib/api'
-import { MathRenderer } from '../lib/mathDisplay'
+import RichQuestionContent from './RichQuestionContent'
 import { supabase } from '../lib/supabaseClient'
 import AdminMockTestAssignments from './AdminMockTestAssignments'
 import { dateTimeToUtc } from '../lib/timeZone'
@@ -506,21 +506,23 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
 
   useEffect(() => {
     loadMockTests()
-    const refreshInterval = window.setInterval(() => { void loadMockTests() }, 15000)
+    let refreshTimer: number | undefined
+    const scheduleRefresh = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => { void loadMockTests() }, 250)
+    }
 
     const channel = supabase
       .channel('admin_mock_tests_live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'test_results' }, () => {
-        loadMockTests()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mock_tests' }, () => {
-        loadMockTests()
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'test_results' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mock_tests' }, scheduleRefresh)
       .subscribe()
+    window.addEventListener('focus', scheduleRefresh)
 
     return () => {
-      window.clearInterval(refreshInterval)
-      supabase.removeChannel(channel)
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      window.removeEventListener('focus', scheduleRefresh)
+      void supabase.removeChannel(channel)
     }
   }, [])
 
@@ -910,7 +912,7 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
                           <span className={`amt-question-difficulty amt-question-difficulty--${question.difficulty.toLowerCase()}`}>{question.difficulty}</span>
                           <span className="amt-question-marks">{question.marks} marks</span>
                         </div>
-                        <div className="amt-question-text"><MathRenderer value={question.text} /></div>
+                        <div className="amt-question-text"><RichQuestionContent content={question.text} /></div>
                         {question.imageUrl && (
                           <img className="amt-question-image" src={question.imageUrl} alt="Question illustration" loading="lazy" />
                         )}
@@ -919,7 +921,7 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
                             {question.options.map((option, optionIndex) => (
                               <div className="amt-question-preview-option" key={`${question._id}-option-${optionIndex}`}>
                                 <span>{String.fromCharCode(65 + optionIndex)}</span>
-                                <MathRenderer value={option} />
+                                <RichQuestionContent content={option} />
                               </div>
                             ))}
                           </div>

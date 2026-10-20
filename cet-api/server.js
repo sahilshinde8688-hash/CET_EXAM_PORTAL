@@ -41,8 +41,15 @@ const corsOptions = configureCors()
 app.use(cors(corsOptions))
 
 // Body parsing with safe size limits to prevent DoS
-app.use(express.json({ limit: '50kb' }))
-app.use(express.urlencoded({ extended: true, limit: '50kb' }))
+app.use(express.json({
+  limit: '50kb',
+  type: (req) => !req.path.startsWith('/api/questions'),
+}))
+app.use(express.urlencoded({
+  extended: true,
+  limit: '50kb',
+  type: (req) => !req.path.startsWith('/api/questions'),
+}))
 
 // Cookie parser
 app.use(cookieParser())
@@ -63,8 +70,14 @@ app.use('/api/admin/settings', require('./routes/adminSettingsRoutes'))
 app.use('/api/super-admin', require('./routes/superAdminRoutes'))
 app.use('/api/users', require('./routes/userRoutes'))
 app.use('/api/tests', require('./routes/testRoutes'))
+app.use('/api/notifications', require('./routes/notificationRoutes'))
 app.use('/api/upload', require('./routes/uploadRoutes'))
-app.use('/api/questions', require('./routes/questionRoutes'))
+app.use(
+  '/api/questions',
+  express.json({ limit: '2mb' }),
+  express.urlencoded({ extended: true, limit: '2mb' }),
+  require('./routes/questionRoutes'),
+)
 app.use('/api/mock-tests', require('./routes/mockTestRoutes'))
 const mockTestAssignmentRoutes = require('./routes/mockTestAssignmentRoutes')
 app.use('/api/admin/mock-tests', mockTestAssignmentRoutes.adminRouter)

@@ -66,19 +66,100 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
   const [uploading, setUploading] = useState<string | null>(null)
   const [toast, setToast] = useState('')
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [branchFilter, setBranchFilter] = useState('All')
   const [batchFilter, setBatchFilter] = useState('All')
+  const [studentPage, setStudentPage] = useState(1)
+  const [studentTotal, setStudentTotal] = useState(0)
+  const [studentLoadError, setStudentLoadError] = useState('')
+  const studentPageSize = 50
 
-  const showToast = (msg: string) => {
-    setToast(msg); setTimeout(() => setToast(''), 3500)
-  }
+  const showToast = useCallback((msg: string) => {
+    setToast(msg)
+    window.setTimeout(() => setToast(''), 3500)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim())
+      setStudentPage(1)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [search])
+
+  const fetchStudents = useCallback(async (refresh = false, active = () => true, signal?: AbortSignal) => {
+    try {
+      setLoading(true)
+      const result = await usersAPI.getPage({
+        page: studentPage,
+        pageSize: studentPageSize,
+        search: debouncedSearch,
+        branch: branchFilter,
+        batch: batchFilter,
+        status: 'approved',
+        refresh,
+        signal,
+      })
+      if (!active()) return
+      setStudents(result.users)
+      setStudentTotal(result.total)
+      setStudentLoadError('')
+    } catch (error: unknown) {
+      if (active()) setStudentLoadError(error instanceof Error ? error.message : 'Failed to load registered students.')
+    } finally {
+      if (active()) setLoading(false)
+    }
+  }, [studentPage, debouncedSearch, branchFilter, batchFilter])
+
+  useEffect(() => {
+    let active = true
+    let refreshTimer: number | undefined
+    const controller = new AbortController()
+    const scheduleRefresh = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => {
+        void fetchStudents(true, () => active, controller.signal)
+      }, 250)
+    }
+    void fetchStudents(false, () => active, controller.signal)
+
+    window.addEventListener('cet:registration', scheduleRefresh)
+    window.addEventListener('storage', scheduleRefresh)
+    const channel = supabase
+      .channel('realtime_students_list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, scheduleRefresh)
+      .subscribe()
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }
+    window.addEventListener('focus', refreshOnFocus)
+
+    return () => {
+      active = false
+      controller.abort()
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      window.removeEventListener('cet:registration', scheduleRefresh)
+      window.removeEventListener('storage', scheduleRefresh)
+      window.removeEventListener('focus', refreshOnFocus)
+      void supabase.removeChannel(channel)
+    }
+  }, [fetchStudents])
 
   const distinctBatches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))).sort()
 
   const handleExportExcel = async () => {
     try {
       const { exportStudentsToExcel } = await import('../lib/exportExcel')
-      exportStudentsToExcel(filtered, {
+      const allApprovedStudents = await usersAPI.getAll('approved')
+      const exportable = allApprovedStudents.filter(student =>
+        (batchFilter === 'All' || String(student.batch) === String(batchFilter))
+        && (branchFilter === 'All' || student.branch === branchFilter)
+        && (!search.trim()
+          || student.name.toLowerCase().includes(search.trim().toLowerCase())
+          || student.email.toLowerCase().includes(search.trim().toLowerCase())
+          || (student.mhcetId || '').toLowerCase().includes(search.trim().toLowerCase())),
+      )
+      exportStudentsToExcel(exportable, {
         batch: batchFilter === 'All' ? undefined : batchFilter,
         status: 'approved',
       })
@@ -116,55 +197,13 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
     }
   }
 
-  const fetchStudents = async (hideLoading = false) => {
-    try {
-      if (!hideLoading) setLoading(true)
-      const all = await usersAPI.getAll('approved')
-      setStudents(all)
-    } catch (e: unknown) {
-      console.error('Failed to load approved students', e)
-      showToast(`Failed to load registered students. ${e instanceof Error ? e.message : ''}`)
-    } finally {
-      if (!hideLoading) setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchStudents()
-    const interval = setInterval(() => fetchStudents(true), 1500)
-
-    const handleLocalUpdate = () => fetchStudents(true)
-    window.addEventListener('cet:registration', handleLocalUpdate)
-    window.addEventListener('storage', handleLocalUpdate)
-
-    let bc: BroadcastChannel | null = null
-    if (typeof BroadcastChannel !== 'undefined') {
-      bc = new BroadcastChannel('cet_registrations_channel')
-      bc.onmessage = () => fetchStudents(true)
-    }
-
-    const channel = supabase
-      .channel('realtime_students_list')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-        fetchStudents(true)
-      })
-      .subscribe()
-
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('cet:registration', handleLocalUpdate)
-      window.removeEventListener('storage', handleLocalUpdate)
-      if (bc) bc.close()
-      supabase.removeChannel(channel)
-    }
-  }, [])
-
   const handleDelete = async (id: string, name: string) => {
     setDeleting(id)
     try {
       await usersAPI.delete(id)
       showToast(`🗑️ ${name} deleted successfully.`)
       setStudents(s => s.filter(u => u._id !== id))
+      setStudentTotal(total => Math.max(0, total - 1))
     } catch (e: unknown) {
       showToast(`❌ ${e instanceof Error ? e.message : 'Delete failed'}`)
     } finally {
@@ -182,13 +221,8 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
     }
   }
 
-  const filtered = students.filter(s => {
-    const q = search.toLowerCase()
-    const matchSearch = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.mhcetId || '').toLowerCase().includes(q)
-    const matchBranch = branchFilter === 'All' || s.branch === branchFilter
-    const matchBatch = batchFilter === 'All' || String(s.batch) === String(batchFilter)
-    return matchSearch && matchBranch && matchBatch
-  })
+  const filtered = students
+  const pageCount = Math.max(1, Math.ceil(studentTotal / studentPageSize))
 
   return (
     <div className="rs2-root">
@@ -198,7 +232,7 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
       <div className="rs2-header">
         <div>
           <h2 className="rs2-title">Registered Students</h2>
-          <p className="rs2-sub">All approved students — {students.length} total</p>
+          <p className="rs2-sub">All approved students — {studentTotal.toLocaleString()} total</p>
         </div>
         <div className="rs2-filters">
           <button
@@ -209,6 +243,16 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
           >
             <span className="material-symbols-outlined">table_view</span>
             Export Excel {batchFilter !== 'All' ? `(Batch ${batchFilter})` : 'Batch-wise'}
+          </button>
+          <button
+            type="button"
+            className="rr-bulk-btn"
+            onClick={() => void fetchStudents(true)}
+            disabled={loading}
+            title="Refresh student list"
+          >
+            <span className="material-symbols-outlined">refresh</span>
+            Refresh
           </button>
           <div className="rs2-search-wrap">
             <span className="material-symbols-outlined rs2-search-icon">search</span>
@@ -229,6 +273,13 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
           </select>
         </div>
       </div>
+
+      {studentLoadError && (
+        <div className="rr-toast" role="alert">
+          {studentLoadError}
+          <button type="button" onClick={() => void fetchStudents(true)} disabled={loading}>Retry</button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rr-table-wrap">
@@ -346,7 +397,12 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
 
       {!loading && filtered.length > 0 && (
         <div className="rr-table-footer">
-          <p className="rr-count">Showing {filtered.length} of {students.length} students</p>
+          <p className="rr-count">Showing {(studentPage - 1) * studentPageSize + 1}–{(studentPage - 1) * studentPageSize + filtered.length} of {studentTotal.toLocaleString()} students</p>
+          <div>
+            <button type="button" className="rr-bulk-btn" disabled={studentPage <= 1} onClick={() => setStudentPage(page => page - 1)}>Previous</button>
+            <span> Page {studentPage} of {pageCount} </span>
+            <button type="button" className="rr-bulk-btn" disabled={studentPage >= pageCount} onClick={() => setStudentPage(page => page + 1)}>Next</button>
+          </div>
         </div>
       )}
     </div>
@@ -365,55 +421,92 @@ function RegistrationReview() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [isBulkLoading, setIsBulkLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [batchFilter, setBatchFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
   const [viewingStudent, setViewingStudent] = useState<AuthUser | null>(null)
-
-  const fetchData = async (hideLoading = false) => {
-    try {
-      if (!hideLoading) setLoading(true)
-      const [users, s] = await Promise.all([
-        usersAPI.getAll(statusFilter === 'all' ? undefined : statusFilter),
-        usersAPI.stats(),
-      ])
-      setStudents(users)
-      setStats(s)
-    } catch (e) {
-      console.error('Failed to load registrations', e)
-    } finally {
-      if (!hideLoading) setLoading(false)
-    }
-  }
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [loadError, setLoadError] = useState('')
+  const pageSize = 50
 
   useEffect(() => {
-    fetchData()
-    const interval = setInterval(() => fetchData(true), 2500)
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim())
+      setPage(1)
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
 
-    const handleLocalUpdate = () => fetchData(true)
-    window.addEventListener('cet:registration', handleLocalUpdate)
-    window.addEventListener('storage', handleLocalUpdate)
-
-    let bc: BroadcastChannel | null = null
-    if (typeof BroadcastChannel !== 'undefined') {
-      bc = new BroadcastChannel('cet_registrations_channel')
-      bc.onmessage = () => fetchData(true)
+  const fetchData = useCallback(async (refresh = false, active = () => true, signal?: AbortSignal) => {
+    try {
+      setLoading(true)
+      const [users, s] = await Promise.all([
+        usersAPI.getPage({
+          page,
+          pageSize,
+          status: statusFilter === 'all' ? undefined : statusFilter,
+          search: debouncedSearch,
+          batch: batchFilter,
+          refresh,
+          signal,
+        }),
+        usersAPI.stats({ refresh, signal }),
+      ])
+      if (!active()) return
+      setStudents(users.users)
+      setTotal(users.total)
+      setStats(s)
+      setLoadError('')
+    } catch (error) {
+      if (!active()) return
+      setLoadError(error instanceof Error ? error.message : 'Failed to load registrations.')
+      console.error('Failed to load registrations', error)
+    } finally {
+      if (active()) setLoading(false)
     }
+  }, [page, statusFilter, debouncedSearch, batchFilter])
 
+  useEffect(() => {
+    let active = true
+    let refreshTimer: number | undefined
+    const controller = new AbortController()
+    const scheduleRefresh = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => {
+        usersAPI.invalidateCache()
+        void fetchData(true, () => active, controller.signal)
+      }, 250)
+    }
+    void fetchData(false, () => active, controller.signal)
+    window.addEventListener('cet:registration', scheduleRefresh)
+    window.addEventListener('storage', scheduleRefresh)
     const channel = supabase
       .channel('realtime_pending_registrations')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
-        fetchData(true)
+        scheduleRefresh()
       })
       .subscribe()
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }
+    window.addEventListener('focus', refreshOnFocus)
 
     return () => {
-      clearInterval(interval)
-      window.removeEventListener('cet:registration', handleLocalUpdate)
-      window.removeEventListener('storage', handleLocalUpdate)
-      if (bc) bc.close()
-      supabase.removeChannel(channel)
+      active = false
+      controller.abort()
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      window.removeEventListener('cet:registration', scheduleRefresh)
+      window.removeEventListener('storage', scheduleRefresh)
+      window.removeEventListener('focus', refreshOnFocus)
+      void supabase.removeChannel(channel)
     }
-  }, [statusFilter])
+  }, [fetchData])
+
+  useEffect(() => {
+    setSelected([])
+    setPage(1)
+  }, [statusFilter, batchFilter, debouncedSearch])
 
   const toggle = (id: string) =>
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
@@ -427,12 +520,7 @@ function RegistrationReview() {
 
   const distinctBatches = Array.from(new Set(students.map(s => s.batch).filter(Boolean))).sort()
 
-  const filtered = students.filter(s => {
-    const q = searchQuery.toLowerCase()
-    const matchSearch = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || (s.phone || '').includes(q) || (s.mhcetId || '').toLowerCase().includes(q)
-    const matchBatch = batchFilter === 'All' || String(s.batch) === String(batchFilter)
-    return matchSearch && matchBatch
-  })
+  const filtered = students
 
   const handleApprove = async (id: string, name: string) => {
     setActionLoading(id)
@@ -494,7 +582,16 @@ function RegistrationReview() {
   const handleExportExcel = async () => {
     try {
       const { exportStudentsToExcel } = await import('../lib/exportExcel')
-      exportStudentsToExcel(filtered, {
+      const allMatchingStudents = await usersAPI.getAll(statusFilter === 'all' ? undefined : statusFilter)
+      const exportable = allMatchingStudents.filter(student =>
+        (batchFilter === 'All' || String(student.batch) === String(batchFilter))
+        && (!debouncedSearch
+          || student.name.toLowerCase().includes(debouncedSearch.toLowerCase())
+          || student.email.toLowerCase().includes(debouncedSearch.toLowerCase())
+          || (student.phone || '').includes(debouncedSearch)
+          || (student.mhcetId || '').toLowerCase().includes(debouncedSearch.toLowerCase())),
+      )
+      exportStudentsToExcel(exportable, {
         batch: batchFilter === 'All' ? undefined : batchFilter,
         status: statusFilter === 'all' ? undefined : statusFilter,
       })
@@ -646,6 +743,13 @@ function RegistrationReview() {
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rr-toast" role="alert">
+          {loadError}
+          <button type="button" onClick={() => void fetchData(true)} disabled={loading}>Retry</button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="rr-toolbar">
@@ -834,7 +938,12 @@ function RegistrationReview() {
       {/* Footer */}
       {!loading && filtered.length > 0 && (
         <div className="rr-table-footer">
-          <p className="rr-count">Showing {filtered.length} of {students.length} applicant{students.length !== 1 ? 's' : ''}</p>
+          <p className="rr-count">Showing {(page - 1) * pageSize + 1}–{(page - 1) * pageSize + filtered.length} of {total.toLocaleString()} applicants</p>
+          <div>
+            <button type="button" className="rr-bulk-btn" disabled={page <= 1} onClick={() => setPage(current => current - 1)}>Previous</button>
+            <span> Page {page} of {Math.max(1, Math.ceil(total / pageSize))} </span>
+            <button type="button" className="rr-bulk-btn" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage(current => current + 1)}>Next</button>
+          </div>
         </div>
       )}
 
@@ -983,12 +1092,13 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     if (view !== 'overview') return
     let cancelled = false
     let requestInFlight = false
+    const controller = new AbortController()
 
     const loadOverview = async () => {
       if (cancelled || requestInFlight) return
       requestInFlight = true
       try {
-        const overview = await adminDashboardAPI.getOverview()
+        const overview = await adminDashboardAPI.getOverview({ signal: controller.signal })
         if (cancelled) return
         setOverviewStats(overview.stats)
         setTestResults(overview.testResults)
@@ -1020,12 +1130,20 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
     const expiryTimer = window.setInterval(() => {
       setActivities(current => current.filter(activity => activity.time !== 'RECENTLY'))
     }, 60 * 60 * 1000)
-    const refreshTimer = window.setInterval(() => { void loadOverview() }, 15_000)
+    const refreshTimer = window.setInterval(() => {
+      if (!document.hidden) void loadOverview()
+    }, 60_000)
+    const refreshOnFocus = () => {
+      if (!document.hidden) void loadOverview()
+    }
+    window.addEventListener('focus', refreshOnFocus)
 
     return () => {
       cancelled = true
+      controller.abort()
       window.clearInterval(expiryTimer)
       window.clearInterval(refreshTimer)
+      window.removeEventListener('focus', refreshOnFocus)
     }
   }, [view])
 

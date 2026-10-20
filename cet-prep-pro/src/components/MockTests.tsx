@@ -5,6 +5,7 @@ import ExamInstructions from './ExamInstructions'
 import UserAvatar from './UserAvatar'
 import { mockTestsAPI, testsAPI, session, MockTest, TestResult, type AuthUser } from '../lib/api'
 import AssignedMockTests from './AssignedMockTests'
+import { supabase } from '../lib/supabaseClient'
 
 type TabType = 'Full Length' | 'Subject-wise' | 'Chapter-wise' | 'Previous Year'
 type DiffFilter = 'All Levels' | 'Easy' | 'Medium' | 'Hard'
@@ -147,6 +148,20 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   const [loading, setLoading] = useState(true)
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
+  const [notificationAssignmentId, setNotificationAssignmentId] = useState(() => {
+    const key = 'cet:pending-notification-navigation'
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return ''
+    try {
+      const pending = JSON.parse(raw) as { targetPage?: string; targetType?: string; targetId?: string }
+      if (pending.targetPage !== 'mocktests') return ''
+      sessionStorage.removeItem(key)
+      return pending.targetType === 'assignment' ? pending.targetId || '' : ''
+    } catch {
+      sessionStorage.removeItem(key)
+      return ''
+    }
+  })
   const [selectedTestName, setSelectedTestName] = useState(() => localStorage.getItem('cet_selected_test_name') || 'MHT-CET Mock Test')
   const [selectedMockTestId, setSelectedMockTestId] = useState(() => localStorage.getItem('cet_selected_mock_test_id') || '')
   const [selectedTestDuration, setSelectedTestDuration] = useState<number>(() => {
@@ -239,12 +254,23 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
   useEffect(() => {
     loadMockTests()
     loadTestResults()
-    const refreshInterval = window.setInterval(() => void loadMockTests(true), 15000)
-    const refreshOnFocus = () => void loadMockTests(true)
+    let refreshTimer: number | undefined
+    const scheduleRefresh = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => void loadMockTests(true), 250)
+    }
+    const channel = supabase
+      .channel('student_mock_tests_live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mock_tests' }, scheduleRefresh)
+      .subscribe()
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh()
+    }
     window.addEventListener('focus', refreshOnFocus)
     return () => {
-      window.clearInterval(refreshInterval)
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
       window.removeEventListener('focus', refreshOnFocus)
+      void supabase.removeChannel(channel)
     }
   }, [])
 
@@ -495,6 +521,24 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           setStartingTest(false)
         }}
       />
+    ) : notificationAssignmentId ? (
+      <div className="db-root mt-page-content">
+        <Sidebar activePage="mocktests" onNavigate={onNavigate} onStartTest={enterExamInstructions} />
+        <main className="db-main">
+          <div className="db-content">
+            <AssignedMockTests
+              embedded
+              focusAssignmentId={notificationAssignmentId}
+              onBack={() => setNotificationAssignmentId('')}
+              toolbarActions={(
+                <button type="button" className="mt-quick-btn" onClick={() => setNotificationAssignmentId('')}>
+                  Browse tests
+                </button>
+              )}
+            />
+          </div>
+        </main>
+      </div>
     ) : (
     <div className="db-root mt-page-content">
 

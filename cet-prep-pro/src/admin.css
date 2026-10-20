@@ -2717,7 +2717,7 @@
 /* ── Notifications Popover ───────────────────── */
 .adb-notif-dropdown {
   position: absolute; top: 60px; right: 80px;
-  width: 360px; background: #fff;
+  width: min(360px, calc(100vw - 24px)); background: #fff;
   border: 1px solid #e2e8f0; border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
   z-index: 1000; overflow: hidden;
@@ -2738,3 +2738,91 @@
   background: none; border: none; color: #2563eb;
   font-size: 12px; font-weight: 600; cursor: pointer;
 }
+
+/* ── Admin Responsive Enhancements ── */
+.amt-table-container,
+.rr-table-wrap,
+.adb-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.amt-table,
+.rr-table {
+  min-width: 620px;
+}
+
+@media (max-width: 1024px) {
+  .amt-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .adb-notif-dropdown {
+    right: 12px;
+  }
+
+  .amt-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .amt-step-indicators {
+    padding: 12px 12px 6px;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .amt-step-title {
+    display: none;
+  }
+
+  .amt-step.active .amt-step-title {
+    display: block;
+    font-size: 9.5px;
+    white-space: nowrap;
+    max-width: 70px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .amt-step-number {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .amt-step::before {
+    top: 14px;
+    width: calc(100% - 16px);
+  }
+
+  .amt-form-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .rr-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .amt-modal-footer {
+    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .amt-modal-footer > div {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 400px) {
+  .amt-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

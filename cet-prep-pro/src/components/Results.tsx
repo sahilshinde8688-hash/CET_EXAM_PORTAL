@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import Sidebar, { type Page } from './Sidebar'
 import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import { downloadTestHistoryCSV, downloadSingleTestReport } from '../lib/exportUtils'
 import TestInterface from './TestInterface'
 import UserAvatar from './UserAvatar'
+import LoadingIndicator from './LoadingIndicator'
 
 interface ResultsProps {
   onNavigate?: (page: Page) => void
@@ -25,6 +26,20 @@ export default function Results({ onNavigate }: ResultsProps) {
   const [testHistory, setTestHistory] = useState<TestResult[]>([])
   const [loading, setLoading] = useState(true)
   const [reviewingTest, setReviewingTest] = useState<TestResult | null>(null)
+  const [notificationResultId] = useState(() => {
+    const key = 'cet:pending-notification-navigation'
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return ''
+    try {
+      const pending = JSON.parse(raw) as { targetPage?: string; targetType?: string; targetId?: string }
+      if (pending.targetPage !== 'results') return ''
+      sessionStorage.removeItem(key)
+      return pending.targetType === 'result' ? pending.targetId || '' : ''
+    } catch {
+      sessionStorage.removeItem(key)
+      return ''
+    }
+  })
   const [displayLimit, setDisplayLimit] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('All')
@@ -32,18 +47,22 @@ export default function Results({ onNavigate }: ResultsProps) {
   const user = session.get<AuthUser>()
   const branchLabel = user?.branch ? `${user.branch}${user.batch ? `, Batch ${user.batch}` : ''}` : 'CET preparation'
 
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     try {
       const results = await testsAPI.getMyResults()
       const sortedResults = results.sort((a, b) => new Date(b.attemptedAt).getTime() - new Date(a.attemptedAt).getTime())
       setTestHistory(sortedResults)
       setDisplayLimit(sortedResults.length)
+      if (notificationResultId) {
+        const selectedResult = sortedResults.find(result => result._id === notificationResultId)
+        if (selectedResult) setReviewingTest(selectedResult)
+      }
     } catch (error) {
       console.error('Failed to load test results:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [notificationResultId])
 
   useEffect(() => {
     loadResults()
@@ -57,7 +76,7 @@ export default function Results({ onNavigate }: ResultsProps) {
       window.removeEventListener('focus', refreshResults)
       document.removeEventListener('visibilitychange', refreshResults)
     }
-  }, [])
+  }, [loadResults])
 
   const testsCount = testHistory.length
   const avgScore = testsCount > 0
@@ -131,8 +150,8 @@ export default function Results({ onNavigate }: ResultsProps) {
       <div className="rs-root">
         <Sidebar activePage="results" onNavigate={onNavigate} />
         <main className="rs-main">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-            <p style={{ fontSize: '16px', color: '#64748b' }}>Loading test results...</p>
+          <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+            <LoadingIndicator message="Loading test results..." />
           </div>
         </main>
       </div>

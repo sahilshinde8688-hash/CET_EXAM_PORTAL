@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs')
 const supabase = require('../config/supabase')
+const { createQuestionHash } = require('../utils/questionHash')
+const { sanitizeQuestionContent } = require('../utils/questionContent')
 const { getEffectiveAdminRole } = require('../utils/adminRoles')
 const {
   DEFAULT_SESSION_INACTIVITY_TIMEOUT_SECONDS,
@@ -27,6 +29,15 @@ const getSessionInactivityTimeoutSeconds = async () => {
     : (SESSION_INACTIVITY_TIMEOUT_SECONDS || DEFAULT_SESSION_INACTIVITY_TIMEOUT_SECONDS)
   sessionTimeoutCache = { value: timeoutSeconds, expiresAt: Date.now() + SESSION_TIMEOUT_CACHE_MS }
   return timeoutSeconds
+}
+
+const getSystemSetting = async key => {
+  const { data, error } = await supabase.from('system_settings')
+    .select('value')
+    .eq('key', key)
+    .maybeSingle()
+  if (error) throw error
+  return data?.value
 }
 
 const invalidateSessionTimeoutCache = () => {
@@ -74,6 +85,7 @@ const questionToCamel = (row) => {
   return {
     _id: row.id,
     id: row.id,
+    questionCode: row.question_code || null,
     subject: row.subject,
     chapter: row.chapter,
     topic: row.topic,
@@ -430,6 +442,45 @@ const getAllUsers = async (filters = {}) => {
   return Array.from(map.values())
 }
 
+const getUsersPage = async ({ status, search, branch, batch, limit = 50, offset = 0 } = {}) => {
+  let query = supabase
+    .from('users')
+    .select('id,name,email,phone,branch,batch,role,status,mhcet_id,photo,approved_at,rejected_at,rejection_reason,created_at,updated_at', { count: 'exact' })
+    .eq('role', 'student')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (status) query = query.eq('status', status)
+  if (branch) query = query.eq('branch', branch)
+  if (batch) query = query.eq('batch', batch)
+  if (search) {
+    const safeSearch = String(search).replace(/[,%()*\\]/g, ' ').trim().slice(0, 100)
+    if (safeSearch) {
+      const pattern = `*${safeSearch}*`
+      query = query.or(`name.ilike.${pattern},email.ilike.${pattern},mhcet_id.ilike.${pattern},phone.ilike.${pattern}`)
+    }
+  }
+
+  const { data, error, count } = await query
+  if (error) throw error
+  return {
+    users: (data || []).map(userToCamel),
+    total: count || 0,
+  }
+}
+
+const getStudentRegistrationStats = async () => {
+  const statuses = ['pending', 'approved', 'rejected']
+  const results = await Promise.all(statuses.map(status => supabase
+    .from('users')
+    .select('id', { count: 'exact', head: true })
+    .eq('role', 'student')
+    .eq('status', status)))
+  const failure = results.find(result => result.error)
+  if (failure) throw failure.error
+  return Object.fromEntries(statuses.map((status, index) => [status, results[index].count || 0]))
+}
+
 const getApprovedStudentsForAssignment = async () => {
   const { data, error } = await supabase
     .from('users')
@@ -572,7 +623,18 @@ const getQuestions = async (filters = {}, { isAdmin = false } = {}) => {
   if (filters.topic) query = query.eq('topic', filters.topic)
   if (filters.difficulty) query = query.eq('difficulty', filters.difficulty)
   if (filters.isActive !== undefined) query = query.eq('is_active', filters.isActive)
-  if (Array.isArray(filters.ids) && filters.ids.length) query = query.in('id', filters.ids)
+  if (Array.isArray(filters.ids) && filters.ids.length) {
+    const identifiers = filters.ids.map(String)
+    const uuids = identifiers.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    const questionCodes = identifiers
+      .filter((id) => /^CET-[A-Z0-9]{2,8}-[A-Z0-9]{2,10}-\d{6}$/i.test(id))
+      .map((id) => id.toUpperCase())
+    const conditions = []
+    if (uuids.length) conditions.push(`id.in.(${uuids.join(',')})`)
+    if (questionCodes.length) conditions.push(`question_code.in.(${questionCodes.join(',')})`)
+    if (!conditions.length) return []
+    query = query.or(conditions.join(','))
+  }
 
   const { data, error } = await query
   if (error) throw error
@@ -584,35 +646,45 @@ const getQuestions = async (filters = {}, { isAdmin = false } = {}) => {
 }
 
 const getQuestionById = async (id, { isAdmin = false } = {}) => {
-  const { data, error } = await supabase.from('questions').select('*').eq('id', id).single()
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id))
+  const column = isUuid ? 'id' : 'question_code'
+  if (!isUuid && !/^CET-[A-Z0-9]{2,8}-[A-Z0-9]{2,10}-\d{6}$/i.test(String(id))) return null
+  const lookupId = isUuid ? id : String(id).toUpperCase()
+  const { data, error } = await supabase.from('questions').select('*').eq(column, lookupId).single()
   if (error || !data) return null
   const q = questionToCamel(data)
   return isAdmin ? q : sanitizeQuestion(q)
 }
 
-const createQuestion = async (qData) => {
+const createQuestion = async (qData, { includeClassificationMetadata = true } = {}) => {
   const payload = {
     subject: qData.subject,
     chapter: qData.chapter || '',
     topic: qData.topic || qData.chapter || 'General',
     sub_topic: qData.subTopic || '',
-    text: qData.text,
+    text: sanitizeQuestionContent(qData.text),
     image_url: qData.imageUrl || '',
-    options: qData.options || [],
+    options: (qData.options || []).map(sanitizeQuestionContent),
     correct_index: Number(qData.correctIndex),
-    solution: qData.solution || '',
+    solution: sanitizeQuestionContent(qData.solution),
     marks: qData.marks !== undefined ? Number(qData.marks) : 2,
     negative_marks: qData.negativeMarks !== undefined ? Number(qData.negativeMarks) : 0.5,
     difficulty: qData.difficulty || 'Medium',
-    question_type: qData.questionType || '',
-    cet_difficulty: qData.cetDifficulty || '',
-    cet_relevance: qData.cetRelevance || '',
-    classification_confidence: qData.classificationConfidence ?? null,
-    classification_source: qData.classificationSource || '',
-    source_pdf: qData.sourcePdf || '',
-    source_page: qData.sourcePage ?? null,
-    source_question_number: qData.sourceQuestionNumber ?? null,
     is_active: qData.isActive !== undefined ? qData.isActive : true,
+    normalized_question_hash: createQuestionHash(qData),
+  }
+  if (qData.generationJobId) payload.generation_job_id = qData.generationJobId
+  if (includeClassificationMetadata) {
+    Object.assign(payload, {
+      question_type: qData.questionType || '',
+      cet_difficulty: qData.cetDifficulty || '',
+      cet_relevance: qData.cetRelevance || '',
+      classification_confidence: qData.classificationConfidence ?? null,
+      classification_source: qData.classificationSource || '',
+      source_pdf: qData.sourcePdf || '',
+      source_page: qData.sourcePage ?? null,
+      source_question_number: qData.sourceQuestionNumber ?? null,
+    })
   }
   const { data, error } = await supabase.from('questions').insert(payload).select().single()
   if (error) throw error
@@ -621,15 +693,44 @@ const createQuestion = async (qData) => {
 
 const updateQuestion = async (id, updates) => {
   const payload = {}
+  const identityFields = ['subject', 'chapter', 'topic', 'subTopic', 'text', 'imageUrl', 'options', 'correctIndex', 'solution']
+  const identityChanged = identityFields.some((field) => updates[field] !== undefined)
+  let currentQuestion
+  if (identityChanged) {
+    const { data, error } = await supabase
+      .from('questions')
+      .select('subject, chapter, topic, sub_topic, text, image_url, options, solution, correct_index')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    currentQuestion = {
+      subject: data.subject,
+      chapter: data.chapter,
+      topic: data.topic,
+      subTopic: data.sub_topic,
+      text: data.text,
+      imageUrl: data.image_url,
+      options: data.options,
+      solution: data.solution,
+      correctIndex: data.correct_index,
+    }
+    identityFields.forEach((field) => {
+      if (updates[field] !== undefined) currentQuestion[field] = updates[field]
+    })
+    currentQuestion.text = sanitizeQuestionContent(currentQuestion.text)
+    currentQuestion.options = (currentQuestion.options || []).map(sanitizeQuestionContent)
+    currentQuestion.solution = sanitizeQuestionContent(currentQuestion.solution)
+    payload.normalized_question_hash = createQuestionHash(currentQuestion)
+  }
   if (updates.subject !== undefined) payload.subject = updates.subject
   if (updates.chapter !== undefined) payload.chapter = updates.chapter
   if (updates.topic !== undefined) payload.topic = updates.topic
   if (updates.subTopic !== undefined) payload.sub_topic = updates.subTopic
-  if (updates.text !== undefined) payload.text = updates.text
+  if (updates.text !== undefined) payload.text = sanitizeQuestionContent(updates.text)
   if (updates.imageUrl !== undefined) payload.image_url = updates.imageUrl
-  if (updates.options !== undefined) payload.options = updates.options
+  if (updates.options !== undefined) payload.options = updates.options.map(sanitizeQuestionContent)
   if (updates.correctIndex !== undefined) payload.correct_index = Number(updates.correctIndex)
-  if (updates.solution !== undefined) payload.solution = updates.solution
+  if (updates.solution !== undefined) payload.solution = sanitizeQuestionContent(updates.solution)
   if (updates.marks !== undefined) payload.marks = Number(updates.marks)
   if (updates.negativeMarks !== undefined) payload.negative_marks = Number(updates.negativeMarks)
   if (updates.difficulty !== undefined) payload.difficulty = updates.difficulty
@@ -659,12 +760,13 @@ const deleteQuestion = async (id) => {
  * Lightweight id+text list used by import duplicate detection.
  * Only fetches the columns needed for fingerprinting.
  */
-const getQuestionFingerprints = async () => {
-  const { data, error } = await supabase
-    .from('questions')
-    .select('id, text')
+const getQuestionFingerprints = async (filters = {}) => {
+  let query = supabase.from('questions').select('id, text')
     .order('created_at', { ascending: false })
-    .limit(20000)
+    .limit(Math.min(20000, Math.max(1, Number(filters.limit) || 20000)))
+  if (filters.subject) query = query.eq('subject', filters.subject)
+  if (Array.isArray(filters.topics) && filters.topics.length) query = query.in('topic', filters.topics)
+  const { data, error } = await query
   if (error) throw error
   return (data || []).map((row) => ({ id: row.id, text: row.text || '' }))
 }
@@ -1409,9 +1511,100 @@ const getTestResultById = async (id) => {
   return testResultToCamel(data)
 }
 
+const notificationToCamel = row => ({
+  _id: row.id,
+  category: row.category,
+  title: row.title,
+  message: row.message,
+  targetPage: row.target_page,
+  targetType: row.target_type,
+  targetId: row.target_id,
+  readAt: row.read_at,
+  createdAt: row.created_at,
+})
+
+const createNotifications = async notifications => {
+  if (!notifications.length) return []
+  const rows = notifications.map(notification => ({
+    user_id: notification.userId,
+    category: notification.category,
+    title: notification.title,
+    message: notification.message,
+    target_page: notification.targetPage,
+    target_type: notification.targetType || null,
+    target_id: notification.targetId || null,
+    dedupe_key: notification.dedupeKey,
+  }))
+  const { data, error } = await supabase
+    .from('notifications')
+    .upsert(rows, { onConflict: 'user_id,dedupe_key', ignoreDuplicates: true })
+    .select('id')
+  if (error) throw error
+  return data || []
+}
+
+const getNotifications = async (userId, { limit, offset }) => {
+  const [page, unread] = await Promise.all([
+    supabase.from('notifications')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + limit - 1),
+    supabase.from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('read_at', null),
+  ])
+  if (page.error) throw page.error
+  if (unread.error) throw unread.error
+  return {
+    notifications: (page.data || []).map(notificationToCamel),
+    total: page.count || 0,
+    unreadCount: unread.count || 0,
+    hasMore: offset + (page.data || []).length < (page.count || 0),
+  }
+}
+
+const markNotificationRead = async (userId, id) => {
+  const { data, error } = await supabase.from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('id', id)
+    .select('*')
+    .maybeSingle()
+  if (error) throw error
+  return data ? notificationToCamel(data) : null
+}
+
+const markAllNotificationsRead = async userId => {
+  const { error } = await supabase.from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('read_at', null)
+  if (error) throw error
+}
+
+const deleteNotification = async (userId, id) => {
+  const { data, error } = await supabase.from('notifications')
+    .delete()
+    .eq('user_id', userId)
+    .eq('id', id)
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  return Boolean(data)
+}
+
+const clearNotifications = async userId => {
+  const { error } = await supabase.from('notifications').delete().eq('user_id', userId)
+  if (error) throw error
+}
+
 module.exports = {
   invalidateSessionTimeoutCache,
   getSessionInactivityTimeoutSeconds,
+  getSystemSetting,
   // User
   findUserById,
   findUserByEmail,
@@ -1421,6 +1614,8 @@ module.exports = {
   consumeInitialTemporaryPassword,
   deleteUser,
   getAllUsers,
+  getUsersPage,
+  getStudentRegistrationStats,
   getApprovedStudentsForAssignment,
 
   // Session
@@ -1480,4 +1675,10 @@ module.exports = {
   getAllTestResults,
   getAdminDashboardOverview,
   getTestResultById,
+  createNotifications,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  clearNotifications,
 }

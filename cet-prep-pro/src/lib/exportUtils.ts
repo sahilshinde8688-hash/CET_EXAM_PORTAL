@@ -934,7 +934,7 @@ export function exportQuestionBankHTML(questions: Question[], title = 'CET Quest
     return `
       <div class="qb-card">
         <div class="qb-head">
-          <span class="qb-num">Question ${idx + 1}</span>
+          <span class="qb-num">${escapeHtml(q.questionCode || `Question ${idx + 1}`)}</span>
           <span class="qb-meta">${escapeHtml(q.subject || 'General')} • ${escapeHtml(q.topic || 'General')} • Marks: +${q.marks || 2}</span>
         </div>
         <div class="qb-text">${escapeHtml(q.text)}</div>

@@ -31,6 +31,7 @@
     "pg": "^8.23.0",
     "rate-limit-redis": "^6.0.1",
     "redis": "^6.2.1",
+    "sanitize-html": "^2.18.1",
     "tesseract.js": "^5.1.1",
     "ua-parser-js": "^2.0.10",
     "validator": "^13.15.35",

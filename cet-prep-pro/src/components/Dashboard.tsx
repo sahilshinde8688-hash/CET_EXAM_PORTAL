@@ -3,7 +3,8 @@ import Sidebar from './Sidebar'
 import TestInterface from './TestInterface'
 import UserAvatar from './UserAvatar'
 import AssignedMockTests from './AssignedMockTests'
-import { session, testsAPI, mockTestsAPI, mockTestAssignmentsAPI, type AuthUser, type MockTestAssignment, type TestResult } from '../lib/api'
+import NotificationCenter from './NotificationCenter'
+import { session, testsAPI, mockTestsAPI, mockTestAssignmentsAPI, type AuthUser, type MockTestAssignment, type StudentNotification, type TestResult } from '../lib/api'
 
 interface DashboardProps {
   onNavigate?: (page: 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard') => void
@@ -31,13 +32,23 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [testHistory, setTestHistory] = useState<TestResult[]>(() => testsAPI.getCachedDashboardResults() || [])
   const [dashboardLoading, setDashboardLoading] = useState(() => !testsAPI.getCachedDashboardResults())
   const [dashboardError, setDashboardError] = useState(false)
-  const [showNotifs, setShowNotifs] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const [unreadNotifs, setUnreadNotifs] = useState(3)
   const [shareToast, setShareToast] = useState(false)
   const lastAssignmentRequestAt = useRef(0)
   const user = session.get<AuthUser>()
   const currentUserId = String(user?.id || user?._id || '')
+
+  const openNotification = (notification: StudentNotification) => {
+    if (notification.targetType && notification.targetId) {
+      sessionStorage.setItem('cet:pending-notification-navigation', JSON.stringify({
+        targetPage: notification.targetPage,
+        targetType: notification.targetType,
+        targetId: notification.targetId,
+      }))
+    }
+    setShowHelp(false)
+    onNavigate?.(notification.targetPage)
+  }
 
   useEffect(() => {
     const inProgress = localStorage.getItem('cet_inProgressTest')
@@ -293,32 +304,10 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
             >
               <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
             </button>
-            <div style={{ position: 'relative' }}>
-              <button className="db-icon-btn db-notif-btn" onClick={() => { setShowNotifs(!showNotifs); setShowHelp(false) }}>
-                <span className="material-symbols-outlined">notifications</span>
-                {unreadNotifs > 0 && <span className="db-notif-dot" />}
-              </button>
-              {showNotifs && (
-                <div className="db-popover" style={{ position: 'absolute', top: '48px', right: 0, width: '320px', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', zIndex: 100, border: '1px solid #e2e8f0', padding: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Notifications</h4>
-                    {unreadNotifs > 0 && <button style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }} onClick={() => setUnreadNotifs(0)}>Mark all read</button>}
-                  </div>
-                  {unreadNotifs > 0 ? (
-                    <div style={{ display: 'grid', gap: '12px' }}>
-                      <div style={{ fontSize: '13px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}><strong>System Update:</strong> MHT-CET 2026 pattern updated.</div>
-                      <div style={{ fontSize: '13px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}><strong>New Test:</strong> Full Length Mock 4 is now available!</div>
-                      <div style={{ fontSize: '13px', background: '#f8fafc', padding: '10px', borderRadius: '8px' }}><strong>Reminder:</strong> Finish your pending Physics section.</div>
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px 0' }}>You're all caught up!</p>
-                  )}
-                </div>
-              )}
-            </div>
+            <NotificationCenter onOpenNotification={openNotification} />
             
             <div style={{ position: 'relative' }}>
-              <button className="db-icon-btn" onClick={() => { setShowHelp(!showHelp); setShowNotifs(false) }}>
+              <button className="db-icon-btn" onClick={() => setShowHelp(!showHelp)}>
                 <span className="material-symbols-outlined">help</span>
               </button>
               {showHelp && (
@@ -558,22 +547,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </main>
 
-      {/* ── Mobile Bottom Nav ────────────────────── */}
-      <nav className="db-mobile-nav-bar">
-        {mobileNavItems.map(item => (
-          <button key={item.label} type="button"
-            className={`db-mobile-nav-item${activeNav === item.label ? ' db-mobile-nav-item--active' : ''}`}
-            onClick={() => {
-              setActiveNav(item.label);
-              if (item.page && onNavigate) onNavigate(item.page as any)
-            }}
-          >
-            <span className="material-symbols-outlined">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
-    </div>
+      </div>
       )}
     </>
   )

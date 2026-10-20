@@ -196,6 +196,41 @@ test('getCetTaxonomy exposes the dropdown structure without keywords', () => {
   assert.ok(matrices.topics.every((t) => Array.isArray(t.subTopics)))
 })
 
+test('Physics taxonomy contains the requested Class 12 chapter names', () => {
+  const taxonomy = getCetTaxonomy()
+  const physics = taxonomy.find((subject) => subject.name === 'Physics')
+  const requestedChapters = [
+    'Rotational Dynamics',
+    'Mechanical Properties of Fluids',
+    'Kinetic Theory of Gases and Radiation',
+    'Thermodynamics',
+    'Oscillations',
+    'Superposition of Waves',
+    'Wave Optics',
+    'Electrostatics',
+    'Current Electricity',
+    'Magnetic Fields due to Electric Current',
+    'Magnetic Materials',
+    'Electromagnetic Induction',
+    'AC Circuits',
+    'Dual Nature of Radiation and Matter',
+    'Structure of Atoms and Nuclei',
+    'Semiconductor Devices',
+  ]
+
+  assert.ok(physics)
+  const physicsChapterNames = physics.chapters.map((chapter) => chapter.name)
+  for (const chapter of requestedChapters) {
+    assert.ok(physicsChapterNames.includes(chapter), `${chapter} missing from Physics`)
+    assert.equal(
+      taxonomy.filter((subject) => subject.name !== 'Physics')
+        .some((subject) => subject.chapters.some((entry) => entry.name === chapter)),
+      false,
+      `${chapter} should only appear under Physics`,
+    )
+  }
+})
+
 test('canonicalSubject maps printed aliases to syllabus subjects', () => {
   assert.equal(canonicalSubject('Math'), 'Mathematics')
   assert.equal(canonicalSubject('MATHS'), 'Mathematics')

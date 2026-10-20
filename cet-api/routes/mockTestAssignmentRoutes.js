@@ -329,8 +329,7 @@ const shuffle = values => {
   return output
 }
 
-const questionsForAttempt = async (attempt) => {
-  const fullQuestions = await db.getQuestions({ ids: attempt.questionIds, isActive: true }, { isAdmin: true })
+const formatQuestionsForAttempt = (attempt, fullQuestions) => {
   const questionsById = new Map(fullQuestions.map(question => [String(question._id), question]))
   return attempt.questionIds.map(id => {
     const question = questionsById.get(String(id))
@@ -339,6 +338,11 @@ const questionsForAttempt = async (attempt) => {
     const optionOrder = attempt.optionOrders[String(id)] || question.options.map((_, index) => index)
     return { ...safeQuestion, options: optionOrder.map(index => question.options[index]) }
   })
+}
+
+const questionsForAttempt = async (attempt) => {
+  const fullQuestions = await db.getQuestions({ ids: attempt.questionIds, isActive: true }, { isAdmin: true })
+  return formatQuestionsForAttempt(attempt, fullQuestions)
 }
 
 studentRouter.use(protect, (req, res, next) => {
@@ -448,6 +452,7 @@ studentRouter.post('/:assignmentId/start', validateCsrfToken, apiLimiter, async 
         ? shuffle(question.options.map((_, index) => index))
         : question.options.map((_, index) => index)
     }
+    const responseQuestions = formatQuestionsForAttempt({ questionIds, optionOrders }, validatedQuestions)
     let attempt
     try {
       attempt = await db.createMockTestAttempt({
@@ -463,7 +468,6 @@ studentRouter.post('/:assignmentId/start', validateCsrfToken, apiLimiter, async 
       if (error.code === '23505') return safeError(res, 409, 'An attempt was just started for this assignment. Refresh to resume it.')
       throw error
     }
-    const responseQuestions = await questionsForAttempt(attempt)
     return res.status(201).json({ success: true, message: 'Mock test started.', assignment: publicAssignmentForStudent(assignment), attempt, questions: responseQuestions, resumed: false })
   } catch (error) {
     return safeError(res, error.status || 500, error.status ? error.message : 'Could not start mock test.', error.status ? error.message : 'Please retry starting this test.')

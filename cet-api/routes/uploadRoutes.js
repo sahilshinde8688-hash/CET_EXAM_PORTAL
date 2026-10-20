@@ -123,7 +123,12 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ success: false, message: 'No image file provided' })
 
-      const result = await uploadToCloudinary(req.file.buffer, 'cet-questions', `question_${Date.now()}`)
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        'cet-questions',
+        `question_${Date.now()}`,
+        req.file.mimetype,
+      )
 
       res.json({
         success: true,

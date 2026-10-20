@@ -1,18 +1,21 @@
-import { useState, useEffect, useRef, ChangeEvent, ClipboardEvent } from 'react'
+import { useState, useEffect, useRef, ChangeEvent } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, PlusCircle, Upload, Search, RefreshCcw,
   Edit2, Trash2, Eye, CheckCircle2, AlertCircle, Database, BrainCircuit, 
   Wand2, SpellCheck, Image as ImageIcon, Video, BookOpen, Layers, Target, Settings,
   Save, X, GripVertical, Plus, MessageSquare, ShieldCheck, Download,
-  Copy, FileText, FileSpreadsheet, Bold, Italic, Underline, List, ListOrdered, AlignLeft, AlignCenter, AlignRight,
-  Superscript, Subscript, Table, Type, Palette
+  Copy, FileText, FileSpreadsheet
 } from 'lucide-react'
 import { exportQuestionBankHTML } from '../lib/exportUtils'
-import { questionsAPI, Question, PdfExtractResponse, PdfImportQuestion } from '../lib/api'
-import { MathRenderer } from '../lib/mathDisplay'
+import { questionsAPI, Question, PdfExtractResponse, PdfImportQuestion, CetTaxonomySubject } from '../lib/api'
+import { sanitizeQuestionContent } from '../lib/questionContent'
+import RichQuestionContent from './RichQuestionContent'
+import RichQuestionEditor from './RichQuestionEditor'
+import FormattedSolution from './FormattedSolution'
 import PdfImportReview from './PdfImportReview'
 import AiNotesQuestionGenerator from './AiNotesQuestionGenerator'
+import LoadingIndicator from './LoadingIndicator'
 import '../question-bank.css'
 
 type Tab = 'dashboard' | 'list' | 'add' | 'bulk'
@@ -20,6 +23,7 @@ type Tab = 'dashboard' | 'list' | 'add' | 'bulk'
 export default function QuestionBank({ onCreateTest }: { onCreateTest: (questionIds: string[]) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [questions, setQuestions] = useState<Question[]>([])
+  const [chapterCatalog, setChapterCatalog] = useState<CetTaxonomySubject[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [subjectFilter, setSubjectFilter] = useState('')
@@ -159,9 +163,9 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   }
 
   const downloadCSV = () => {
-    const headers = ['ID', 'Subject', 'Topic', 'Difficulty', 'Status', 'Created At']
+    const headers = ['Question ID', 'Subject', 'Topic', 'Difficulty', 'Status', 'Created At']
     const rows = filteredQuestions.map(q => [
-      q._id,
+      q.questionCode || q._id,
       q.subject,
       q.topic,
       q.difficulty,
@@ -208,51 +212,10 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(initialForm)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingSolutionImage, setUploadingSolutionImage] = useState(false)
   const [imageInputRef, setImageInputRef] = useState<HTMLInputElement | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   
   const resetForm = () => setForm(initialForm)
-
-  const insertFormatting = (before: string, after: string = '', placeholder: string = '') => {
-    if (!textareaRef.current) return
-    const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selectedText = form.text.substring(start, end)
-    const newText = selectedText || placeholder
-    const updatedText = form.text.substring(0, start) + before + newText + after + form.text.substring(end)
-    setForm({ ...form, text: updatedText })
-    setTimeout(() => {
-      textarea.focus()
-      const newCursorPos = start + before.length + newText.length
-      textarea.setSelectionRange(newCursorPos, newCursorPos)
-    }, 0)
-  }
-
-  const insertSymbol = (symbol: string) => {
-    if (!textareaRef.current) return
-    const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const updatedText = form.text.substring(0, start) + symbol + form.text.substring(start)
-    setForm({ ...form, text: updatedText })
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + symbol.length, start + symbol.length)
-    }, 0)
-  }
-
-  const insertTable = () => {
-    const tableTemplate = '\n| Column 1 | Column 2 | Column 3 |\n|----------|----------|----------|\n| Data 1   | Data 2   | Data 3   |\n| Data 4   | Data 5   | Data 6   |\n'
-    if (!textareaRef.current) return
-    const textarea = textareaRef.current
-    const start = textarea.selectionStart
-    const updatedText = form.text.substring(0, start) + tableTemplate + form.text.substring(start)
-    setForm({ ...form, text: updatedText })
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start + tableTemplate.length, start + tableTemplate.length)
-    }, 0)
-  }
 
   // Preview Drawer
   const [previewQ, setPreviewQ] = useState<Question | null>(null)
@@ -271,14 +234,30 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   }
   useEffect(() => { load() }, [])
 
-  const availableChapters = Array.from(new Set(questions
+  useEffect(() => {
+    questionsAPI.getCetTaxonomy()
+      .then(data => setChapterCatalog(data.subjects))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Failed to load chapter list'
+        showToast(message, 'error')
+      })
+  }, [])
+
+  const selectedSubjectChapters = chapterCatalog.find(
+    subject => subject.name.toLowerCase() === subjectFilter.toLowerCase(),
+  )?.chapters.map(chapter => chapter.name) || []
+  const formSubjectChapters = chapterCatalog.find(
+    subject => subject.name.toLowerCase() === form.subject.toLowerCase(),
+  )?.chapters || []
+  const questionChapters = questions
     .filter(q => !subjectFilter || q.subject?.toLowerCase() === subjectFilter.toLowerCase())
     .map(q => q.chapter)
-    .filter(Boolean)))
+    .filter((chapter): chapter is string => Boolean(chapter))
+  const availableChapters = Array.from(new Set([...selectedSubjectChapters, ...questionChapters]))
 
   const filteredQuestions = questions.filter(q => {
     const query = search.toLowerCase()
-    const matchesSearch = !query || q.text?.toLowerCase().includes(query) || q.subject?.toLowerCase().includes(query) || q.topic?.toLowerCase().includes(query) || q.chapter?.toLowerCase().includes(query)
+    const matchesSearch = !query || q.questionCode?.toLowerCase().includes(query) || q.text?.toLowerCase().includes(query) || q.subject?.toLowerCase().includes(query) || q.topic?.toLowerCase().includes(query) || q.chapter?.toLowerCase().includes(query)
     const matchesSubject = !subjectFilter || q.subject?.toLowerCase() === subjectFilter.toLowerCase()
     const matchesChapter = !chapterFilter || q.chapter === chapterFilter
     const matchesDifficulty = !difficultyFilter || q.difficulty === difficultyFilter
@@ -287,14 +266,22 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   })
 
   const handleSave = async () => {
-    if (!form.subject || !form.text) return showToast('Subject and Text are required', 'error')
+    const subject = form.subject.trim()
+    const text = form.text.trim()
+    if (!subject) return showToast('Select a subject before saving the question.', 'error')
+    if (!text) {
+      return showToast(
+        'Enter the question text. A pasted image is attached separately and does not replace the question text.',
+        'error',
+      )
+    }
     
     const payload = {
-      subject: form.subject,
+      subject,
       chapter: form.chapter,
       topic: form.topic || form.chapter,
       subTopic: form.subTopic,
-      text: form.text,
+      text,
       imageUrl: form.imageUrl,
       options: form.options,
       solution: form.solution,
@@ -325,8 +312,8 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     setEditingId(q._id)
     setForm({
       ...form,
-      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text || '', imageUrl: q.imageUrl || '', options: q.options || ['', '', '', ''],
-      solution: q.solution || '',
+      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: sanitizeQuestionContent(q.text || ''), imageUrl: q.imageUrl || '', options: (q.options || ['', '', '', '']).map(sanitizeQuestionContent),
+      solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
       difficulty: q.difficulty || 'Medium', status: q.isActive ? 'Published' : 'Draft'
     })
@@ -337,8 +324,8 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     setEditingId(null)
     setForm({
       ...form,
-      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text ? `${q.text} (Copy)` : '', imageUrl: q.imageUrl || '', options: q.options ? [...q.options] : ['', '', '', ''],
-      solution: q.solution || '',
+      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text ? `${sanitizeQuestionContent(q.text)} (Copy)` : '', imageUrl: q.imageUrl || '', options: q.options ? q.options.map(sanitizeQuestionContent) : ['', '', '', ''],
+      solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
       difficulty: q.difficulty || 'Medium', status: 'Draft'
     })
@@ -346,43 +333,39 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     showToast('Question duplicated — edit and save as new')
   }
 
-  const handleQuestionImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
+  const uploadQuestionImage = async (file: File) => {
     try {
       setUploadingImage(true)
       const res = await questionsAPI.uploadQuestionImage(file)
-      setForm({ ...form, imageUrl: res.imageUrl })
+      setForm(current => ({ ...current, imageUrl: res.imageUrl }))
       showToast('Question image attached successfully', 'success')
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Image upload failed'
       showToast(message, 'error')
     } finally {
       setUploadingImage(false)
-      e.target.value = ''
     }
   }
 
-  const handlePasteImage = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageItem = Array.from(e.clipboardData?.items || []).find(item => item.type.startsWith('image/'))
-    if (!imageItem) return
-
-    e.preventDefault()
-    const file = imageItem.getAsFile()
-    if (!file) return
-
+  const uploadSolutionImage = async (file: File): Promise<string | void> => {
     try {
-      setUploadingImage(true)
+      setUploadingSolutionImage(true)
       const res = await questionsAPI.uploadQuestionImage(file)
-      setForm({ ...form, imageUrl: res.imageUrl })
-      showToast('Pasted image attached successfully', 'success')
+      showToast('Solution image uploaded successfully', 'success')
+      return res.imageUrl
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Image upload failed'
       showToast(message, 'error')
     } finally {
-      setUploadingImage(false)
+      setUploadingSolutionImage(false)
     }
+  }
+
+  const handleQuestionImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await uploadQuestionImage(file)
+    e.target.value = ''
   }
 
   const remove = async (id: string) => {
@@ -483,7 +466,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
             <div className="qb-filter-bar">
               <div className="qb-search-wrapper">
                 <Search size={18} className="qb-search-icon" />
-                <input type="text" className="qb-input-search" placeholder="Live search by text, subject, or topic..." 
+                <input type="text" className="qb-input-search" placeholder="Search by question ID, text, subject, or topic..."
                   value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <select className="qb-filter-select" value={subjectFilter} onChange={e => { setSubjectFilter(e.target.value); setChapterFilter('') }}>
@@ -523,9 +506,9 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   </div>
                   <button className="qb-btn qb-btn-outline" onClick={clearSubjectSelection}>Clear Subject</button>
                 </div>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14}}>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: 10}}>
                   {availableChapters.length ? availableChapters.map(chapter => (
-                    <button key={chapter} className="qb-stat-card" style={{textAlign: 'left', padding: '16px', minHeight: 120, cursor: 'pointer'}} onClick={() => chapter && handleChapterClick(chapter)}>
+                    <button key={chapter} className="qb-stat-card" style={{textAlign: 'left', padding: '16px', minHeight: 76, cursor: 'pointer'}} onClick={() => chapter && handleChapterClick(chapter)}>
                       <div style={{fontSize: 14, fontWeight: 700, marginBottom: 8}}>{chapter}</div>
                       <div style={{fontSize: 12, color: 'var(--text-muted)'}}>{questions.filter(q => q.subject?.toLowerCase() === subjectFilter.toLowerCase() && q.chapter === chapter).length} questions</div>
                     </button>
@@ -557,16 +540,16 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? <tr><td colSpan={7} style={{textAlign:'center', padding: '40px'}}>Loading...</td></tr> : null}
+                    {loading ? <tr><td colSpan={7}><LoadingIndicator message="Loading questions..." /></td></tr> : null}
                     {filteredQuestions.map(q => (
                       <tr key={q._id}>
-                        <td style={{fontFamily: 'monospace', color: 'var(--text-muted)'}}>{q._id.slice(-6).toUpperCase()}</td>
+                        <td style={{fontFamily: 'monospace', color: 'var(--text-muted)'}}>{q.questionCode || q._id.slice(-6).toUpperCase()}</td>
                         <td>
                           <div style={{fontWeight: 600}}>{q.subject}</div>
                           <div style={{fontSize: 12, color: 'var(--text-muted)'}}>{q.chapter ? `${q.chapter} · ${q.topic}` : q.topic}</div>
                         </td>
-                        <td style={{maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                          <MathRenderer value={q.text} />
+                        <td className="qb-question-snippet">
+                          <RichQuestionContent content={q.text} />
                         </td>
                         <td>
                           <span className={`qb-badge ${q.difficulty?.toLowerCase() || 'medium'}`}>{q.cetDifficulty || q.difficulty}</span>
@@ -612,8 +595,37 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 <div className="qb-card">
                   <h3 className="qb-card-title"><BookOpen size={20}/> Basic Information</h3>
                   <div className="qb-form-row" style={{marginBottom: 16}}>
-                    <div><label className="qb-label">Subject</label><input className="qb-input" value={form.subject} onChange={e=>setForm({...form, subject: e.target.value})}/></div>
-                    <div><label className="qb-label">Chapter</label><input className="qb-input" value={form.chapter} onChange={e=>setForm({...form, chapter: e.target.value})}/></div>
+                    <div>
+                      <label className="qb-label" htmlFor="question-subject">Subject</label>
+                      <select
+                        id="question-subject"
+                        className="qb-input"
+                        value={form.subject}
+                        onChange={e => setForm({ ...form, subject: e.target.value, chapter: '', topic: '', subTopic: '' })}
+                      >
+                        <option value="">Select a subject</option>
+                        {form.subject && !chapterCatalog.some(subject => subject.name === form.subject) && (
+                          <option value={form.subject}>{form.subject}</option>
+                        )}
+                        {chapterCatalog.map(subject => <option key={subject.name} value={subject.name}>{subject.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="qb-label" htmlFor="question-chapter">Chapter</label>
+                      <select
+                        id="question-chapter"
+                        className="qb-input"
+                        value={form.chapter}
+                        disabled={!form.subject}
+                        onChange={e => setForm({ ...form, chapter: e.target.value, topic: '', subTopic: '' })}
+                      >
+                        <option value="">{form.subject ? 'Select a chapter' : 'Select a subject first'}</option>
+                        {form.chapter && !formSubjectChapters.some(chapter => chapter.name === form.chapter) && (
+                          <option value={form.chapter}>{form.chapter}</option>
+                        )}
+                        {formSubjectChapters.map(chapter => <option key={chapter.name} value={chapter.name}>{chapter.name}</option>)}
+                      </select>
+                    </div>
                   </div>
                   <div className="qb-form-row">
                     <div><label className="qb-label">Topic</label><input className="qb-input" value={form.topic} onChange={e=>setForm({...form, topic: e.target.value})}/></div>
@@ -655,81 +667,21 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                       <div style={{marginTop: 8, fontSize: 12, color: 'var(--text-muted)'}}>Attached image ready to be saved with the question.</div>
                     </div>
                   )}
-                  <textarea 
-                    ref={textareaRef}
-                    className="qb-textarea" 
-                    placeholder="Support for LaTeX, Rich Text, and Code Blocks... You can also paste an image directly here." 
-                    value={form.text} 
-                    onChange={e=>setForm({...form, text: e.target.value})} 
-                    style={{minHeight: 180}} 
-                    onPaste={handlePasteImage}
+                  <RichQuestionEditor
+                    value={form.text}
+                    onChange={text => setForm(current => ({ ...current, text }))}
+                    onPasteImage={uploadQuestionImage}
                   />
 
                   <div className="qb-live-preview">
                     <div style={{fontSize: 12, fontWeight: 700, marginBottom: 10, color: 'var(--text-muted)'}}>Live Preview</div>
                     <div className="qb-preview-text">
-                      <MathRenderer value={form.text} />
+                      <RichQuestionContent content={form.text} />
                     </div>
                   </div>
 
-                  <div style={{fontSize: 12, color:'var(--text-muted)', marginTop: 8}}>Word count: {(form.text || '').split(' ').filter(x=>x).length}</div>
+                  <div style={{fontSize: 12, color:'var(--text-muted)', marginTop: 8}}>Word count: {(form.text || '').replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length}</div>
                   
-                  {/* Rich Text Toolbar */}
-                  <div className="qb-rich-toolbar">
-                    <div className="qb-toolbar-group">
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('**', '**', 'bold text')} title="Bold (Ctrl+B)">
-                        <Bold size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('*', '*', 'italic text')} title="Italic (Ctrl+I)">
-                        <Italic size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('__', '__', 'underlined text')} title="Underline (Ctrl+U)">
-                        <Underline size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('', '', 'Text')} title="Font Size">
-                        <Type size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertSymbol('π')} title="Insert Symbol">
-                        <Palette size={16}/>
-                      </button>
-                    </div>
-                    <div className="qb-toolbar-divider"/>
-                    <div className="qb-toolbar-group">
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('^2', '', 'x')} title="Superscript">
-                        <Superscript size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('_2', '', 'H')} title="Subscript">
-                        <Subscript size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('\n- ', '', 'List item')} title="Bullets">
-                        <List size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('\n1. ', '', 'Numbered item')} title="Numbering">
-                        <ListOrdered size={16}/>
-                      </button>
-                    </div>
-                    <div className="qb-toolbar-divider"/>
-                    <div className="qb-toolbar-group">
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('\n&nbsp;&nbsp;&nbsp;&nbsp;', '', 'Indented text')} title="Align Left">
-                        <AlignLeft size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('\n<div style="text-align:center;">', '</div>', 'Centered text')} title="Align Center">
-                        <AlignCenter size={16}/>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('\n<div style="text-align:right;">', '</div>', 'Right aligned text')} title="Align Right">
-                        <AlignRight size={16}/>
-                      </button>
-                    </div>
-                    <div className="qb-toolbar-divider"/>
-                    <div className="qb-toolbar-group">
-                      <button type="button" className="qb-toolbar-btn" onClick={() => insertFormatting('$$', '$$', 'E = mc^2')} title="Equation Editor">
-                        <span style={{fontFamily: 'serif', fontWeight: 700, fontSize: 16}}>∑</span>
-                      </button>
-                      <button type="button" className="qb-toolbar-btn" onClick={insertTable} title="Insert Table">
-                        <Table size={16}/>
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Section 3: Options */}
@@ -744,10 +696,9 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                       <div className="qb-option-handle"><GripVertical size={18}/></div>
                       <div className="qb-option-input-wrap">
                         <label className="qb-label">Option {String.fromCharCode(65+i)} {form.correctIndex === i && '(Correct Answer)'}</label>
-                        <input className="qb-input" style={form.correctIndex === i ? {background: '#fff', borderColor: '#10b981'} : {}}
-                          value={opt} onChange={e => {
-                            const newOpts = [...form.options]; newOpts[i] = e.target.value; setForm({...form, options: newOpts})
-                          }} />
+                        <RichQuestionEditor compact value={opt} onChange={value => {
+                          const newOpts = [...form.options]; newOpts[i] = value; setForm({...form, options: newOpts})
+                        }} onPasteImage={uploadQuestionImage} />
                       </div>
                       <div style={{display:'flex', flexDirection:'column', gap: 8, marginTop: 24}}>
                         <button className="qb-btn-icon" title="Mark as Correct" onClick={() => setForm({...form, correctIndex: i})}>
@@ -769,8 +720,26 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 {/* Section 4: Solution */}
                 <div className="qb-card">
                   <h3 className="qb-card-title"><MessageSquare size={20}/> Detailed Solution</h3>
-                  <textarea className="qb-textarea" placeholder="Step-by-step explanation, hints, or formula used..." 
-                    value={form.solution} onChange={e=>setForm({...form, solution: e.target.value})} />
+                  <RichQuestionEditor
+                    value={form.solution}
+                    editorLabel="Detailed solution"
+                    placeholder="Paste or write the step-by-step solution here…"
+                    onChange={solution => setForm(current => ({ ...current, solution }))}
+                    onPasteImage={uploadSolutionImage}
+                  />
+                  {uploadingSolutionImage && (
+                    <div className="qb-image-upload-loader" style={{marginTop: 10}}>
+                      <div className="qb-image-loader-spinner" />
+                      <div>
+                        <div style={{fontWeight: 700, marginBottom: 4}}>Uploading solution image…</div>
+                        <div style={{fontSize: 12, color: 'var(--text-muted)'}}>The image will be inserted into the solution after upload.</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="qb-live-preview">
+                    <div style={{fontSize: 12, fontWeight: 700, marginBottom: 10, color: 'var(--text-muted)'}}>Solution Preview</div>
+                    <FormattedSolution content={form.solution} />
+                  </div>
                 </div>
               </div>
 
@@ -960,7 +929,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   <span className={`qb-badge ${previewQ.difficulty?.toLowerCase() || 'medium'}`}>{previewQ.cetDifficulty || previewQ.difficulty}</span>
                 </div>
                 
-                <div className="qb-preview-text"><MathRenderer value={previewQ.text} /></div>
+                <div className="qb-preview-text"><RichQuestionContent content={previewQ.text} /></div>
                 {previewQ.imageUrl && (
                   <div style={{marginTop: 18, borderRadius: 12, overflow: 'hidden', background: '#fff', border: '1px solid var(--border)'}}>
                     <img src={previewQ.imageUrl} alt="Question preview" style={{width: '100%', maxHeight: 280, objectFit: 'contain', display: 'block'}} />
@@ -973,7 +942,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                       <div style={{width: 24, height: 24, borderRadius: '50%', background: previewQ.correctIndex === i ? '#10b981' : '#e2e8f0', color: previewQ.correctIndex === i ? '#fff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700}}>
                         {String.fromCharCode(65+i)}
                       </div>
-                      <div><MathRenderer value={opt} /></div>
+                      <div><RichQuestionContent content={opt} /></div>
                       {previewQ.correctIndex === i && <CheckCircle2 size={18} color="#10b981" style={{marginLeft: 'auto'}}/>}
                     </div>
                   ))}
@@ -991,7 +960,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 {previewQ.solution && (
                   <div style={{marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)'}}>
                     <h4 style={{fontWeight: 700, marginBottom: 12}}>Detailed Solution</h4>
-                    <div style={{whiteSpace: 'pre-wrap', lineHeight: 1.6, color: 'var(--text-main)'}}><MathRenderer value={previewQ.solution} /></div>
+                    <FormattedSolution content={previewQ.solution} />
                   </div>
                 )}
               </div>

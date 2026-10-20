@@ -248,15 +248,13 @@ const CET_SYLLABUS = {
       'Bernoulli s Principle': 'bernoulli|streamline flow|turbulent flow|reynolds number|velocity of efflux|venturimeter|torricelli',
       'Buoyancy & Floatation': 'buoyancy|archimedes principle|buoyant force|floats in water|apparent weight|specific gravity|density of liquid',
     }),
-    'Thermal Properties of Matter': C('thermal expansion|specific heat|latent heat|calorimeter|conduction of heat|convection|radiation of heat|anomalous expansion|coefficient of expansion', {
-      'Thermal Expansion': 'thermal expansion|coefficient of linear expansion|coefficient of volumetric expansion|apparent expansion|anomalous expansion of water|expands on heating',
-      'Calorimetry': 'specific heat|latent heat|calorimeter|heat gained|heat lost|principle of calorimetry|melting point|boiling point',
-      'Heat Transfer': 'conduction|convection|radiation|thermal conductivity|thermal resistance|newton s law of cooling|black body|emissive power|stefan s law|wein s law|kirchhoff s law of radiation',
-    }),
-    'Kinetic Theory of Gases': C('kinetic theory|ideal gas|degree of freedom|mean free path|gas constant|r m s speed|root mean square speed|maxwell distribution|molar gas constant|equipartition', {
+    'Kinetic Theory of Gases and Radiation': C('kinetic theory|ideal gas|degree of freedom|mean free path|gas constant|r m s speed|root mean square speed|maxwell distribution|molar gas constant|equipartition|thermal expansion|specific heat|latent heat|calorimeter|conduction of heat|convection|radiation of heat|anomalous expansion|coefficient of expansion', {
       'Assumptions & Pressure': 'kinetic theory of gases|pressure exerted by gas|ideal gas equation|assumptions of kinetic|molecular motion',
       'Speeds of Gas Molecules': 'r m s speed|root mean square|average speed of molecules|most probable speed|mean free path',
       'Law of Equipartition & Degrees': 'degree of freedom|equipartition of energy|law of equipartition|specific heat of gas|molar specific heat|atomicity of gas',
+      'Thermal Expansion': 'thermal expansion|coefficient of linear expansion|coefficient of volumetric expansion|apparent expansion|anomalous expansion of water|expands on heating',
+      'Calorimetry': 'specific heat|latent heat|calorimeter|heat gained|heat lost|principle of calorimetry|melting point|boiling point',
+      'Heat Transfer & Radiation': 'conduction|convection|radiation|thermal conductivity|thermal resistance|newton s law of cooling|black body|emissive power|stefan s law|wein s law|kirchhoff s law of radiation|radiation of heat',
     }),
     Thermodynamics: C('thermodynamic|first law of thermodynamics|isothermal|adiabatic|isobaric|isochoric|entropy|carnot engine|heat engine|refrigerator|efficiency of engine', {
       'First Law & Processes': 'first law of thermodynamics|isothermal process|adiabatic process|isobaric|isochoric|cyclic process|internal energy|work done in expansion',
@@ -268,7 +266,7 @@ const CET_SYLLABUS = {
       'Pendulums & Springs': 'pendulum|simple pendulum|seconds pendulum|spring constant|oscillations of spring|combination of springs|effective spring constant',
       'Damped & Forced Oscillations': 'damped oscillation|damping constant|forced oscillation|resonance|natural frequency|quality factor',
     }),
-    Waves: C('wave|wavelength|frequency of wave|sound wave|doppler effect|beats|harmonics|organ pipe|vibrating string|progressive wave|stationary wave|superposition of waves', {
+    'Superposition of Waves': C('wave|wavelength|frequency of wave|sound wave|doppler effect|beats|harmonics|organ pipe|vibrating string|progressive wave|stationary wave|superposition of waves', {
       'Progressive Waves': 'progressive wave|travelling wave|wave equation|amplitude of wave|wavefront|phase velocity|transverse wave|longitudinal wave',
       'Superposition & Stationary Waves': 'stationary wave|standing wave|superposition of waves|nodes and antinodes|harmonics|overtones|fundamental frequency',
       'Vibrating Strings & Pipes': 'vibrating string|sonometer|organ pipe|open pipe|closed pipe|end correction|laws of vibration of string',
@@ -296,15 +294,17 @@ const CET_SYLLABUS = {
       'Cells & EMF': 'emf|internal resistance|terminal voltage|cells in series|cells in parallel|charging and discharging',
       'Instruments': 'wheatstone bridge|metre bridge|potentiometer|kirchhoff s law|kirchhoff s rule|ammeter|voltmeter|shunt|galvanometer|conversion of galvanometer',
     }),
-    'Magnetic Effects of Current': C('magnetic field due to|biot savart|ampere s circuital law|solenoid|toroid|cyclotron|lorentz force|moving coil galvanometer|force on current carrying|force between current', {
+    'Magnetic Fields due to Electric Current': C('magnetic field due to|biot savart|ampere s circuital law|solenoid|toroid|cyclotron|lorentz force|moving coil galvanometer|force on current carrying|force between current', {
       'Magnetic Field due to Current': 'magnetic field due to|biot savart|ampere s circuital law|solenoid|toroid|circular loop|infinite wire|straight conductor',
       'Force on Charges & Conductors': 'lorentz force|magnetic force|force on current carrying|force between current|force on charged particle|cyclotron|helical path',
       'Instruments & Devices': 'moving coil galvanometer|conversion of galvanometer|current sensitivity|voltmeter from galvanometer|ammeter from galvanometer',
     }),
-    Magnetism: C('magnetic dipole|bar magnet|magnetic moment|earth s magnetism|magnetic susceptibility|permeability|diamagnetic|paramagnetic|ferromagnetic|hysteresis|curie temperature|magnetic elements', {
+    Magnetism: C('magnetic dipole|bar magnet|magnetic moment|earth s magnetism|magnetic elements', {
       'Bar Magnet & Dipole': 'bar magnet|magnetic dipole|magnetic moment|torque on magnet|magnetic field of bar magnet|tangent law|vibration magnetometer',
-      'Magnetic Materials': 'diamagnetic|paramagnetic|ferromagnetic|magnetic susceptibility|permeability|hysteresis loop|curie temperature|curie point|magnetic domains|soft iron|hard steel',
       'Earth s Magnetism': 'earth s magnetism|magnetic elements|angle of dip|angle of declination|horizontal component of earth|magnetic meridian',
+    }),
+    'Magnetic Materials': C('magnetic material|diamagnetic|paramagnetic|ferromagnetic|magnetic susceptibility|permeability|hysteresis|curie temperature|magnetic domains|soft iron|hard steel', {
+      'Magnetic Materials': 'diamagnetic|paramagnetic|ferromagnetic|magnetic susceptibility|permeability|hysteresis loop|curie temperature|curie point|magnetic domains|soft iron|hard steel',
     }),
     'Electromagnetic Induction': C('electromagnetic induction|faraday s law|lenz s law|self inductance|mutual inductance|induced emf|eddy current|motional emf|flux linked|coil', {
       'Faraday s & Lenz s Laws': 'electromagnetic induction|faraday s law|faradays law|lenz s law|lenzs law|induced emf|induced current|magnetic flux|flux change|flux linked',
@@ -320,21 +320,19 @@ const CET_SYLLABUS = {
       'EM Wave Properties': 'electromagnetic wave|displacement current|maxwell equation|speed of electromagnetic|electromagnetic radiation|intensity of electromagnetic|radiation pressure',
       'EM Spectrum': 'electromagnetic spectrum|gamma rays|radio waves|microwaves|ultraviolet|infrared waves|x rays region|communication band',
     }),
-    'Dual Nature of Radiation & Matter': C('photoelectric|photon|work function|einstein s photoelectric|de broglie|matter wave|threshold frequency|stopping potential|photoemission', {
+    'Dual Nature of Radiation and Matter': C('photoelectric|photon|work function|einstein s photoelectric|de broglie|matter wave|threshold frequency|stopping potential|photoemission', {
       'Photoelectric Effect': 'photoelectric effect|photoelectric emission|work function|threshold frequency|stopping potential|einstein s equation|photoelectric current|photocell',
       'De Broglie Waves': 'de broglie|debroglie|matter wave|wavelength of electron|davisson germer|wave nature of particle',
     }),
-    Atoms: C('bohr s model|hydrogen spectrum|energy level|rydberg|rutherford model|atomic model|balmer series|orbital radius|impact parameter', {
+    'Structure of Atoms and Nuclei': C('bohr s model|hydrogen spectrum|energy level|rydberg|rutherford model|atomic model|balmer series|orbital radius|impact parameter|nucleus|nucleon|isotope|mass defect|binding energy|radioactivity|half life|decay constant|nuclear fission|nuclear fusion|alpha decay|beta decay|gamma emission|radioactive decay', {
       'Bohr s Model': 'bohr s model|bohr radius|energy of electron in|energy level|orbit of electron|angular momentum of electron|ionisation energy of hydrogen',
       'Atomic Spectra': 'hydrogen spectrum|rydberg constant|balmer series|lyman series|spectral series|wavelength of emitted|transition of electron',
       'Rutherford Experiment': 'rutherford|rutherford model|alpha particle scattering|impact parameter|distance of closest approach',
-    }),
-    Nuclei: C('nucleus|nucleon|isotope|mass defect|binding energy|radioactivity|half life|decay constant|nuclear fission|nuclear fusion|alpha decay|beta decay|gamma emission|radioactive decay', {
       'Nuclear Composition': 'nucleus|nucleon|isotope|isobar|isotone|mass defect|binding energy|binding energy per nucleon|nuclear density|nuclear force',
       'Radioactivity': 'radioactivity|radioactive decay|half life|mean life|decay constant|activity of sample|alpha decay|beta decay|gamma emission|disintegration constant|radioactive element',
       'Fission & Fusion': 'nuclear fission|nuclear fusion|chain reaction|energy released in fission|mass energy relation|nuclear reactor|critical mass',
     }),
-    'Semiconductors & Electronic Devices': C('semiconductor|p n junction|diode|rectifier|transistor|logic gate|zener|led|solar cell|intrinsic semiconductor|extrinsic|doping|n type|p type', {
+    'Semiconductor Devices': C('semiconductor|p n junction|diode|rectifier|transistor|logic gate|zener|led|solar cell|intrinsic semiconductor|extrinsic|doping|n type|p type', {
       'Semiconductor Basics': 'semiconductor|intrinsic semiconductor|extrinsic semiconductor|doping|n type|p type|majority carrier|minority carrier|energy band|band gap|fermi level',
       'Junction Devices': 'p n junction|forward bias|reverse bias|diode|zener diode|rectifier|half wave rectifier|full wave rectifier|led|photodiode|solar cell|photocurrent',
       'Transistors & Amplifiers': 'transistor|n p n transistor|p n p transistor|transistor amplifier|current gain|voltage gain|oscillator|transistor characteristics',

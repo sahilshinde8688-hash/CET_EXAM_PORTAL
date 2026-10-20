@@ -528,7 +528,7 @@ const sendStudentWelcome = async (user, invitation, { forceResend = false } = {}
   }
 }
 
-const sendInitialTemporaryPassword = async (user, ciphertext) => {
+const sendInitialTemporaryPassword = async (user, ciphertext, { idempotencyKey } = {}) => {
   try {
     const enabled = await settingEnabled('student_welcome_emails_enabled', true)
     if (!enabled) return { status: 'disabled', notificationId: null, safe_error: null }
@@ -540,7 +540,8 @@ const sendInitialTemporaryPassword = async (user, ciphertext) => {
       type: 'student_welcome',
       studentId: user.id || user._id,
       recipient,
-      idempotencyKey: `student-welcome-initial:${user.id || user._id}:${user.approvedAt || crypto.randomUUID()}`,
+      idempotencyKey: idempotencyKey
+        || `student-welcome-initial:${user.id || user._id}:${user.approvedAt || crypto.randomUUID()}`,
       payload: {
         studentName: user.name || 'Student',
         username: user.mhcetId || recipient,

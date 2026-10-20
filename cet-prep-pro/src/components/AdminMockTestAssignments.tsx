@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { mockTestAssignmentsAPI, mockTestsAPI, questionsAPI, usersAPI, type AuthUser, type MockTest, type MockTestAssignment, type MockTestAttempt } from '../lib/api'
 import { dateTimeToUtc } from '../lib/timeZone'
+import { supabase } from '../lib/supabaseClient'
+import LoadingIndicator from './LoadingIndicator'
 
 type Props = { onBack: () => void }
 type Target = 'all' | 'students' | 'batch' | 'branch' | 'examType'
@@ -139,12 +141,25 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
 
   useEffect(() => {
     void reload()
-    const refreshInterval = window.setInterval(() => {
-      void mockTestAssignmentsAPI.getAdminAssignments()
-        .then(response => setAssignments(response.assignments))
-        .catch(loadError => setError(messageOf(loadError)))
-    }, 15000)
-    return () => window.clearInterval(refreshInterval)
+    let refreshTimer: number | undefined
+    const scheduleRefresh = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => {
+        void mockTestAssignmentsAPI.getAdminAssignments()
+          .then(response => setAssignments(response.assignments))
+          .catch(loadError => setError(messageOf(loadError)))
+      }, 250)
+    }
+    const channel = supabase
+      .channel('admin_mock_test_assignments_live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mock_test_assignments' }, scheduleRefresh)
+      .subscribe()
+    window.addEventListener('focus', scheduleRefresh)
+    return () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+      window.removeEventListener('focus', scheduleRefresh)
+      void supabase.removeChannel(channel)
+    }
   }, [])
 
   const availableBatches = useMemo(() => [...new Set(students.map(item => item.batch).filter((value): value is number => Number.isFinite(value)))].sort((a, b) => a - b), [students])
@@ -347,7 +362,7 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
       {view === 'list' && (
         <>
           <div style={{ overflowX: 'auto', ...panelStyle }}>
-            {loading ? <p>Loading tests and assignments…</p> : (
+            {loading ? <LoadingIndicator message="Loading tests and assignments..." /> : (
               <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 920 }}>
                 <thead><tr>{['Mock Test', 'Test ID', 'Subject / Exam Type', 'Questions', 'Marks', 'Duration', 'Created', 'Assigned', 'Status', 'Actions'].map(title => <th key={title} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e2e8f0', fontSize: 12, color: '#64748b' }}>{title}</th>)}</tr></thead>
                 <tbody>{tests.map(test => (
@@ -369,7 +384,7 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
           </div>
           <div style={panelStyle}>
             <h2 style={{ marginTop: 0 }}>Assigned Mock Tests</h2>
-            {assignments.length === 0 ? <p style={{ color: '#64748b' }}>No assignments yet.</p> : (
+            {loading ? <LoadingIndicator message="Loading assignments..." /> : assignments.length === 0 ? <p style={{ color: '#64748b' }}>No assignments yet.</p> : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
                   <thead><tr>{['Mock Test', 'Assigned Students', 'Start', 'End', 'Attempts', 'Status', 'Actions'].map(title => <th key={title} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e2e8f0' }}>{title}</th>)}</tr></thead>

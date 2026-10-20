@@ -56,6 +56,7 @@ import {
   type SafeSystemConfig,
   type BackupRecord,
 } from '../lib/api'
+import StorageOptimizationDashboard from './StorageOptimizationDashboard'
 import '../superAdmin.css'
 
 interface SuperAdminPanelProps {
@@ -70,6 +71,7 @@ export type NavKey =
   | 'security'
   | 'api'
   | 'backup'
+  | 'storage'
   | 'logs'
 
 interface AdminItem {
@@ -281,6 +283,7 @@ const INITIAL_LOGS: LogItem[] = [
 export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelProps) {
   // Navigation active tab
   const [activeNav, setActiveNav] = useState<NavKey>('security')
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -631,6 +634,8 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
         return 'API & Usage'
       case 'backup':
         return 'Backup & Restore'
+      case 'storage':
+        return 'Storage Optimization'
       case 'logs':
         return 'System Logs'
     }
@@ -646,8 +651,17 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
         </div>
       )}
 
+      {/* Backdrop for mobile drawer */}
+      {mobileNavOpen && (
+        <div
+          className="sap-sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* ── LEFT SIDEBAR ─────────────────────────────────────── */}
-      <aside className="sap-sidebar">
+      <aside className={`sap-sidebar ${mobileNavOpen ? 'sap-sidebar--mobile-open' : ''}`}>
         <div>
           {/* Brand Logo & Name */}
           <div className="sap-sidebar-brand">
@@ -664,7 +678,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
           <nav className="sap-nav-list">
             <button
               className={`sap-nav-item ${activeNav === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveNav('dashboard')}
+              onClick={() => { setActiveNav('dashboard'); setMobileNavOpen(false); }}
             >
               <LayoutDashboard size={18} />
               <span>Dashboard</span>
@@ -672,7 +686,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
             <button
               className={`sap-nav-item ${activeNav === 'admins' ? 'active' : ''}`}
-              onClick={() => setActiveNav('admins')}
+              onClick={() => { setActiveNav('admins'); setMobileNavOpen(false); }}
             >
               <Users size={18} />
               <span>Admin Management</span>
@@ -680,7 +694,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
             <button
               className={`sap-nav-item ${activeNav === 'server' ? 'active' : ''}`}
-              onClick={() => setActiveNav('server')}
+              onClick={() => { setActiveNav('server'); setMobileNavOpen(false); }}
             >
               <Settings size={18} />
               <span>System Settings</span>
@@ -688,7 +702,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
             <button
               className={`sap-nav-item ${activeNav === 'server-control' ? 'active' : ''}`}
-              onClick={() => setActiveNav('server-control')}
+              onClick={() => { setActiveNav('server-control'); setMobileNavOpen(false); }}
             >
               <Server size={18} />
               <span>Server Control</span>
@@ -696,7 +710,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
             <button
               className={`sap-nav-item ${activeNav === 'security' ? 'active' : ''}`}
-              onClick={() => setActiveNav('security')}
+              onClick={() => { setActiveNav('security'); setMobileNavOpen(false); }}
             >
               <Shield size={18} />
               <span>Security Center</span>
@@ -704,7 +718,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
             <button
               className={`sap-nav-item ${activeNav === 'api' ? 'active' : ''}`}
-              onClick={() => setActiveNav('api')}
+              onClick={() => { setActiveNav('api'); setMobileNavOpen(false); }}
             >
               <Share2 size={18} />
               <span>API & Usage</span>
@@ -712,15 +726,23 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
             <button
               className={`sap-nav-item ${activeNav === 'backup' ? 'active' : ''}`}
-              onClick={() => setActiveNav('backup')}
+              onClick={() => { setActiveNav('backup'); setMobileNavOpen(false); }}
             >
               <Archive size={18} />
               <span>Backup & Restore</span>
             </button>
 
             <button
+              className={`sap-nav-item ${activeNav === 'storage' ? 'active' : ''}`}
+              onClick={() => { setActiveNav('storage'); setMobileNavOpen(false); }}
+            >
+              <Database size={18} />
+              <span>Storage Optimization</span>
+            </button>
+
+            <button
               className={`sap-nav-item ${activeNav === 'logs' ? 'active' : ''}`}
-              onClick={() => setActiveNav('logs')}
+              onClick={() => { setActiveNav('logs'); setMobileNavOpen(false); }}
             >
               <FileText size={18} />
               <span>System Logs</span>
@@ -757,7 +779,11 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
         {/* Topbar Header */}
         <header className="sap-header-topbar">
           <div className="sap-topbar-left">
-            <button className="sap-hamburger-btn" aria-label="Toggle Navigation">
+            <button
+              className="sap-hamburger-btn"
+              aria-label="Toggle Navigation"
+              onClick={() => setMobileNavOpen(prev => !prev)}
+            >
               <Menu size={20} />
             </button>
             <div className="sap-topbar-breadcrumb">
@@ -3416,6 +3442,8 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
               </div>
             </div>
           )}
+
+          {activeNav === 'storage' && <StorageOptimizationDashboard />}
 
           {/* ========================================================================= */}
           {/* SCREEN 7: SERVER CONTROL                                                  */}

@@ -48,6 +48,14 @@
   background: #f8f9fa; font-family: 'Public Sans', sans-serif;
   color: #191c1d;
 }
+.mt-page-content,
+.mt-page-content > .db-main,
+.mt-content,
+.mt-grid,
+.mt-left-col,
+.mt-right-col {
+  min-width: 0;
+}
 .mt-glass-card {
   background: rgba(255,255,255,0.72);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -204,7 +212,7 @@
 /* ── Main Grid ───────────────────────────── */
 .mt-grid {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 28px;
   align-items: start;
 }
@@ -224,8 +232,10 @@
   display: flex;
   border-bottom: 1px solid rgba(193,198,214,0.35);
   width: 100%;
+  min-width: 0;
 }
 .mt-tab {
+  flex: 0 0 auto;
   padding: 12px 20px; background: none; border: none;
   font-size: 14px; font-weight: 500; font-family: 'Inter', sans-serif;
   color: #414754; cursor: pointer;
@@ -251,7 +261,7 @@
 /* ── Test Cards Grid ─────────────────────── */
 .mt-cards-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
 }
 .mt-empty {
@@ -263,6 +273,7 @@
 .mt-test-card {
   padding: 24px; position: relative; overflow: hidden;
   display: flex; flex-direction: column; gap: 0;
+  min-width: 0;
 }
 .mt-recommended-badge {
   position: absolute; top: 0; right: 0;
@@ -495,6 +506,8 @@
   .mt-sidebar { display: none; }
   .mt-main { margin-left: 0; width: 100%; min-width: 0; box-sizing: border-box; padding-bottom: 84px; }
   .mt-topbar { padding: 0 16px; height: 60px; }
+  .mt-tabs { overflow-x: auto; scrollbar-width: none; }
+  .mt-tabs::-webkit-scrollbar { display: none; }
   .mt-mobile-menu-btn { display: flex; }
   .mt-search-wrap { display: none; }
   .mt-content { padding: 18px 14px 84px; width: 100%; min-width: 0; box-sizing: border-box; overflow-x: hidden; }
@@ -505,17 +518,25 @@
   .mt-assigned-toolbar .mt-quick-btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
 }
 @media (max-width: 640px) {
-  .mt-cards-grid { grid-template-columns: 1fr; gap: 14px; }
-  .mt-right-col { grid-template-columns: 1fr; gap: 14px; }
+  .mt-cards-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .mt-right-col { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .mt-topbar { padding: 0 12px; }
+  .mt-topbar-left { gap: 8px; }
+  .mt-topbar-title { font-size: 16px; }
+  .mt-topbar-right { gap: 2px; flex-shrink: 0; }
+  .mt-icon-btn { width: 34px; height: 34px; }
+  .mt-avatar-wrap { width: 34px; height: 34px; flex-shrink: 0; }
   .mt-ai-card-inner { padding: 18px 14px; }
   .mt-analytics-card { padding: 18px 14px; }
   .mt-chapters-card { padding: 18px 14px; }
-  .mt-topbar-title { font-size: 18px; }
   .mt-card { padding: 16px; }
   .mt-card-footer { flex-direction: column; align-items: stretch; gap: 10px; }
   .mt-card-btn { width: 100%; min-height: 44px; justify-content: center; }
   .mt-filters { gap: 6px; overflow-x: auto; padding-bottom: 4px; }
   .mt-filter-btn { white-space: nowrap; padding: 7px 12px; font-size: 12px; }
+}
+@media (max-width: 320px) {
+  .mt-topbar-title { display: none; }
 }
 @media (max-width: 375px) {
   .mt-content { padding: 14px 10px 84px; }

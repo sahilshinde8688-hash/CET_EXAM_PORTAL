@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
@@ -144,7 +145,43 @@ router.put('/profile', protect, validateCsrfToken, apiLimiter, async (req, res) 
 // GET /api/users — ADMIN ONLY: list students
 router.get('/', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const { status } = req.query
+    const { status, page, pageSize, search, branch, batch } = req.query
+    const isPaged = page !== undefined || pageSize !== undefined || search !== undefined || branch !== undefined || batch !== undefined
+    if (isPaged) {
+      const parsedPage = Number(page || 1)
+      const parsedPageSize = Number(pageSize || 50)
+      if (!Number.isInteger(parsedPage) || parsedPage < 1
+        || !Number.isInteger(parsedPageSize) || parsedPageSize < 1 || parsedPageSize > 100) {
+        return res.status(400).json({ success: false, message: 'Page must be positive and pageSize must be between 1 and 100.' })
+      }
+      if (status && !['pending', 'approved', 'rejected'].includes(String(status))) {
+        return res.status(400).json({ success: false, message: 'Unsupported student status filter.' })
+      }
+      if (branch && branch !== 'All' && !['Byculla', 'Worli', 'Prabhadevi'].includes(String(branch))) {
+        return res.status(400).json({ success: false, message: 'Unsupported student branch filter.' })
+      }
+      if (batch && batch !== 'All' && (!/^\d{4}$/.test(String(batch)) || Number(batch) < 2000 || Number(batch) > 2100)) {
+        return res.status(400).json({ success: false, message: 'Unsupported student batch filter.' })
+      }
+
+      const result = await db.getUsersPage({
+        status: typeof status === 'string' ? status : undefined,
+        search: typeof search === 'string' ? search : undefined,
+        branch: typeof branch === 'string' && branch !== 'All' ? branch : undefined,
+        batch: typeof batch === 'string' && batch !== 'All' ? Number(batch) : undefined,
+        limit: parsedPageSize,
+        offset: (parsedPage - 1) * parsedPageSize,
+      })
+      const sanitizedUsers = result.users.map(user => {
+        const userObj = { ...user, _id: user.id }
+        delete userObj.password
+        delete userObj.mhcetPassword
+        return userObj
+      })
+      res.set('Cache-Control', 'private, no-store')
+      return res.json({ users: sanitizedUsers, total: result.total, page: parsedPage, pageSize: parsedPageSize })
+    }
+
     const filter = { role: 'student' }
     if (status) filter.status = status
     const users = await db.getAllUsers(filter)
@@ -256,6 +293,7 @@ router.get('/:id/report', protect, adminOnly, apiLimiter, async (req, res) => {
     const safeStudent = { ...student }
     delete safeStudent.password
     delete safeStudent.mhcetPassword
+    res.set('Cache-Control', 'private, no-store')
     return res.json({
       success: true,
       student: { ...safeStudent, _id: safeStudent.id },
@@ -304,6 +342,65 @@ router.get('/:id/temporary-password', protect, adminOnly, apiLimiter, async (req
   }
 })
 
+router.post('/:id/temporary-password/reset', protect, adminOnly, validateCsrfToken, passwordResetLimiter, async (req, res) => {
+  if (req.body?.confirm !== true) {
+    return res.status(400).json({ success: false, message: 'Explicit confirmation is required to reset this student’s password.' })
+  }
+
+  try {
+    const user = await db.findUserById(req.params.id)
+    if (!user || user.role !== 'student') {
+      return res.status(404).json({ success: false, message: 'Student not found.' })
+    }
+    if (user.status !== 'approved' || !user.mhcetId) {
+      return res.status(400).json({ success: false, message: 'Only an approved student with an assigned CET ID can receive a temporary password.' })
+    }
+
+    const { password, ciphertext } = emailNotifications.createInitialTemporaryPassword()
+    const updatedUser = await db.updateUser(user.id || user._id, {
+      password: await bcrypt.hash(password, 12),
+      mhcetPassword: null,
+      mustResetPassword: true,
+      initialPasswordCiphertext: ciphertext,
+    })
+
+    res.set('Cache-Control', 'no-store')
+    let emailStatus = 'failed'
+    try {
+      const delivery = await emailNotifications.sendInitialTemporaryPassword(updatedUser, ciphertext, {
+        idempotencyKey: `student-welcome-reset:${user.id || user._id}:${crypto.randomUUID()}`,
+      })
+      emailStatus = delivery.status
+    } catch (emailError) {
+      if (!emailError.emailDiagnosticLogged) {
+        emailNotifications.logEmailFailure(emailError.operation || 'initial_password_email_enqueue', emailError)
+      }
+    }
+
+    const emailMessages = {
+      accepted: 'SMTP accepted the email; final mailbox delivery is not confirmed.',
+      delivered: 'The email is marked delivered.',
+      pending: 'The welcome email is queued for delivery.',
+      disabled: 'Student welcome emails are disabled; share the temporary password with the student securely.',
+      skipped: 'No email was sent; check the student’s email address and share the temporary password securely.',
+      failed: 'The password was reset, but the email could not be sent. Share the temporary password with the student securely.',
+      unknown: 'Email delivery could not be confirmed. Check the notification log before retrying.',
+      cancelled: 'The email was not sent. Share the temporary password with the student securely.',
+    }
+
+    return res.json({
+      success: true,
+      available: true,
+      password,
+      emailStatus,
+      message: `A new temporary password is active. ${emailMessages[emailStatus] || 'Review the email notification status.'}`,
+    })
+  } catch (err) {
+    console.error('[auth] Could not reset student temporary password:', err.message)
+    return res.status(500).json({ success: false, message: 'Could not reset the student’s temporary password.' })
+  }
+})
+
 // POST /api/users/reset-password — Student resets password
 router.post('/reset-password', protect, validateCsrfToken, passwordResetLimiter, async (req, res) => {
   try {
@@ -345,13 +442,9 @@ router.post('/reset-password', protect, validateCsrfToken, passwordResetLimiter,
 // GET /api/users/stats — ADMIN ONLY: dashboard stats
 router.get('/stats', protect, adminOnly, apiLimiter, async (req, res) => {
   try {
-    const students = await db.getAllUsers({ role: 'student' })
-    const total = students.length
-    const pending = students.filter((s) => s.status === 'pending').length
-    const approved = students.filter((s) => s.status === 'approved').length
-    const rejected = students.filter((s) => s.status === 'rejected').length
-
-    res.json({ total, pending, approved, rejected })
+    const stats = await db.getStudentRegistrationStats()
+    res.set('Cache-Control', 'private, no-store')
+    res.json({ ...stats, total: stats.pending + stats.approved + stats.rejected })
   } catch (err) {
     res.status(500).json({ success: false, message: err.message })
   }

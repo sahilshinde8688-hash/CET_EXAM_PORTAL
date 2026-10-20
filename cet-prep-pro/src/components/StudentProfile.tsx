@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ApiResponseError, usersAPI, testsAPI, type AuthUser, type TestResult } from '../lib/api'
+import { ApiResponseError, usersAPI, type AuthUser, type TestResult } from '../lib/api'
 import { downloadTestHistoryCSV } from '../lib/exportUtils'
 import GlobalLoader from './GlobalLoader'
 import '../studentProfile.css'
@@ -19,6 +19,7 @@ export default function StudentProfile({ studentId, onBack }: Props) {
   const [reportTo, setReportTo] = useState('')
   const [sendingSetupEmail, setSendingSetupEmail] = useState(false)
   const [loadingTemporaryPassword, setLoadingTemporaryPassword] = useState(false)
+  const [resettingTemporaryPassword, setResettingTemporaryPassword] = useState(false)
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null)
   const [credentialMessage, setCredentialMessage] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
@@ -33,47 +34,41 @@ export default function StudentProfile({ studentId, onBack }: Props) {
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
     setLoading(true)
     setProfileError('')
     setStudent(null)
 
-    Promise.all([usersAPI.getAll(), testsAPI.getAllAdmin()]).then(([students, allResults]) => {
+    usersAPI.getStudentReport(studentId, undefined, undefined, { signal: controller.signal }).then(report => {
       if (cancelled) return
-      const found = students.find(item => item._id === studentId || item.id === studentId || item.email === studentId) || null
-      if (!found) {
-        setStudent(null)
-        setProfileError('This student could not be found. Refresh the student list and try again.')
-        return
-      }
-
       setProfileError('')
-      setStudent(found)
-      setResults((allResults || []).filter(result => {
-        const resultUserId = typeof result.userId === 'string'
-          ? result.userId
-          : (result.userId as unknown as { _id?: string; id?: string })?._id || (result.userId as unknown as { id?: string })?.id
-        return resultUserId === studentId || (found && (resultUserId === found.id || resultUserId === found._id))
-      }).sort((a, b) => new Date(b.attemptedAt).getTime() - new Date(a.attemptedAt).getTime()))
+      setStudent(report.student)
+      setResults((report.results || []).sort((a, b) => new Date(b.attemptedAt).getTime() - new Date(a.attemptedAt).getTime()))
     }).catch(error => {
-      console.error('Failed to load student profile:', error)
-      if (!cancelled) setProfileError(error instanceof Error ? error.message : 'Could not load student details.')
+      if (!cancelled) {
+        console.error('Failed to load student profile:', error)
+        setProfileError(error instanceof Error ? error.message : 'Could not load student details.')
+      }
     }).finally(() => {
       if (!cancelled) setLoading(false)
     })
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [studentId])
 
   useEffect(() => {
     if (!student || student.status !== 'approved') return
-    const id = student._id || student.id || studentId
+    const userId = student._id || student.id || studentId
     let cancelled = false
     const refreshAvailability = async () => {
       try {
-        const { available } = await usersAPI.getTemporaryPasswordStatus(id)
+        const { available } = await usersAPI.getTemporaryPasswordStatus(userId)
         if (!cancelled) {
-          setStudent(current => current ? { ...current, initialPasswordAvailable: available } : current)
+          setStudent(current => current && current.initialPasswordAvailable !== available
+            ? { ...current, initialPasswordAvailable: available }
+            : current)
           if (!available) setTemporaryPassword(null)
         }
       } catch (error) {
@@ -81,17 +76,15 @@ export default function StudentProfile({ studentId, onBack }: Props) {
       }
     }
     void refreshAvailability()
-    const intervalId = window.setInterval(() => void refreshAvailability(), 10000)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') void refreshAvailability()
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       cancelled = true
-      window.clearInterval(intervalId)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [student?.id, student?._id, student?.status, studentId])
+  }, [student, studentId])
 
   const subjectScores = useMemo(() => {
     const totals = new Map<string, { score: number; max: number }>()
@@ -191,6 +184,31 @@ export default function StudentProfile({ studentId, onBack }: Props) {
       setCredentialMessage(error instanceof Error ? error.message : 'Unable to retrieve the temporary password.')
     } finally {
       setLoadingTemporaryPassword(false)
+    }
+  }
+
+  const handleResetTemporaryPassword = async () => {
+    if (!student || resettingTemporaryPassword) return
+    const confirmed = window.confirm(
+      `Reset ${student.name}’s password now? Their current password will stop working, and a new temporary password will be shown here. The student must change it after signing in.`,
+    )
+    if (!confirmed) return
+
+    setResettingTemporaryPassword(true)
+    setCredentialMessage('')
+    try {
+      const id = student._id || student.id || studentId
+      const response = await usersAPI.resetTemporaryPassword(id)
+      setTemporaryPassword(response.password)
+      setStudent(current => current
+        ? { ...current, initialPasswordAvailable: true, mustResetPassword: true }
+        : current)
+      setCredentialMessage(response.message)
+    } catch (error) {
+      console.error('Failed to reset student temporary password:', error)
+      setCredentialMessage(error instanceof Error ? error.message : 'Unable to reset the temporary password.')
+    } finally {
+      setResettingTemporaryPassword(false)
     }
   }
 
@@ -297,6 +315,15 @@ export default function StudentProfile({ studentId, onBack }: Props) {
           {student.initialPasswordAvailable && <button type="button" className="sp-password-toggle" onClick={handleRevealTemporaryPassword} disabled={loadingTemporaryPassword} aria-label="Show temporary password" title="Show temporary password"><span className="material-symbols-outlined">{loadingTemporaryPassword ? 'hourglass_top' : 'visibility'}</span></button>}
           <button type="button" className="sp-password-toggle" onClick={handleResendSetupEmail} disabled={sendingSetupEmail || student.status !== 'approved'} aria-label="Send password setup email" title="Send password setup email"><span className="material-symbols-outlined">{sendingSetupEmail ? 'hourglass_top' : 'mail'}</span></button>
         </div>
+        <button
+          type="button"
+          className="sp-password-reset-btn"
+          onClick={() => void handleResetTemporaryPassword()}
+          disabled={resettingTemporaryPassword || student.status !== 'approved'}
+        >
+          <span className="material-symbols-outlined">{resettingTemporaryPassword ? 'hourglass_top' : 'key'}</span>
+          {resettingTemporaryPassword ? 'Resetting password…' : 'Reset & show new temporary password'}
+        </button>
         {credentialMessage && <p className="sp-credential-message" role="status">{credentialMessage}</p>}
       </div>
       <div className="sp-sidebar-actions"><button className="sp-sidebar-btn sp-sidebar-btn--primary" onClick={openEditModal}><span className="material-symbols-outlined">edit</span> Edit Profile</button><button className="sp-sidebar-btn" onClick={() => void handleDownloadReport()} disabled={reportLoading}><span className="material-symbols-outlined">{reportLoading ? 'hourglass_top' : 'download'}</span> {reportLoading ? 'Generating Report…' : 'Download Report'}</button><button className="sp-sidebar-btn" onClick={() => window.print()}><span className="material-symbols-outlined">print</span> Print Profile</button></div>

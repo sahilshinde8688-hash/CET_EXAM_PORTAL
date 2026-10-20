@@ -2,10 +2,15 @@ const db = require('./dbService')
 const { evaluateAndSaveMockTestAttempt } = require('./mockTestEvaluation')
 const { getMockTestScheduleState } = require('../utils/mockTestSchedule')
 const { runDueEmailNotifications } = require('./emailNotificationService')
+const { processNextGenerationJob } = require('./notesGenerationJobService')
+const notifications = require('./notificationService')
 
 const SCHEDULE_SCAN_INTERVAL_MS = 15_000
+const MCQ_SCAN_INTERVAL_MS = 5_000
 let scanTimer = null
 let scanInProgress = false
+let mcqTimer = null
+let mcqScanInProgress = false
 
 const attemptDeadline = (attempt, assignment) => Math.min(
   new Date(assignment.endDateTime).getTime(),
@@ -69,7 +74,14 @@ const runMockTestScheduleScan = async () => {
             visibility: 'available',
             activatedAt: new Date(now).toISOString(),
           }, assignment)
-          if (activated) console.info(`[mock-test-scheduler] Activated assignment ${assignment._id}`)
+          if (activated) {
+            console.info(`[mock-test-scheduler] Activated assignment ${assignment._id}`)
+            try {
+              await notifications.notifyAssignmentStarted(assignment)
+            } catch (error) {
+              console.error(`[notifications] Could not notify students that assignment ${assignment._id} started:`, error.message)
+            }
+          }
         }
       } else if (assignment.schedulingStatus === 'active' && endsAt <= now) {
         const expired = await db.transitionMockTestAssignment(assignment._id, 'active', {
@@ -82,6 +94,11 @@ const runMockTestScheduleScan = async () => {
       if (assignment.schedulingStatus === 'active' || endsAt <= now) {
         await closeDueAttempts(assignment, now)
       }
+    }
+    try {
+      await notifications.processScheduledNotifications(assignments, now)
+    } catch (error) {
+      console.error('[notifications] Scheduled notification scan failed; it will retry:', error.message)
     }
     await evaluateExpiredAttempts()
     try {
@@ -97,20 +114,44 @@ const runMockTestScheduleScan = async () => {
 }
 
 const startMockTestScheduler = () => {
-  if (scanTimer) return
-  console.info(`[mock-test-scheduler] Persistent schedule worker started; scanning every ${SCHEDULE_SCAN_INTERVAL_MS / 1000}s`)
-  void runMockTestScheduleScan()
-  scanTimer = setInterval(() => { void runMockTestScheduleScan() }, SCHEDULE_SCAN_INTERVAL_MS)
+  if (!scanTimer) {
+    console.info(`[mock-test-scheduler] Persistent schedule worker started; scanning every ${SCHEDULE_SCAN_INTERVAL_MS / 1000}s`)
+    void runMockTestScheduleScan()
+    scanTimer = setInterval(() => { void runMockTestScheduleScan() }, SCHEDULE_SCAN_INTERVAL_MS)
+  }
+  if (!mcqTimer) {
+    console.info(`[mcq-generation] Persistent generation worker started; polling every ${MCQ_SCAN_INTERVAL_MS / 1000}s`)
+    void runMcqGenerationScan()
+    mcqTimer = setInterval(() => { void runMcqGenerationScan() }, MCQ_SCAN_INTERVAL_MS)
+  }
+}
+
+const runMcqGenerationScan = async () => {
+  if (mcqScanInProgress) return
+  mcqScanInProgress = true
+  try {
+    await processNextGenerationJob()
+  } catch (error) {
+    console.error('[mcq-generation] Job scan failed; it will retry on the next scan:', error.message)
+  } finally {
+    mcqScanInProgress = false
+  }
 }
 
 const stopMockTestScheduler = () => {
-  if (!scanTimer) return
-  clearInterval(scanTimer)
-  scanTimer = null
+  if (scanTimer) {
+    clearInterval(scanTimer)
+    scanTimer = null
+  }
+  if (mcqTimer) {
+    clearInterval(mcqTimer)
+    mcqTimer = null
+  }
 }
 
 module.exports = {
   attemptDeadline,
+  runMcqGenerationScan,
   runMockTestScheduleScan,
   startMockTestScheduler,
   stopMockTestScheduler,

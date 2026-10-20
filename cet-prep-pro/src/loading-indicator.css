@@ -1,0 +1,22 @@
+.inline-loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.inline-loading-spinner {
+  color: #2563eb;
+  animation: inline-loading-spin 0.8s linear infinite;
+}
+
+@keyframes inline-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inline-loading-spinner { animation-duration: 2s; }
+}

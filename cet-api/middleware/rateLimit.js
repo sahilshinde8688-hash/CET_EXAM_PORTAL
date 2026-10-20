@@ -41,6 +41,7 @@ const createLimiter = ({ windowMs, max, message, keyGenerator }) => {
     legacyHeaders: false,
     keyGenerator,
     handler: (req, res) => {
+      res.setHeader('Retry-After', String(Math.ceil(windowMs / 1000)))
       res.status(429).json({
         success: false,
         message: message || 'Too many requests. Please try again later.',

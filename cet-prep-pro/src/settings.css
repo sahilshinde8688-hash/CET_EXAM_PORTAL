@@ -2632,3 +2632,36 @@
 .profile-subject-row > div:first-child {
   font-size: 14px !important;
 }
+
+@media (max-width: 768px) {
+  .profile-edit-form input,
+  .profile-edit-form select,
+  .profile-search-input,
+  .settings-root input,
+  .settings-root select {
+    font-size: 16px !important;
+  }
+
+  .profile-header {
+    padding: 14px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .profile-search-wrap {
+    max-width: 100%;
+    order: 3;
+    width: 100%;
+  }
+
+  .profile-bio-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .profile-tabs-nav {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+}
+

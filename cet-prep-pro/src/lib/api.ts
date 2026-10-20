@@ -200,17 +200,34 @@ async function handle(res: Response) {
     let msg = text || `HTTP ${res.status}`
     let details: any = undefined
     let code: string | null = null
+    let retryAfterMs: number | undefined
     try {
       const body = JSON.parse(text)
       msg = body.message || msg
       details = body.details
       code = typeof body.code === 'string' ? body.code : null
+      if (res.status === 429 && Number.isFinite(Number(body.retryAfter)) && Number(body.retryAfter) > 0) {
+        retryAfterMs = Number(body.retryAfter) * 1000
+      }
       if (body.code === 'MAINTENANCE_MODE' && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('maintenance:active', { detail: { message: msg } }))
       }
     } catch {}
     const error = new ApiResponseError(msg, res.status, code)
     if (details !== undefined) Object.assign(error, { details })
+    if (res.status === 429) {
+      const retryAfter = res.headers.get('Retry-After')
+      if (retryAfter) {
+        const seconds = Number(retryAfter)
+        const retryAfterMs = Number.isFinite(seconds)
+          ? Math.max(0, seconds * 1000)
+          : Math.max(0, Date.parse(retryAfter) - Date.now())
+        if (Number.isFinite(retryAfterMs)) {
+          Object.assign(error, { retryAfterMs })
+        }
+      }
+    }
+    if (retryAfterMs !== undefined) Object.assign(error, { retryAfterMs })
     throw error
   }
   return res
@@ -307,6 +324,7 @@ export async function register(payload: { name: string; email: string; phone: st
     body: JSON.stringify(payload),
   })
   const data = await handle(res).then(() => res.json())
+  invalidateUserReadCache()
   return { data }
 }
 
@@ -408,7 +426,9 @@ export const authAPI = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim(), email: cleanEmail, phone: cleanPhone, branch, batch: numBatch }),
     })
-    return await handle(res).then(response => response.json())
+    const data = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
+    return data
   },
   refresh: async () => {
     // Don't use handle() here to avoid infinite recursion
@@ -517,6 +537,145 @@ export const session = {
   },
 }
 
+const READ_CACHE_TTL_MS = 15_000
+const readCache = new Map<string, { expiresAt: number; value: unknown }>()
+type InFlightRead = {
+  promise: Promise<unknown>
+  controller: AbortController
+  consumers: number
+  completed: boolean
+}
+const inFlightReads = new Map<string, InFlightRead>()
+let readCacheIdentity: string | null = null
+const MAX_CACHED_READS = 100
+
+const getReadCacheIdentity = () => {
+  const user = session.get<AuthUser>()
+  return user ? `${user.id || user._id}:${user.role || ''}` : null
+}
+
+const clearUserReadCache = () => {
+  readCache.clear()
+  inFlightReads.forEach(request => request.controller.abort())
+  inFlightReads.clear()
+}
+
+const invalidateUserReadCache = () => clearUserReadCache()
+
+const sleep = (milliseconds: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal.aborted) {
+    reject(new DOMException('The request was aborted.', 'AbortError'))
+    return
+  }
+  const timer = globalThis.setTimeout(() => {
+    signal.removeEventListener('abort', abort)
+    resolve()
+  }, milliseconds)
+  const abort = () => {
+    globalThis.clearTimeout(timer)
+    signal.removeEventListener('abort', abort)
+    reject(new DOMException('The request was aborted.', 'AbortError'))
+  }
+  signal.addEventListener('abort', abort, { once: true })
+})
+
+const subscribeToRead = <T>(request: InFlightRead, signal?: AbortSignal): Promise<T> => {
+  if (signal?.aborted) return Promise.reject(new DOMException('The request was aborted.', 'AbortError'))
+  request.consumers += 1
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const release = () => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener('abort', abort)
+      request.consumers -= 1
+      if (request.consumers === 0 && !request.completed) {
+        queueMicrotask(() => {
+          if (request.consumers !== 0 || request.completed) return
+          for (const [key, current] of inFlightReads) {
+            if (current === request) inFlightReads.delete(key)
+          }
+          request.controller.abort()
+        })
+      }
+    }
+    const abort = () => {
+      release()
+      reject(new DOMException('The request was aborted.', 'AbortError'))
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+    request.promise.then(
+      value => {
+        if (settled) return
+        release()
+        resolve(value as T)
+      },
+      error => {
+        if (settled) return
+        release()
+        reject(error)
+      },
+    )
+  })
+}
+
+const cachedRead = async <T>(
+  cacheKey: string,
+  load: (signal: AbortSignal) => Promise<T>,
+  { refresh = false, ttl = READ_CACHE_TTL_MS, signal }: { refresh?: boolean; ttl?: number; signal?: AbortSignal } = {},
+): Promise<T> => {
+  if (signal?.aborted) throw new DOMException('The request was aborted.', 'AbortError')
+  const identity = getReadCacheIdentity()
+  if (identity !== readCacheIdentity) {
+    clearUserReadCache()
+    readCacheIdentity = identity
+  }
+  const key = `${identity || 'anonymous'}:${cacheKey}`
+  const cached = readCache.get(key)
+  if (!refresh && cached && cached.expiresAt > Date.now()) return cached.value as T
+  const existing = inFlightReads.get(key)
+  if (existing) return subscribeToRead<T>(existing, signal)
+
+  const entry: InFlightRead = {
+    controller: new AbortController(),
+    consumers: 0,
+    completed: false,
+    promise: Promise.resolve(),
+  }
+  entry.promise = (async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const value = await load(entry.controller.signal)
+        if (entry.controller.signal.aborted) throw new DOMException('The request was aborted.', 'AbortError')
+        for (const [existingKey, entry] of readCache) {
+          if (entry.expiresAt <= Date.now()) readCache.delete(existingKey)
+        }
+        readCache.set(key, { value, expiresAt: Date.now() + ttl })
+        while (readCache.size > MAX_CACHED_READS) {
+          const oldestKey = readCache.keys().next().value
+          if (oldestKey === undefined) break
+          readCache.delete(oldestKey)
+        }
+        return value
+      } catch (error) {
+        if (entry.controller.signal.aborted) throw error
+        if (!(error instanceof ApiResponseError) || error.status !== 429 || attempt >= 2) throw error
+        const retryAfterMs = Number((error as ApiResponseError & { retryAfterMs?: number }).retryAfterMs)
+        if (retryAfterMs > 30_000) throw error
+        const baseDelay = Number.isFinite(retryAfterMs) && retryAfterMs > 0
+          ? retryAfterMs
+          : 1000 * (2 ** attempt)
+        await sleep(baseDelay + Math.random() * 250, entry.controller.signal)
+      }
+    }
+  })().finally(() => {
+    entry.completed = true
+    if (inFlightReads.get(key) === entry) inFlightReads.delete(key)
+  })
+  inFlightReads.set(key, entry)
+  return subscribeToRead<T>(entry, signal)
+}
+
 /* ── Users ── */
 export const usersAPI = {
   async me() {
@@ -527,13 +686,53 @@ export const usersAPI = {
     const data = await handle(res).then(() => res.json())
     return data as AuthUser
   },
-  async getAll(status?: string) {
-    const url = status ? `${BASE}/users?status=${encodeURIComponent(status)}` : `${BASE}/users`
-    const res = await fetch(url, { method: 'GET', credentials: 'include' })
-    const data = await handle(res).then(() => res.json())
-    return data as AuthUser[]
+  async getAll(status?: string, options: { refresh?: boolean; signal?: AbortSignal } = {}) {
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    const query = params.size ? `?${params.toString()}` : ''
+    return cachedRead(`users:list:${status || 'all'}`, async signal => {
+      const res = await fetch(`${BASE}/users${query}`, { method: 'GET', credentials: 'include', signal })
+      const data = await handle(res).then(response => response.json())
+      return data as AuthUser[]
+    }, { refresh: options.refresh, signal: options.signal })
   },
-  async getStudentReport(id: string, from?: string, to?: string) {
+  async getPage(options: {
+    status?: string
+    page?: number
+    pageSize?: number
+    search?: string
+    branch?: string
+    batch?: string
+    refresh?: boolean
+    signal?: AbortSignal
+  } = {}) {
+    const params = new URLSearchParams({
+      page: String(options.page || 1),
+      pageSize: String(options.pageSize || 50),
+    })
+    if (options.status) params.set('status', options.status)
+    if (options.search?.trim()) params.set('search', options.search.trim())
+    if (options.branch && options.branch !== 'All') params.set('branch', options.branch)
+    if (options.batch && options.batch !== 'All') params.set('batch', options.batch)
+    const key = `users:page:${params.toString()}`
+    return cachedRead(key, async signal => {
+      const res = await fetch(`${BASE}/users?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        signal,
+      })
+      return await handle(res).then(response => response.json()) as {
+        users: AuthUser[]
+        total: number
+        page: number
+        pageSize: number
+      }
+    }, { refresh: options.refresh, signal: options.signal })
+  },
+  invalidateCache() {
+    invalidateUserReadCache()
+  },
+  async getStudentReport(id: string, from?: string, to?: string, options: { signal?: AbortSignal } = {}) {
     const params = new URLSearchParams()
     if (from) params.set('from', from)
     if (to) params.set('to', to)
@@ -542,16 +741,21 @@ export const usersAPI = {
       method: 'GET',
       credentials: 'include',
       cache: 'no-store',
+      signal: options.signal,
     })
     const data = await handle(res).then(response => response.json())
     return data as StudentReportData
   },
-  async stats() {
-    const all = await this.getAll()
-    const pending = all.filter((u) => u.status === 'pending').length
-    const approved = all.filter((u) => u.status === 'approved').length
-    const rejected = all.filter((u) => u.status === 'rejected').length
-    return { pending, approved, rejected }
+  async stats(options: { refresh?: boolean; signal?: AbortSignal } = {}) {
+    return cachedRead('users:registration-stats', async signal => {
+      const res = await fetch(`${BASE}/users/stats`, { method: 'GET', credentials: 'include', signal })
+      return await handle(res).then(response => response.json()) as {
+        total: number
+        pending: number
+        approved: number
+        rejected: number
+      }
+    }, { refresh: options.refresh, signal: options.signal })
   },
   async approve(id: string) {
     const csrfToken = await ensureCsrfToken()
@@ -562,7 +766,9 @@ export const usersAPI = {
       credentials: 'include',
       headers,
     })
-    return await handle(res).then(response => response.json())
+    const result = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
+    return result
   },
   async resendCredentials(id: string, resetUnrecoverableToken = false) {
     const csrfToken = getCsrfToken()
@@ -601,6 +807,28 @@ export const usersAPI = {
     const data = await handle(res).then(response => response.json())
     return data as { available: boolean }
   },
+  async resetTemporaryPassword(id: string) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+
+    const res = await fetch(`${BASE}/users/${encodeURIComponent(id)}/temporary-password/reset`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers,
+      body: JSON.stringify({ confirm: true }),
+    })
+    const data = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
+    return data as {
+      success: boolean
+      available: boolean
+      password: string
+      emailStatus: string
+      message: string
+    }
+  },
   async reject(id: string) {
     const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -610,7 +838,9 @@ export const usersAPI = {
       credentials: 'include',
       headers,
     })
-    return await handle(res).then(response => response.json())
+    const result = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
+    return result
   },
   async bulkApprove(ids: string[]) {
     const csrfToken = await ensureCsrfToken()
@@ -622,7 +852,9 @@ export const usersAPI = {
       headers,
       body: JSON.stringify({ ids }),
     })
-    return await handle(res).then(response => response.json())
+    const result = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
+    return result
   },
   async bulkReject(ids: string[], reason?: string) {
     const csrfToken = await ensureCsrfToken()
@@ -634,7 +866,9 @@ export const usersAPI = {
       headers,
       body: JSON.stringify({ ids, reason }),
     })
-    return await handle(res).then(response => response.json())
+    const result = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
+    return result
   },
   async updateStudent(id: string, updates: Partial<AuthUser>) {
     const csrfToken = await ensureCsrfToken()
@@ -647,6 +881,7 @@ export const usersAPI = {
       body: JSON.stringify(updates),
     })
     const data = await handle(res).then(response => response.json())
+    invalidateUserReadCache()
     return data.user
   },
   async delete(id: string) {
@@ -659,6 +894,7 @@ export const usersAPI = {
       headers,
     })
     await handle(res)
+    invalidateUserReadCache()
   },
   async updateProfile(payload: { name?: string; email?: string; phone?: string; branch?: string; batch?: string | number; examType?: string | null; guardianEmail?: string | null; parentResultEmailConsent?: boolean }) {
     const csrfToken = getCsrfToken()
@@ -672,6 +908,7 @@ export const usersAPI = {
       body: JSON.stringify(payload),
     })
     const data = await handle(res).then(() => res.json())
+    invalidateUserReadCache()
     return data as { message: string; user: AuthUser }
   },
   async uploadPhoto(studentId: string, file: File) {
@@ -683,6 +920,7 @@ export const usersAPI = {
       body: form,
     })
     const data = await handle(res).then(() => res.json())
+    invalidateUserReadCache()
     return data as { photoUrl: string; message: string }
   },
   async uploadMyPhoto(file: File) {
@@ -698,6 +936,7 @@ export const usersAPI = {
       body: form,
     })
     const data = await handle(res).then(() => res.json())
+    invalidateUserReadCache()
     return data as { photoUrl: string; message: string }
   },
   async removeMyPhoto() {
@@ -710,6 +949,7 @@ export const usersAPI = {
       headers,
     })
     const data = await handle(res).then(() => res.json())
+    invalidateUserReadCache()
     return data as { message: string }
   },
   async resetPassword(newPassword: string) {
@@ -833,6 +1073,20 @@ export interface TestResult {
   totalQuestions?: number
 }
 
+export type NotificationCategory = 'exam_update' | 'test_assignment' | 'result' | 'reminder' | 'system_alert'
+export type NotificationPage = 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings'
+export interface StudentNotification {
+  _id: string
+  category: NotificationCategory
+  title: string
+  message: string
+  targetPage: NotificationPage
+  targetType: 'assignment' | 'result' | null
+  targetId: string | null
+  readAt: string | null
+  createdAt: string
+}
+
 export interface StudentReportData {
   success: boolean
   student: Omit<AuthUser, '_id'> & { _id: string; id: string }
@@ -884,13 +1138,20 @@ const dashboardResultsRequests = new Map<string, Promise<TestResult[]>>()
 const getDashboardCacheKey = () => session.get<{ _id?: string }>()?._id || 'anonymous'
 
 export const adminDashboardAPI = {
-  async getOverview() {
-    const res = await fetch(`${BASE}/admin/dashboard/overview`, {
-      credentials: 'include',
-      cache: 'no-store',
+  async getOverview(options: { refresh?: boolean; signal?: AbortSignal } = {}) {
+    return cachedRead('admin:dashboard-overview', async signal => {
+      const res = await fetch(`${BASE}/admin/dashboard/overview`, {
+        credentials: 'include',
+        cache: 'no-store',
+        signal,
+      })
+      const data = await handle(res).then(response => response.json())
+      return data as AdminDashboardOverview
+    }, {
+      refresh: options.refresh,
+      ttl: 60_000,
+      signal: options.signal,
     })
-    const data = await handle(res).then(response => response.json())
-    return data as AdminDashboardOverview
   },
 }
 
@@ -1093,6 +1354,26 @@ export interface SuperAdminStats {
     memoryUsagePercent: number | null
     cpuLoad1m: number | null
   }
+}
+
+export interface StorageOptimizationMetrics {
+  databaseBytes: number
+  tables: Array<{ tableName: string; bytes: number; approximateRows: number }>
+  storageBytes: number
+  storageObjectCount: number
+  sizeTrackedObjects: number
+  sha256TrackedObjects: number
+  duplicateObjects: number
+  buckets: Array<{ bucketId: string; bytes: number; objectCount: number }>
+  largestFiles: Array<{ bucketId: string; path: string; bytes: number }>
+  measuredAt: string
+  history: Array<{
+    snapshot_date: string
+    captured_at: string
+    database_bytes: number
+    storage_bytes: number
+    object_count: number
+  }>
 }
 
 export interface SecurityAlert {
@@ -1309,6 +1590,14 @@ export const superAdminAPI = {
     const res = await fetch(`${BASE}/super-admin/system/stats`, { credentials: 'include', cache: 'no-store' })
     return await handle(res).then(response => response.json()) as { success: boolean; data: Record<string, number | string | null>; message: string }
   },
+  async getStorageOptimization() {
+    const res = await fetch(`${BASE}/super-admin/storage-optimization`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as {
+      success: boolean
+      data: StorageOptimizationMetrics
+      message: string
+    }
+  },
   async getPerformance(range: '1h' | '24h' | '7d' | '30d') {
     const res = await fetch(`${BASE}/super-admin/system/performance?range=${range}`, { credentials: 'include', cache: 'no-store' })
     return await handle(res).then(response => response.json()) as { success: boolean; data: SystemPerformancePoint[]; message: string }
@@ -1483,6 +1772,66 @@ const jsonHeaders = async () => {
   return headers
 }
 
+export const notificationsAPI = {
+  async list(limit = 20, offset = 0) {
+    const query = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    const res = await fetch(`${BASE}/notifications?${query}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+    const data = await handle(res).then(response => response.json()) as {
+      success: boolean
+      notifications: StudentNotification[]
+      unreadCount: number
+      total: number
+      hasMore: boolean
+    }
+    return data
+  },
+  async markRead(id: string) {
+    const res = await fetch(`${BASE}/notifications/${encodeURIComponent(id)}/read`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; notification: StudentNotification }
+  },
+  async markAllRead() {
+    const res = await fetch(`${BASE}/notifications/read-all`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({}),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean }
+  },
+  async delete(id: string) {
+    const res = await fetch(`${BASE}/notifications/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean }
+  },
+  async clearAll() {
+    const res = await fetch(`${BASE}/notifications`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean }
+  },
+  async publishAnnouncement(payload: { title: string; message: string; targetPage: NotificationPage; requestId: string }) {
+    const res = await fetch(`${BASE}/notifications/announcements`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: await jsonHeaders(),
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; message: string }
+  },
+}
+
 export const mockTestAssignmentsAPI = {
   async getAdminAssignments() {
     const res = await fetch(`${BASE}/admin/mock-tests/assignments`, { credentials: 'include', cache: 'no-store' })
@@ -1558,6 +1907,7 @@ export const mockTestAssignmentsAPI = {
 /* ── Questions ── */
 export interface Question {
   _id: string
+  questionCode?: string | null
   subject: string
   chapter?: string
   subTopic?: string
@@ -1579,6 +1929,7 @@ export interface Question {
   sourcePdf?: string
   sourcePage?: number | null
   sourceQuestionNumber?: number | null
+  generationJobId?: string
   isActive: boolean
   createdAt?: string
 }
@@ -1709,7 +2060,7 @@ export interface NotesGeneratedQuestion {
   marks: number
   negativeMarks: number
   difficulty: 'Easy' | 'Medium' | 'Hard'
-  requestedDifficulty: 'Medium' | 'Hard' | 'Very Hard'
+  requestedDifficulty: 'Easy' | 'Medium' | 'Hard'
   sourceDocument: string
   sourceType: 'page' | 'slide'
   sourcePage: number
@@ -1723,8 +2074,11 @@ export interface NotesGeneratedQuestion {
 export interface NotesGenerationConfig {
   subject: string
   count: number
-  difficulty: 'Medium' | 'Hard' | 'Very Hard' | 'Mixed'
-  mixedDifficulty?: Record<'Medium' | 'Hard' | 'Very Hard', number>
+  chapters?: string[]
+  topics?: string[]
+  questionsPerBatch?: number
+  difficulty: 'Easy' | 'Medium' | 'Hard' | 'Mixed'
+  mixedDifficulty?: Record<'Easy' | 'Medium' | 'Hard', number>
   generateExplanations?: boolean
   includeNumericalQuestions?: boolean
   topicDistribution: {
@@ -1802,7 +2156,7 @@ const pollNotesGenerationJob = async (
       continue
     }
     const payload = await res.json().catch(() => null) as
-      | { success?: boolean; status?: string; stage?: string; percent?: number; result?: NotesGenerationResult; error?: { message?: string }; message?: string }
+      | { success?: boolean; status?: string; stage?: string; percent?: number; error?: { message?: string }; message?: string }
       | null
     if (!res.ok || !payload?.success) {
       if ([502, 503, 504].includes(res.status)) {
@@ -1816,10 +2170,14 @@ const pollNotesGenerationJob = async (
     consecutiveStatusFailures = 0
     lastReportedProgress = payload.percent ?? lastReportedProgress
     onProgress?.(lastReportedProgress, payload.stage || 'Processing notes')
-    if (payload.status === 'completed' && payload.result) return { ...payload.result, jobId }
-    if (payload.status === 'failed') {
+    if (payload.status === 'COMPLETED' || payload.status === 'PARTIALLY_COMPLETED') {
+      const result = await getNotesGenerationResults(jobId)
+      return { ...result, jobId }
+    }
+    if (payload.status === 'FAILED') {
       throw new ApiResponseError(payload.error?.message || 'AI question generation failed.', 422)
     }
+    if (payload.status === 'CANCELLED') throw new ApiResponseError('AI question generation was cancelled.', 409)
   }
   if (consecutiveStatusFailures > 0) {
     throw new ApiResponseError(
@@ -1828,6 +2186,30 @@ const pollNotesGenerationJob = async (
     )
   }
   throw new ApiResponseError('AI question generation is taking longer than expected. Retry with a smaller document.', 408)
+}
+
+const getNotesGenerationResults = async (jobId: string): Promise<NotesGenerationResult> => {
+  const results: NotesGenerationResult['questions'] = []
+  let page = 1
+  let baseResult: Omit<NotesGenerationResult, 'questions'> | null = null
+  let totalPages = 1
+  do {
+    const res = await fetch(
+      `${BASE}/questions/notes/jobs/${encodeURIComponent(jobId)}/questions?page=${page}&limit=100`,
+      { credentials: 'include', cache: 'no-store' },
+    )
+    const data = await handle(res).then(() => res.json()) as {
+      result: NotesGenerationResult
+      pagination: { totalPages: number }
+    }
+    const { questions, ...result } = data.result
+    if (!baseResult) baseResult = result
+    results.push(...questions)
+    totalPages = data.pagination.totalPages
+    page += 1
+  } while (page <= totalPages)
+  if (!baseResult) throw new ApiResponseError('Generated question results were empty.', 502)
+  return { ...baseResult, questions: results }
 }
 
 export const questionsAPI = {
@@ -1879,9 +2261,24 @@ export const questionsAPI = {
     return data as Question
   },
   async uploadQuestionImage(file: File) {
+    const mimeByExtension: Record<string, string> = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    }
+    const mimeType = file.type.toLowerCase() || mimeByExtension[file.name.split('.').pop()?.toLowerCase() || '']
+    const extension = Object.entries(mimeByExtension).find(([, mime]) => mime === mimeType)?.[0]
+    if (!mimeType || !extension) {
+      throw new ApiResponseError('Only JPEG, PNG, and WebP question images are supported.', 400)
+    }
+    const namedMimeType = mimeByExtension[file.name.split('.').pop()?.toLowerCase() || '']
     const csrfToken = await ensureCsrfToken()
     const form = new FormData()
-    form.append('image', file)
+    const uploadFile = file.type && namedMimeType === mimeType
+      ? file
+      : new File([file], `question-image.${extension}`, { type: mimeType })
+    form.append('image', uploadFile, uploadFile.name)
     const headers: Record<string, string> = {}
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -2002,13 +2399,16 @@ export const questionsAPI = {
   },
   generateFromNotes(
     file: File,
+    syllabusFile: File,
     config: NotesGenerationConfig,
+    onJobStarted?: (jobId: string) => void,
     onProgress?: (percent: number, stage?: string) => void,
   ): Promise<NotesGenerationResult & { jobId: string }> {
     return new Promise((resolve, reject) => {
       void ensureCsrfToken().then((csrfToken) => {
         const form = new FormData()
         form.append('file', file)
+        form.append('syllabus', syllabusFile)
         form.append('config', JSON.stringify(config))
         const xhr = new XMLHttpRequest()
         xhr.open('POST', `${BASE}/questions/notes/generate`)
@@ -2025,6 +2425,7 @@ export const questionsAPI = {
             reject(new ApiResponseError(data?.message || `Could not start AI processing (HTTP ${xhr.status}).`, xhr.status))
             return
           }
+          onJobStarted?.(data.jobId)
           void pollNotesGenerationJob(data.jobId, onProgress).then(resolve, reject)
         }
         xhr.onerror = () => reject(new ApiResponseError('Network error while uploading notes. Check your connection and retry.', 0))
@@ -2032,6 +2433,21 @@ export const questionsAPI = {
         xhr.send(form)
       }).catch(reject)
     })
+  },
+  async cancelNotesGenerationJob(jobId: string) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = {}
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/questions/notes/jobs/${encodeURIComponent(jobId)}/cancel`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+    })
+    return await handle(res).then(() => res.json()) as {
+      success: boolean
+      status: string
+      alreadyFinished: boolean
+    }
   },
   async validateNotesQuestion(
     jobId: string,

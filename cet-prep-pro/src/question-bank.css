@@ -22,6 +22,9 @@
   color: var(--text-main);
   padding: 32px;
   max-width: 1600px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   min-height: calc(100vh - 80px);
 }
@@ -29,8 +32,10 @@
 /* Tabs Header */
 .qb-tabs-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
@@ -49,6 +54,8 @@
 
 .qb-tabs {
   display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
   gap: 8px;
   background: var(--bg-card);
   padding: 6px;
@@ -211,6 +218,9 @@
 
 /* Data Table */
 .qb-table-container {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -220,25 +230,45 @@
 
 .qb-table-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 16px 24px;
   border-bottom: 1px solid var(--border);
 }
 
 .qb-table-scroll {
   width: 100%;
-  overflow-x: auto;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .qb-table {
   width: 100%;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 
+.qb-table th:nth-child(1),
+.qb-table td:nth-child(1) { width: 14%; }
+.qb-table th:nth-child(2),
+.qb-table td:nth-child(2) { width: 15%; }
+.qb-table th:nth-child(3),
+.qb-table td:nth-child(3) { width: 27%; }
+.qb-table th:nth-child(4),
+.qb-table td:nth-child(4) { width: 10%; }
+.qb-table th:nth-child(5),
+.qb-table td:nth-child(5) { width: 11%; }
+.qb-table th:nth-child(6),
+.qb-table td:nth-child(6) { width: 11%; }
+.qb-table th:nth-child(7),
+.qb-table td:nth-child(7) { width: 12%; }
+
 .qb-table th {
   text-align: left;
-  padding: 16px 24px;
+  padding: 16px 12px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
@@ -249,10 +279,17 @@
 }
 
 .qb-table td {
-  padding: 16px 24px;
+  padding: 16px 12px;
   font-size: 14px;
   color: var(--text-main);
   border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.qb-table td:last-child > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
 .qb-table tbody tr {
@@ -261,6 +298,30 @@
 
 .qb-table tbody tr:hover {
   background: var(--bg-main);
+}
+
+.qb-question-snippet {
+  vertical-align: middle;
+}
+
+.qb-question-snippet .rich-question-content {
+  max-height: 4.8em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.qb-question-snippet .rich-question-content-plain {
+  white-space: normal;
+}
+
+.qb-question-snippet .rich-question-matrix {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.qb-question-snippet .rich-question-matrix .katex {
+  font-size: 0.82em;
 }
 
 .qb-badge {
@@ -733,9 +794,10 @@
 .qb-ai-drop span { color: var(--text-muted); font-size: 13px; }
 .qb-ai-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin: 20px 0; }
 .qb-ai-fields label, .qb-ai-edit-label { display: flex; flex-direction: column; gap: 6px; color: var(--text-main); font-size: 13px; font-weight: 600; }
-.qb-ai-fields input, .qb-ai-fields select, .qb-ai-edit-label input, .qb-ai-edit-label select, .qb-ai-edit-label textarea, .qb-ai-topic-choice textarea {
+.qb-ai-fields input, .qb-ai-fields select, .qb-ai-fields textarea, .qb-ai-edit-label input, .qb-ai-edit-label select, .qb-ai-edit-label textarea, .qb-ai-topic-choice textarea {
   box-sizing: border-box; width: 100%; padding: 10px 11px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text-main); font: inherit;
 }
+.qb-ai-fields textarea { resize: vertical; }
 .qb-ai-mixed { padding: 14px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); }
 .qb-ai-mixed > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0; }
 .qb-ai-mixed label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
@@ -796,6 +858,26 @@
 @keyframes qb-ai-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 640px) {
+  .qb-wrap {
+    padding: 18px 14px;
+  }
+
+  .qb-table-scroll {
+    overflow-x: auto;
+  }
+
+  .qb-table {
+    min-width: 900px;
+  }
+
+  .qb-table th,
+  .qb-table td {
+    padding: 12px 10px;
+  }
+
+  .qb-table-toolbar {
+    padding: 14px;
+  }
   .qb-ai-header, .qb-ai-create-test { flex-direction: column; align-items: stretch; }
   .qb-ai-source { margin-left: 0; width: 100%; }
   .qb-ai-review-actions .qb-ai-save { margin-left: 0; }

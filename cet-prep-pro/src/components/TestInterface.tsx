@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { questionsAPI, usersAPI, testsAPI, mockTestsAPI, session, Question, type AuthUser, type StartedMockTest, type TestResult } from '../lib/api'
-import { MathRenderer } from '../lib/mathDisplay'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
 import FormattedSolution from './FormattedSolution'
+import RichQuestionContent from './RichQuestionContent'
 import { generateQuestionExplanation } from '../lib/openrouter'
 import FullscreenWarningModal from './FullscreenWarningModal'
 import SubmissionAnimation from './SubmissionAnimation'
@@ -1362,7 +1362,7 @@ export default function TestInterface({
 
               <div className="test-question-body">
                 <div className="test-question-text">
-                  <MathRenderer value={currentQuestion.text} />
+                  <RichQuestionContent content={currentQuestion.text} />
                 </div>
 
                 {currentQuestion.imageUrl && (
@@ -1401,7 +1401,7 @@ export default function TestInterface({
                       >
                         <div className="test-option-letter">
                           <span className={`test-option-circle ${isSelected ? 'test-option-circle--active' : ''}`}>{String.fromCharCode(65 + i)}</span>
-                          <span className="test-option-text"><MathRenderer value={opt} /></span>
+                          <span className="test-option-text"><RichQuestionContent content={opt} /></span>
                         </div>
                         {isReviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#10b981'}}>check_circle</span>}
                         {isReviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#ef4444'}}>cancel</span>}
@@ -1614,14 +1614,16 @@ export default function TestInterface({
             disabled={currentIndex === 0 || Boolean(assignedAttempt && !submitted && !assignedAttempt.assignment.allowBackNavigation)}
           >
             <span className="material-symbols-outlined">chevron_left</span>
-            Previous
+            <span className="btn-label-desktop">Previous</span>
+            <span className="btn-label-mobile">Prev</span>
           </button>
           <button 
             className={`test-nav-btn test-nav-btn--mark ${isCurrentMarked ? 'test-nav-btn--mark-active' : ''}`} 
             onClick={toggleMarked}
           >
             <span className="material-symbols-outlined">{isCurrentMarked ? 'bookmark' : 'bookmark_add'}</span>
-            {isCurrentMarked ? 'Marked for Review' : 'Mark for Review'}
+            <span className="btn-label-desktop">{isCurrentMarked ? 'Marked for Review' : 'Mark for Review'}</span>
+            <span className="btn-label-mobile">{isCurrentMarked ? 'Marked' : 'Mark'}</span>
           </button>
         </div>
         <div className="test-footer-right">
@@ -1634,15 +1636,20 @@ export default function TestInterface({
                   return newAnswers
                 })
               }
-            }}>Clear Response</button>
+            }}>
+              <span className="btn-label-desktop">Clear Response</span>
+              <span className="btn-label-mobile">Clear</span>
+            </button>
           )}
           <button className="test-action-btn test-action-btn--save" onClick={handleNext}>
-            {isReviewMode ? 'Next Question' : 'Save & Next'}
+            <span className="btn-label-desktop">{isReviewMode ? 'Next Question' : 'Save & Next'}</span>
+            <span className="btn-label-mobile">{isReviewMode ? 'Next' : 'Next'}</span>
             <span className="material-symbols-outlined">chevron_right</span>
           </button>
           {!isReviewMode && (
             <button className="test-action-btn test-action-btn--submit" onClick={() => setShowSubmitConfirm(true)} disabled={isSubmitting}>
-              Submit Test
+              <span className="btn-label-desktop">Submit Test</span>
+              <span className="btn-label-mobile">Submit</span>
             </button>
           )}
         </div>

@@ -3,6 +3,7 @@ import { useState } from 'react'
 async function enterFullscreen(): Promise<void> {
   const el = document.documentElement
   try {
+    if (document.fullscreenElement) return
     if (el.requestFullscreen) await el.requestFullscreen()
     else if ((el as any).webkitRequestFullscreen) await (el as any).webkitRequestFullscreen()
     else if ((el as any).mozRequestFullScreen) await (el as any).mozRequestFullScreen()
@@ -20,9 +21,11 @@ interface ExamInstructionsProps {
   assignmentSubject?: string
   durationMinutes?: number
   totalMarks?: number
+  starting?: boolean
+  startError?: string | null
 }
 
-export default function ExamInstructions({ onStart, onCancel, assignedTest = false, assignmentName, assignmentSubject, durationMinutes, totalMarks }: ExamInstructionsProps) {
+export default function ExamInstructions({ onStart, onCancel, assignedTest = false, assignmentName, assignmentSubject, durationMinutes, totalMarks, starting = false, startError }: ExamInstructionsProps) {
   const [agreed, setAgreed] = useState(false)
   const rules = assignedTest
     ? [
@@ -43,7 +46,7 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: '#f8f9fa', fontFamily: "'Public Sans', sans-serif", color: '#191c1d' }}>
 
       {/* ── Header ───────────────────────────────────────── */}
-      <header style={{ flexShrink: 0, height: '56px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+      <header className="exam-instructions-header" style={{ flexShrink: 0, height: '56px', background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
         <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{assignmentName || 'CET Exam Session'}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
@@ -64,7 +67,7 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
 
       {/* ── Scrollable Body ───────────────────────────────── */}
       <main style={{ flex: 1, overflowY: 'auto', padding: '0' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto', padding: '32px 24px 40px' }}>
+        <div className="exam-instructions-body-inner" style={{ maxWidth: '760px', margin: '0 auto', padding: '32px 24px 40px' }}>
 
           {/* Page Title */}
           <div style={{ marginBottom: '24px' }}>
@@ -74,17 +77,20 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               {[assignmentSubject, durationMinutes ? `${durationMinutes} minutes` : null, totalMarks != null ? `${totalMarks} total marks` : null].filter(Boolean).join(' · ')}
             </p>}
           </div>
+          {startError && <p role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#b91c1c', fontSize: '13px', lineHeight: 1.5, margin: '0 0 20px', padding: '12px 14px' }}>{startError}</p>}
 
           {/* Warning Banner */}
-          {!assignedTest && <div style={{ display: 'flex', gap: '14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', gap: '14px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
             <span className="material-symbols-outlined" style={{ color: '#dc2626', flexShrink: 0, fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>warning</span>
             <div>
               <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: '#991b1b' }}>Full-Screen Mode Requirement</p>
               <p style={{ margin: 0, fontSize: '13px', color: '#b91c1c', lineHeight: '1.6' }}>
-                This examination requires you to be in full-screen mode at all times. Switching tabs, minimizing the window, or exiting full-screen will result in an automatic submission and potential disqualification.
+                {assignedTest
+                  ? 'Stay in full-screen mode while taking this test. Your questions will load and the assignment timer will start only after you click Start Test.'
+                  : 'This examination requires you to be in full-screen mode at all times. Switching tabs, minimizing the window, or exiting full-screen will result in an automatic submission and potential disqualification.'}
               </p>
             </div>
-          </div>}
+          </div>
 
           {/* Exam Rules Card */}
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
@@ -159,7 +165,7 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
 
       {/* ── Footer ───────────────────────────────────────── */}
       <footer style={{ flexShrink: 0, background: '#fff', borderTop: '1px solid #e2e8f0', boxShadow: '0 -2px 8px rgba(0,0,0,0.05)' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+        <div className="exam-instructions-footer-inner" style={{ maxWidth: '760px', margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           {/* Left: Candidate info + fullscreen notice */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {!assignedTest && <div>
@@ -170,13 +176,15 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               <span className="material-symbols-outlined" style={{ fontSize: '13px', color: '#16a34a', fontVariationSettings: "'FILL' 1" }}>fullscreen</span>
               <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600 }}>Full-screen will be requested on start</span>
             </div>}
-            {assignedTest && <span style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>{durationMinutes} minute assignment</span>}
+            {assignedTest && <span style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>{durationMinutes} minute assignment · Timer starts after confirmation</span>}
           </div>
 
           {/* Right: Start Test button */}
           <button
-            disabled={!agreed}
+            className="exam-instructions-start-btn"
+            disabled={!agreed || starting}
             onClick={async () => {
+              if (starting) return
               await enterFullscreen()
               onStart()
             }}
@@ -184,16 +192,16 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               display: 'flex', alignItems: 'center', gap: '8px',
               padding: '13px 28px', borderRadius: '10px', border: 'none',
               fontSize: '15px', fontWeight: 700,
-              cursor: agreed ? 'pointer' : 'not-allowed',
-              background: agreed ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#e2e8f0',
-              color: agreed ? '#fff' : '#94a3b8',
-              boxShadow: agreed ? '0 4px 16px rgba(37,99,235,0.35)' : 'none',
+              cursor: agreed && !starting ? 'pointer' : 'not-allowed',
+              background: agreed && !starting ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#e2e8f0',
+              color: agreed && !starting ? '#fff' : '#94a3b8',
+              boxShadow: agreed && !starting ? '0 4px 16px rgba(37,99,235,0.35)' : 'none',
               transition: 'all 0.2s',
               flexShrink: 0,
             }}
           >
-            Start Test
-            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 0" }}>arrow_forward</span>
+            {starting ? 'Loading questions…' : 'Start Test'}
+            <span className="material-symbols-outlined" style={{ fontSize: '18px', fontVariationSettings: "'FILL' 0", ...(starting ? { animation: 'inline-loading-spin 0.8s linear infinite' } : {}) }}>{starting ? 'progress_activity' : 'arrow_forward'}</span>
           </button>
         </div>
       </footer>

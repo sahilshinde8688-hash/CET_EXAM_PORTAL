@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { mockTestAssignmentsAPI, type MockTestAssignment, type StartedMockTest } from '../lib/api'
 import ExamInstructions from './ExamInstructions'
+import LoadingIndicator from './LoadingIndicator'
 import TestInterface from './TestInterface'
 
-type Props = { onBack?: () => void; embedded?: boolean; toolbarActions?: ReactNode }
+type Props = { onBack?: () => void; embedded?: boolean; toolbarActions?: ReactNode; focusAssignmentId?: string }
 
 const card: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 20 }
 const button: CSSProperties = { border: 0, background: '#2563eb', color: '#fff', borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: 'pointer' }
@@ -18,7 +19,20 @@ const formatCountdown = (value: number) => {
 }
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Could not complete the request. Please try again.'
 
-export default function AssignedMockTests({ onBack, embedded = false, toolbarActions }: Props) {
+const enterFullscreen = async (): Promise<boolean> => {
+  if (document.fullscreenElement) return true
+  if (!document.documentElement.requestFullscreen) return false
+
+  try {
+    await document.documentElement.requestFullscreen()
+    return Boolean(document.fullscreenElement)
+  } catch (fullscreenError) {
+    console.error('Could not enter fullscreen for assigned test:', fullscreenError)
+    return false
+  }
+}
+
+export default function AssignedMockTests({ onBack, embedded = false, toolbarActions, focusAssignmentId }: Props) {
   const [assignments, setAssignments] = useState<MockTestAssignment[]>([])
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(Date.now())
@@ -64,12 +78,29 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    if (!focusAssignmentId || loading) return
+    document.getElementById(`assigned-notification-${focusAssignmentId}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [assignments, focusAssignmentId, loading])
+
   const start = useCallback(async (assignment: MockTestAssignment) => {
-    setPendingStart(null)
     setStartingAssignmentId(assignment._id)
     setError('')
     try {
+      if (!await enterFullscreen()) {
+        setError('Full-screen mode could not be enabled. Allow full-screen access in your browser and try again.')
+        return
+      }
       const started = await mockTestAssignmentsAPI.start(assignment._id)
+      const hasAllQuestions = Array.isArray(started.questions)
+        && Array.isArray(started.attempt?.questionIds)
+        && started.questions.length === started.attempt.questionIds.length
+        && started.questions.every((question, index) => question._id === started.attempt.questionIds[index])
+      if (!hasAllQuestions) {
+        throw new Error('The assigned test questions could not be loaded completely. Please retry.')
+      }
+      setPendingStart(null)
       setActive(started)
     } catch (startError) {
       if (document.fullscreenElement && document.exitFullscreen) {
@@ -81,6 +112,27 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
       setStartingAssignmentId(null)
     }
   }, [loadAssignments])
+
+  const prepareAssignment = async (assignment: MockTestAssignment) => {
+    setError('')
+    if (!await enterFullscreen()) {
+      setError('Full-screen mode could not be enabled. Allow full-screen access in your browser and try again.')
+      return
+    }
+    setPendingStart(assignment)
+  }
+
+  const cancelPendingStart = async () => {
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen()
+      }
+      setPendingStart(null)
+    } catch (fullscreenError) {
+      console.error('Could not exit fullscreen after cancelling assigned test:', fullscreenError)
+      setError('Could not exit full-screen mode. Please use your browser’s exit full-screen control.')
+    }
+  }
 
   const saveProgress = useCallback(async (answers: Record<string, number>, timeSpent: number) => {
     if (!active || active.attempt.status !== 'in_progress') return
@@ -147,8 +199,10 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
         assignmentSubject={pendingStart.subject || pendingStart.examType || 'Mock Test'}
         durationMinutes={pendingStart.duration}
         totalMarks={pendingStart.totalMarks}
+        starting={startingAssignmentId === pendingStart._id}
+        startError={error || null}
         onStart={() => { void start(pendingStart) }}
-        onCancel={() => setPendingStart(null)}
+        onCancel={() => { void cancelPendingStart() }}
       />
     )
   }
@@ -187,7 +241,10 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
       </div>
     </header>
     {error && <p role="alert" style={{ ...card, color: '#b91c1c', borderColor: '#fecaca' }}>{error}</p>}
-    {loading ? <p>Loading assigned mock tests…</p> : assignments.length === 0 && !error ? <section className={embedded ? 'mt-empty' : undefined} style={embedded ? undefined : card}>No mock tests have been assigned to you yet.</section> : assignments.length > 0 && (
+    {focusAssignmentId && !loading && !assignments.some(assignment => assignment._id === focusAssignmentId) && (
+      <p role="status" style={{ ...card, color: '#475569' }}>This assigned test is no longer available in your account.</p>
+    )}
+    {loading ? <LoadingIndicator message="Loading assigned mock tests..." /> : assignments.length === 0 && !error ? <section className={embedded ? 'mt-empty' : undefined} style={embedded ? undefined : card}>No mock tests have been assigned to you yet.</section> : assignments.length > 0 && (
       <div className={embedded ? 'mt-cards-grid' : undefined} style={embedded ? undefined : { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16 }}>
         {assignments.map(assignment => {
           const startAt = new Date(assignment.startDateTime).getTime()
@@ -205,7 +262,13 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
                     ? 'Submitted'
                     : 'Available'
           const canStart = status === 'Available' || status === 'In Progress'
-          return <article key={assignment._id} className={embedded ? 'mt-glass-card mt-test-card' : undefined} style={embedded ? undefined : card}>
+          const isFocused = assignment._id === focusAssignmentId
+          return <article
+            key={assignment._id}
+            id={isFocused ? `assigned-notification-${assignment._id}` : undefined}
+            className={embedded ? 'mt-glass-card mt-test-card' : undefined}
+            style={{ ...(embedded ? {} : card), ...(isFocused ? { borderColor: '#60a5fa', boxShadow: '0 0 0 3px rgba(37,99,235,.18)' } : {}) }}
+          >
             {embedded && status === 'Available' && <div className="mt-recommended-badge">Assigned to you</div>}
             {embedded && <div className="mt-card-icon mt-icon--blue"><span className="material-symbols-outlined">assignment</span></div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
@@ -231,9 +294,9 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
               className={embedded ? `mt-start-btn${canStart ? ' mt-start-btn--primary' : ''}` : undefined}
               disabled={!canStart || assignment.attemptsRemaining === 0 || startingAssignmentId === assignment._id}
               style={embedded ? undefined : { ...button, opacity: canStart && assignment.attemptsRemaining !== 0 ? 1 : 0.5 }}
-              onClick={() => status === 'In Progress' ? void start(assignment) : setPendingStart(assignment)}
+              onClick={() => status === 'In Progress' ? void start(assignment) : void prepareAssignment(assignment)}
             >
-              {startingAssignmentId === assignment._id ? 'Starting…' : status === 'In Progress' ? 'Resume Test' : status === 'Upcoming' ? 'Starts Soon' : status === 'Available' ? 'Start Now' : status === 'Submitted' ? 'Submitted' : 'Test Expired'}
+              {startingAssignmentId === assignment._id ? 'Starting…' : status === 'In Progress' ? 'Resume Test' : status === 'Upcoming' ? 'Starts Soon' : status === 'Available' ? 'View Instructions' : status === 'Submitted' ? 'Submitted' : 'Test Expired'}
               {embedded && canStart && <span className="material-symbols-outlined">arrow_forward</span>}
             </button>
           </article>

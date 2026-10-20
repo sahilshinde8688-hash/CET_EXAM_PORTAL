@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase')
+const crypto = require('crypto')
 
 // In-memory tracker for rapid 401/403 brute force detection
 const failedAttemptsMap = new Map()
@@ -25,6 +26,8 @@ const apiUsageLogger = (req, res, next) => {
   }
 
   const startTime = Date.now()
+  req.requestId = crypto.randomUUID()
+  res.setHeader('X-Request-ID', req.requestId)
 
   res.on('finish', async () => {
     const responseTime = Date.now() - startTime
@@ -33,7 +36,20 @@ const apiUsageLogger = (req, res, next) => {
     const ip = typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : String(rawIp)
     const userId = req.user?.id || req.user?._id || null
     const clusterId = req.user?.clusterId || 'default'
-    const endpoint = (req.baseUrl || '') + (req.path || '')
+    const endpoint = ((req.baseUrl || '') + (req.path || ''))
+      .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?=\/|$)/gi, '/:id')
+
+    if (statusCode === 429) {
+      console.warn(JSON.stringify({
+        event: 'api_rate_limited',
+        requestId: req.requestId,
+        method: req.method,
+        endpoint,
+        statusCode,
+        responseTimeMs: responseTime,
+        timestamp: new Date().toISOString(),
+      }))
+    }
 
     // 1. Asynchronously log to api_usage_logs
     try {

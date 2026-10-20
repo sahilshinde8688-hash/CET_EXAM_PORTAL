@@ -18,12 +18,18 @@ const {
 } = require('../services/cetClassification')
 const {
   NotesGenerationError,
-  generateFromNotes,
   regenerateQuestion,
   validateEditedQuestion,
   validateConfig: validateNotesConfig,
 } = require('../services/notesQuestionGeneration')
 const { flagDuplicates, normalizeForMatching, similarity } = require('../utils/duplicateDetection')
+const {
+  cancelOwnedJob,
+  createGenerationJob,
+  getOwnedJob,
+  publicResult: notesJobResultForClient,
+  updateOwnedJobResult,
+} = require('../services/notesGenerationJobService')
 
 const requireAdminQuery = (req, res, next) => {
   if (req.query.admin !== 'true') return next()
@@ -110,20 +116,10 @@ router.get('/meta/cet-taxonomy', apiLimiter, async (req, res) => {
 // ── AI QUESTION GENERATION FROM PDF/PPTX NOTES — ADMIN ONLY ──────────────
 
 const NOTES_MAX_UPLOAD_MB = Number(process.env.NOTES_MAX_UPLOAD_MB || 25)
-const NOTES_JOB_TTL_MS = 30 * 60 * 1000
-const NOTES_MAX_ACTIVE_JOBS = 1
-const notesJobs = new Map()
-
-const pruneNotesJobs = () => {
-  const now = Date.now()
-  for (const [id, job] of notesJobs) {
-    if (job.status !== 'processing' && job.expiresAt <= now) notesJobs.delete(id)
-  }
-}
 
 const notesUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: NOTES_MAX_UPLOAD_MB * 1024 * 1024, files: 1, fields: 1, fieldSize: 64 * 1024 },
+  limits: { fileSize: NOTES_MAX_UPLOAD_MB * 1024 * 1024, files: 2, fields: 1, fieldSize: 64 * 1024 },
   fileFilter: (req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase()
     if (!['.pdf', '.pptx'].includes(extension)) {
@@ -134,21 +130,17 @@ const notesUpload = multer({
 })
 
 const notesUploadHandler = (req, res, next) => {
-  notesUpload.single('file')(req, res, (error) => {
+  notesUpload.fields([{ name: 'file', maxCount: 1 }, { name: 'syllabus', maxCount: 1 }])(req, res, (error) => {
     if (error) return res.status(400).json({ success: false, message: error.message || 'Notes upload failed.' })
     next()
   })
 }
 
-const notesJobResultForClient = (result) => {
-  const { _sourcePages, _topicsFull, _config, ...publicResult } = result
-  return publicResult
-}
-
 router.post('/notes/generate', protect, adminOnly, validateCsrfToken, uploadLimiter, notesUploadHandler, async (req, res) => {
-  pruneNotesJobs()
-  const file = req.file
-  if (!file) return res.status(400).json({ success: false, message: 'Choose a PDF or PPTX notes file.' })
+  const file = req.files?.file?.[0]
+  const syllabusFile = req.files?.syllabus?.[0]
+  if (!file) return res.status(400).json({ success: false, message: 'Choose a PDF or PPTX source document.' })
+  if (!syllabusFile) return res.status(400).json({ success: false, message: 'Upload the official CET syllabus as a separate PDF or PPTX document.' })
 
   let config
   try {
@@ -158,100 +150,95 @@ router.post('/notes/generate', protect, adminOnly, validateCsrfToken, uploadLimi
   }
 
   const ownerId = String(req.user.id || req.user._id)
-  const activeJobs = [...notesJobs.values()].filter((job) => job.status === 'processing').length
-  if (activeJobs >= NOTES_MAX_ACTIVE_JOBS) {
-    return res.status(429).json({ success: false, message: 'A notes-generation job is already processing. Wait for it to finish before uploading another.' })
+  try {
+    const idempotencyKey = String(req.get('Idempotency-Key') || '').slice(0, 120) || null
+    const job = await createGenerationJob({
+      ownerId,
+      sourceFile: file,
+      syllabusFile,
+      config,
+      idempotencyKey,
+    })
+    return res.status(202).json({ success: true, jobId: job.id, status: job.status })
+  } catch (error) {
+    if (error.statusCode !== 429) console.error('Could not queue an AI notes generation job:', error.message)
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode
+        ? error.message
+        : 'Could not securely queue the generation job. Please retry.',
+    })
   }
-
-  const jobId = require('crypto').randomUUID()
-  const fileName = path.basename(String(file.originalname || 'notes')).slice(0, 200)
-  const job = {
-    id: jobId,
-    ownerId,
-    status: 'processing',
-    stage: 'Queued',
-    percent: 0,
-    createdAt: new Date().toISOString(),
-    expiresAt: Date.now() + NOTES_JOB_TTL_MS,
-    result: null,
-    error: null,
-  }
-  notesJobs.set(jobId, job)
-
-  setImmediate(async () => {
-    try {
-      job.result = await generateFromNotes({
-        buffer: file.buffer,
-        fileName,
-        rawConfig: config,
-        onProgress: (stage, percent) => {
-          job.stage = stage
-          job.percent = Math.min(99, Math.max(job.percent, percent))
-        },
-      })
-      try {
-        const existingQuestions = await db.getQuestionFingerprints()
-        const duplicateChecks = flagDuplicates(
-          job.result.questions.map((question) => ({ question: question.text })),
-          existingQuestions,
-        )
-        duplicateChecks.forEach((check, index) => {
-          if (!check.duplicate) return
-          const question = job.result.questions[index]
-          question.validationIssues.push(`This question may duplicate an existing Question Bank item (${check.duplicateType}).`)
-          question.selected = false
-        })
-      } catch (error) {
-        console.error('Could not check AI-generated questions against the Question Bank:', error.message)
-        job.result.warnings.push('Existing Question Bank duplicate checking was unavailable; review each question carefully before approving.')
-        job.result.questions.forEach((question) => {
-          question.validationIssues.push('Existing Question Bank duplicate check was unavailable.')
-          question.selected = false
-        })
-      }
-      job.status = 'completed'
-      job.stage = 'Ready for review'
-      job.percent = 100
-      job.expiresAt = Date.now() + NOTES_JOB_TTL_MS
-    } catch (error) {
-      if (!(error instanceof NotesGenerationError)) {
-        console.error('AI notes generation job failed:', error.message)
-      }
-      job.error = {
-        message: error instanceof NotesGenerationError
-          ? error.message
-          : 'Question generation failed unexpectedly. Please retry.',
-      }
-      job.status = 'failed'
-      job.stage = 'Failed'
-      job.expiresAt = Date.now() + NOTES_JOB_TTL_MS
-    }
-  })
-
-  return res.status(202).json({ success: true, jobId, status: job.status })
 })
 
-router.get('/notes/jobs/:jobId', protect, adminOnly, apiLimiter, (req, res) => {
-  pruneNotesJobs()
-  const job = notesJobs.get(req.params.jobId)
-  if (!job || job.ownerId !== String(req.user.id || req.user._id)) {
-    return res.status(404).json({ success: false, message: 'Notes generation job was not found or has expired.' })
+router.get('/notes/jobs/:jobId', protect, adminOnly, apiLimiter, async (req, res) => {
+  try {
+    const job = await getOwnedJob(req.params.jobId, String(req.user.id || req.user._id))
+    if (!job) {
+      return res.status(404).json({ success: false, message: 'Notes generation job was not found.' })
+    }
+    res.set('Cache-Control', 'no-store')
+    return res.json({
+      success: true,
+      status: job.status,
+      stage: job.stage,
+      percent: job.progress,
+      generatedCount: job.generated_count,
+      validatedCount: job.validated_count,
+      requestedCount: job.requested_count,
+      completedBatches: job.completed_batches,
+      failedBatches: job.failed_batches,
+      ...(job.status === 'FAILED' ? { error: { message: job.error_message } } : {}),
+    })
+  } catch (error) {
+    console.error('Could not load AI notes job status:', error.message)
+    return res.status(500).json({ success: false, message: 'Could not load generation status.' })
   }
-  res.set('Cache-Control', 'no-store')
-  return res.json({
-    success: true,
-    status: job.status,
-    stage: job.stage,
-    percent: job.percent,
-    ...(job.status === 'completed' ? { result: notesJobResultForClient(job.result) } : {}),
-    ...(job.status === 'failed' ? { error: job.error } : {}),
-  })
+})
+
+router.post('/notes/jobs/:jobId/cancel', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  try {
+    const job = await cancelOwnedJob(req.params.jobId, String(req.user.id || req.user._id))
+    if (!job) return res.status(404).json({ success: false, message: 'Notes generation job was not found.' })
+    return res.json({ success: true, status: job.status, alreadyFinished: job.alreadyFinished })
+  } catch (error) {
+    console.error('Could not cancel AI notes generation:', error.message)
+    return res.status(500).json({ success: false, message: 'Could not cancel generation.' })
+  }
+})
+
+router.get('/notes/jobs/:jobId/questions', protect, adminOnly, apiLimiter, async (req, res) => {
+  try {
+    const job = await getOwnedJob(req.params.jobId, String(req.user.id || req.user._id))
+    if (!job || !['COMPLETED', 'PARTIALLY_COMPLETED'].includes(job.status) || !job.result) {
+      return res.status(404).json({ success: false, message: 'The completed generation results were not found.' })
+    }
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1)
+    const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 100))
+    const fullResult = notesJobResultForClient(job.result)
+    const questions = fullResult.questions || []
+    return res.json({
+      success: true,
+      result: { ...fullResult, questions: questions.slice((page - 1) * limit, page * limit) },
+      pagination: { page, limit, total: questions.length, totalPages: Math.ceil(questions.length / limit) },
+    })
+  } catch (error) {
+    console.error('Could not load generated MCQ results:', error.message)
+    return res.status(500).json({ success: false, message: 'Could not load generated questions.' })
+  }
 })
 
 router.post('/notes/jobs/:jobId/validate', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
-  const job = notesJobs.get(req.params.jobId)
-  if (!job || job.ownerId !== String(req.user.id || req.user._id) || job.status !== 'completed') {
-    return res.status(404).json({ success: false, message: 'The completed generation job was not found or has expired.' })
+  const ownerId = String(req.user.id || req.user._id)
+  let job
+  try {
+    job = await getOwnedJob(req.params.jobId, ownerId)
+  } catch (error) {
+    console.error('Could not load generation job for question validation:', error.message)
+    return res.status(500).json({ success: false, message: 'Could not load the generation job.' })
+  }
+  if (!job || !['COMPLETED', 'PARTIALLY_COMPLETED'].includes(job.status) || !job.result) {
+    return res.status(404).json({ success: false, message: 'The completed generation job was not found.' })
   }
   const questionIndex = Number(req.body?.questionIndex)
   if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex >= job.result.questions.length) {
@@ -266,7 +253,10 @@ router.post('/notes/jobs/:jobId/validate', protect, adminOnly, validateCsrfToken
 
   try {
     const current = job.result.questions[questionIndex]
-    const topic = job.result._topicsFull.find((item) => item.name.toLowerCase() === current.chapter.toLowerCase())
+    const topic = job.result._topicsFull.find((item) =>
+      item.name.toLowerCase() === current.topic.toLowerCase()
+        || item.syllabusTopicName?.toLowerCase() === current.syllabusTopic?.toLowerCase(),
+    )
     if (!topic) return res.status(422).json({ success: false, message: 'The original question topic is no longer available for validation.' })
     const candidate = {
       subject: supplied.subject,
@@ -293,7 +283,10 @@ router.post('/notes/jobs/:jobId/validate', protect, adminOnly, validateCsrfToken
     )
     if (matchingQuestion) validation.validationIssues.push('This edit duplicates another generated question.')
 
-    const existingQuestions = await db.getQuestionFingerprints()
+    const existingQuestions = await db.getQuestionFingerprints({
+      subject: candidate.subject,
+      topics: [candidate.topic, current.chapter, current.syllabusTopic].filter(Boolean),
+    })
     const duplicateCheck = flagDuplicates(
       [{ question: candidate.text }],
       existingQuestions,
@@ -312,6 +305,8 @@ router.post('/notes/jobs/:jobId/validate', protect, adminOnly, validateCsrfToken
       approved: false,
     }
     job.result.questions[questionIndex] = updated
+    const saved = await updateOwnedJobResult(job.id, ownerId, job.result)
+    if (!saved) return res.status(409).json({ success: false, message: 'The generation job is no longer available for editing.' })
     res.set('Cache-Control', 'no-store')
     return res.json({ success: true, question: updated })
   } catch (error) {
@@ -326,9 +321,16 @@ router.post('/notes/jobs/:jobId/validate', protect, adminOnly, validateCsrfToken
 })
 
 router.post('/notes/jobs/:jobId/regenerate', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
-  const job = notesJobs.get(req.params.jobId)
-  if (!job || job.ownerId !== String(req.user.id || req.user._id) || job.status !== 'completed') {
-    return res.status(404).json({ success: false, message: 'The completed generation job was not found or has expired.' })
+  const ownerId = String(req.user.id || req.user._id)
+  let job
+  try {
+    job = await getOwnedJob(req.params.jobId, ownerId)
+  } catch (error) {
+    console.error('Could not load generation job for question regeneration:', error.message)
+    return res.status(500).json({ success: false, message: 'Could not load the generation job.' })
+  }
+  if (!job || !['COMPLETED', 'PARTIALLY_COMPLETED'].includes(job.status) || !job.result) {
+    return res.status(404).json({ success: false, message: 'The completed generation job was not found.' })
   }
   const questionIndex = Number(req.body?.questionIndex)
   if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex >= job.result.questions.length) {
@@ -337,7 +339,10 @@ router.post('/notes/jobs/:jobId/regenerate', protect, adminOnly, validateCsrfTok
 
   try {
     const current = job.result.questions[questionIndex]
-    const topic = job.result._topicsFull.find((item) => item.name.toLowerCase() === current.chapter.toLowerCase())
+    const topic = job.result._topicsFull.find((item) =>
+      item.name.toLowerCase() === current.topic.toLowerCase()
+        || item.syllabusTopicName?.toLowerCase() === current.syllabusTopic?.toLowerCase(),
+    )
     if (!topic) return res.status(422).json({ success: false, message: 'The original question topic is no longer available for regeneration.' })
     const replacement = await regenerateQuestion({
       question: current,
@@ -354,7 +359,10 @@ router.post('/notes/jobs/:jobId/regenerate', protect, adminOnly, validateCsrfTok
       ) >= 0.9,
     )
     if (duplicateInJob) replacement.validationIssues.push('This replacement duplicates another generated question.')
-    const existingQuestions = await db.getQuestionFingerprints()
+    const existingQuestions = await db.getQuestionFingerprints({
+      subject: current.subject,
+      topics: [current.topic, current.chapter, current.syllabusTopic].filter(Boolean),
+    })
     const duplicateCheck = flagDuplicates([{ question: replacement.text }], existingQuestions)[0]
     if (duplicateCheck.duplicate) {
       replacement.validationIssues.push(`This replacement may duplicate an existing Question Bank item (${duplicateCheck.duplicateType}).`)
@@ -362,6 +370,8 @@ router.post('/notes/jobs/:jobId/regenerate', protect, adminOnly, validateCsrfTok
     replacement.selected = replacement.validationIssues.length === 0
     replacement.approved = false
     job.result.questions[questionIndex] = replacement
+    const saved = await updateOwnedJobResult(job.id, ownerId, job.result)
+    if (!saved) return res.status(409).json({ success: false, message: 'The generation job is no longer available for editing.' })
     return res.json({ success: true, question: replacement })
   } catch (error) {
     const status = error.statusCode || 502
@@ -612,7 +622,7 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
 
     const created = []
     for (const qData of rowsToSave) {
-      const q = await db.createQuestion(qData)
+      const q = await db.createQuestion(qData, { includeClassificationMetadata: false })
       created.push(q)
     }
 

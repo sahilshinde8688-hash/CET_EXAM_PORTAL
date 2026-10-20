@@ -520,6 +520,17 @@
 .db-mobile-nav-item .material-symbols-outlined {
   font-size: 22px;
 }
+.db-mobile-nav-animation {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  pointer-events: none;
+}
+.db-mobile-drawer-items .db-mobile-nav-animation {
+  width: 22px;
+  height: 22px;
+  flex-basis: 22px;
+}
 .db-mobile-nav-dot {
   width: 4px;
   height: 4px;
@@ -597,6 +608,11 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
+}
+.db-mobile-drawer-items .db-nav-item--active,
+.db-mobile-drawer-items .db-nav-item--active:hover {
+  background: linear-gradient(90deg, #6f5fea, #1a73e8);
+  color: #fff;
 }
 .db-mobile-drawer-footer {
   margin-top: auto;

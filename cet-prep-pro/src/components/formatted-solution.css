@@ -1,0 +1,122 @@
+.formatted-solution {
+  min-width: 0;
+  color: #1e293b;
+  font-size: 0.96em;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.formatted-solution-heading {
+  margin: 18px 0 8px;
+  color: #0f172a;
+  font-size: 1em;
+  font-weight: 700;
+}
+
+.formatted-solution-heading:first-child {
+  margin-top: 0;
+}
+
+.formatted-solution p {
+  margin: 6px 0;
+}
+
+.formatted-solution-equation {
+  max-width: 100%;
+  margin: 9px 0;
+  overflow-x: auto;
+  padding: 2px 0;
+  text-align: center;
+}
+
+.formatted-solution-equation > div {
+  min-width: max-content;
+}
+
+.formatted-solution-math-inline-display {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.formatted-solution-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 5px 0 5px 8px;
+}
+
+.formatted-solution-list-item > span {
+  flex: 0 0 auto;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.formatted-solution-final-heading {
+  margin: 18px 0 8px;
+  padding: 10px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px 9px 0 0;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 1em;
+  font-weight: 700;
+}
+
+.formatted-solution-final-answer {
+  margin: -8px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+  background: #f8fbff;
+  color: #0f172a;
+  font-size: 1.05em;
+  font-weight: 700;
+}
+
+.formatted-solution-final-answer .katex-display {
+  margin: 0.35em 0;
+}
+
+.formatted-solution-final-equation {
+  margin: -8px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+  background: #f8fbff;
+}
+
+.formatted-solution-rich-final {
+  margin-top: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #f8fbff;
+}
+
+.formatted-solution-rich-final .formatted-solution-final-heading {
+  margin: 0;
+  border: 0;
+  border-radius: 9px 9px 0 0;
+}
+
+.formatted-solution-rich-final-content {
+  padding: 4px 14px 12px;
+}
+
+.formatted-solution-rich-final-content > :first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 600px) {
+  .formatted-solution {
+    font-size: 0.92em;
+    line-height: 1.65;
+  }
+
+  .formatted-solution-equation {
+    text-align: left;
+  }
+}

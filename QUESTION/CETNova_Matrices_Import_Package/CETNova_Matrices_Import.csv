@@ -1,0 +1,179 @@
+﻿question_id,subject,topic,exam,question_number,question_text_extracted,question_image_path,source_file,source_slide,answer_source_slide,correct_option,answer_text_from_source,review_status,review_note,publish
+CET-MAT-MAT-000001,Mathematics,Matrices,MHT CET,1,"1. If
+A) -10                          B) -11
+C)  10                           D)  11",question_images/question_001.jpg,MATRICES_CET_QUESTION(1).pptx,2,2,C,C)10,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000002,Mathematics,Matrices,MHT CET,2,"A) 04                          B) 05
+C) 06                          D)  03",question_images/question_002.jpg,MATRICES_CET_QUESTION(1).pptx,3,3,D,D)  03,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000003,Mathematics,Matrices,MHT CET,3,"A)  2                          B)  4
+C) -4                          D) -2",question_images/question_003.jpg,MATRICES_CET_QUESTION(1).pptx,4,4,B,B) 4,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000004,Mathematics,Matrices,MHT CET,4,"A) 07                          B) 09
+C) 08                           D) 10",question_images/question_004.jpg,MATRICES_CET_QUESTION(1).pptx,5,5,C,C)10,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000005,Mathematics,Matrices,MHT CET,5,5. Consider,question_images/question_005.jpg,MATRICES_CET_QUESTION(1).pptx,6,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000006,Mathematics,Matrices,MHT CET,6,"6. If
+where",question_images/question_006.jpg,MATRICES_CET_QUESTION(1).pptx,7,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000007,Mathematics,Matrices,MHT CET,7,"A) 03                          B)   01
+C) 00                           D) -01",question_images/question_007.jpg,MATRICES_CET_QUESTION(1).pptx,8,8,D,D) -01,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000008,Mathematics,Matrices,MHT CET,8,8. Let,question_images/question_008.jpg,MATRICES_CET_QUESTION(1).pptx,9,9,C,"C) Scalar matrix, but not identity matrix",NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000009,Mathematics,Matrices,MHT CET,9,"9. If
+A) 10                          B)  17
+C) 13                           D) 25",question_images/question_009.jpg,MATRICES_CET_QUESTION(1).pptx,10,10,D,D)25,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000010,Mathematics,Matrices,MHT CET,10,"10. If
+A) 3                          B) 5
+C) 4                          D) 6",question_images/question_010.jpg,MATRICES_CET_QUESTION(1).pptx,11,11,B,B) 05,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000011,Mathematics,Matrices,MHT CET,11,"11. If
+A) A is symmetric                       B) A is skew-symmetric
+C) A is diagonal                           D) A is scalar
+Which statement is correct?",question_images/question_011.jpg,MATRICES_CET_QUESTION(1).pptx,12,12,B,B) A is skew-symmetric,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000012,Mathematics,Matrices,MHT CET,12,"12. If
+A) Identity matrix              B) Scalar matrix
+C) Null matrix                     D) Diagonal matrix",question_images/question_012.jpg,MATRICES_CET_QUESTION(1).pptx,13,13,C,C) Null matrix,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000013,Mathematics,Matrices,MHT CET,13,13. If,question_images/question_013.jpg,MATRICES_CET_QUESTION(1).pptx,14,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000014,Mathematics,Matrices,MHT CET,14,14. If,question_images/question_014.jpg,MATRICES_CET_QUESTION(1).pptx,15,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000015,Mathematics,Matrices,MHT CET,15,"A) 10                         B) 01
+C) 00                         D) 11",question_images/question_015.jpg,MATRICES_CET_QUESTION(1).pptx,16,16,C,C) 00,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000016,Mathematics,Matrices,MHT CET,16,"A) All diagonal elements are 1
+B) All diagonal elements are 0
+C) A is a symmetric matrix
+D) det(A) = 1
+If A is a 3 × 3 matrix and Aᵀ = −A, which of the following must be true?
+B) All diagonal elements are 0",question_images/question_016.jpg,MATRICES_CET_QUESTION(1).pptx,17,17,B,B) All diagonal elements are 0,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000017,Mathematics,Matrices,MHT CET,17,"17. If
+A)  0                            B) I
+C)  2I                          D)  A",question_images/question_017.jpg,MATRICES_CET_QUESTION(1).pptx,18,18,A,A) 0,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000018,Mathematics,Matrices,MHT CET,18,"B)
+C)                                                 D)
+A)
+then X is:
+If",question_images/question_018.jpg,MATRICES_CET_QUESTION(1).pptx,19,19,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000019,Mathematics,Matrices,MHT CET,19,"19. If
+A) 1                          B) -1
+C)  0.5                      D)  -0.5",question_images/question_019.jpg,MATRICES_CET_QUESTION(1).pptx,20,20,D,D)-0.5,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000020,Mathematics,Matrices,MHT CET,20,"A) -09                       B)  -12
+C)  -10                      D)  -13
+D) -13",question_images/question_020.jpg,MATRICES_CET_QUESTION(1).pptx,21,21,D,D) -13,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000021,Mathematics,Matrices,MHT CET,21,"A)
+B)
+C)
+D)",question_images/question_021.jpg,MATRICES_CET_QUESTION(1).pptx,22,22,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000022,Mathematics,Matrices,MHT CET,22,"22. If
+A)                            B)
+C)                             D)",question_images/question_022.jpg,MATRICES_CET_QUESTION(1).pptx,23,23,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000023,Mathematics,Matrices,MHT CET,23,"23. If
+then X is",question_images/question_023.jpg,MATRICES_CET_QUESTION(1).pptx,24,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000024,Mathematics,Matrices,MHT CET,24,"A)
+B)
+C)
+D)",question_images/question_024.jpg,MATRICES_CET_QUESTION(1).pptx,25,26,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000025,Mathematics,Matrices,MHT CET,25,"A)
+B)
+C)
+D)",question_images/question_025.jpg,MATRICES_CET_QUESTION(1).pptx,27,28,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000026,Mathematics,Matrices,MHT CET,26,"A)
+B)
+C)
+D)
+(1,1,1)
+(0,−1,2)
+(−1,2,2)
+(−1,0,2)
+(−1,0,2)",question_images/question_026.jpg,MATRICES_CET_QUESTION(1).pptx,29,29,D,D),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000027,Mathematics,Matrices,MHT CET,27,"The solution of the equation
+(1,2,3)
+is ( x , y, z ) =
+QUESTION TYPE SAME AS LAST QUESTION",question_images/question_027.jpg,MATRICES_CET_QUESTION(1).pptx,30,30,D,D),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000028,Mathematics,Matrices,MHT CET,28,"28. If
+A)
+B)
+C)
+D)
+(0,0)
+(1,−1)
+(2,-1)
+(0,1)
+(0,0)
+is skew-symmetric, then (a, b) is:",question_images/question_028.jpg,MATRICES_CET_QUESTION(1).pptx,31,31,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000029,Mathematics,Matrices,MHT CET,29,"29. If
+(0,0)
+is symmetric, then the relation between (x) and (y) is
+A) x = y                                     B) x + y = 5
+C) x = 3  and y = 2)                   D) No restriction on x and y",question_images/question_029.jpg,MATRICES_CET_QUESTION(1).pptx,32,32,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000030,Mathematics,Matrices,MHT CET,30,"30. If  A and B  are matrices of the same order    such that
+A + B =  A - B
+B = 0
+A) A = 0               B) B = 0
+C) A =B                D) A = I",question_images/question_030.jpg,MATRICES_CET_QUESTION(1).pptx,33,33,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000031,Mathematics,Matrices,MHT CET,31,"31. If A is a skew-symmetric matrix, then which statement is always true?
+B)                     B)
+C)                          D)",question_images/question_031.jpg,MATRICES_CET_QUESTION(1).pptx,34,34,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000032,Mathematics,Matrices,MHT CET,32,"B = 0
+A) Interchanging rows and columns
+B) Changing all elements to their negatives
+C) Interchanging diagonal elements only
+D) Multiplying every element by itself
+Which of the following represents the transpose of a matrix?",question_images/question_032.jpg,MATRICES_CET_QUESTION(1).pptx,35,35,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000033,Mathematics,Matrices,MHT CET,33,,question_images/question_033.jpg,MATRICES_CET_QUESTION(1).pptx,36,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000034,Mathematics,Matrices,MHT CET,34,"A) 1                          B) -1
+C)  -0.5                      D)  0.5
+A) 1",question_images/question_034.jpg,MATRICES_CET_QUESTION(1).pptx,37,37,A,A) 1,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000035,Mathematics,Matrices,MHT CET,35,"B)   a = 1, c = −1",question_images/question_035.jpg,MATRICES_CET_QUESTION(1).pptx,38,38,B,"B)   a = 1, c = −1",NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000036,Mathematics,Matrices,MHT CET,36,,question_images/question_036.jpg,MATRICES_CET_QUESTION(1).pptx,39,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000037,Mathematics,Matrices,MHT CET,37,"If
+then (AB) is
+A)
+B)
+C)
+D)
+A)",question_images/question_037.jpg,MATRICES_CET_QUESTION(1).pptx,40,40,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000038,Mathematics,Matrices,MHT CET,38,"A)
+B)
+C)
+D)
+A)
+If",question_images/question_038.jpg,MATRICES_CET_QUESTION(1).pptx,41,41,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000039,Mathematics,Matrices,MHT CET,39,"A) 0
+D)  None of above
+A) 0",question_images/question_039.jpg,MATRICES_CET_QUESTION(1).pptx,42,42,A,A) 0,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000040,Mathematics,Matrices,MHT CET,40,"40. If
+A)
+B)
+C)
+D)
+B)",question_images/question_040.jpg,MATRICES_CET_QUESTION(1).pptx,43,43,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000041,Mathematics,Matrices,MHT CET,41,"A)
+B)
+C)
+D)",question_images/question_041.jpg,MATRICES_CET_QUESTION(1).pptx,44,,,,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000042,Mathematics,Matrices,MHT CET,42,"A) 1/7
+B)
+C)   7
+D)
+D) -7
+-1/7
+-7",question_images/question_042.jpg,MATRICES_CET_QUESTION(1).pptx,45,45,D,D) -7,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000043,Mathematics,Matrices,MHT CET,43,"D) -7
+If A and B are matrices such that AB = I , then B is:
+A) The transpose of A                       B) The zero matrix
+C) A right inverse of A                      D) Equal to A",question_images/question_043.jpg,MATRICES_CET_QUESTION(1).pptx,46,46,D,D) -7,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000044,Mathematics,Matrices,MHT CET,44,"44. If
+A)
+A)                                      B)
+C)                                       D)
+then  BA  is:",question_images/question_044.jpg,MATRICES_CET_QUESTION(1).pptx,47,47,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000045,Mathematics,Matrices,MHT CET,45,"B)
+A)                                      B)
+C)                                       D)",question_images/question_045.jpg,MATRICES_CET_QUESTION(1).pptx,48,48,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000046,Mathematics,Matrices,MHT CET,46,"B)
+A) ad - bc                                B)
+C)                                           D) None of these",question_images/question_046.jpg,MATRICES_CET_QUESTION(1).pptx,49,49,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000047,Mathematics,Matrices,MHT CET,47,"B) I
+A) 6I                               B) I
+C) 0                                D) 2I",question_images/question_047.jpg,MATRICES_CET_QUESTION(1).pptx,50,50,B,B) I,NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000048,Mathematics,Matrices,MHT CET,48,"A)
+A)                                B)
+C)                                D)",question_images/question_048.jpg,MATRICES_CET_QUESTION(1).pptx,51,51,A,A),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000049,Mathematics,Matrices,MHT CET,49,"D) [2]
+A) [−1]                            B) [1]
+C) [−2]                            D) [2]",question_images/question_049.jpg,MATRICES_CET_QUESTION(1).pptx,52,52,D,D) [2],NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False
+CET-MAT-MAT-000050,Mathematics,Matrices,MHT CET,50,"B)
+A)                                B)
+C)                                D)",question_images/question_050.jpg,MATRICES_CET_QUESTION(1).pptx,53,53,B,B),NEEDS_MANUAL_REVIEW,"Verify equation, options and answer against the attached source image before publishing. Text extraction may omit image-based mathematical notation.",False

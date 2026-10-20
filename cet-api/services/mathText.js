@@ -78,7 +78,14 @@ const normalizeMathText = (raw) => {
  */
 const normalizeForMatching = (raw) => {
   if (raw === null || raw === undefined) return ''
-  let text = normalizeMathText(raw).toLowerCase()
+  let text = normalizeMathText(String(raw)
+    .replace(/<\/?[a-z][^>]*>/gi, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")).toLowerCase()
   text = text
     .replace(/√\s*/g, ' sqrt ')
     .replace(/[×✕✖]/g, ' * ')

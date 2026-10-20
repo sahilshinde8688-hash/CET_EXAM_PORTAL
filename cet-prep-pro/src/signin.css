@@ -1147,6 +1147,15 @@
   }
 }
 
+@media (max-width: 768px) {
+  .form-text-input,
+  .form-native-select,
+  .signin-auth-card input,
+  .signin-auth-card select {
+    font-size: 16px !important;
+  }
+}
+
 @media (max-width: 375px) {
   .signin-auth-card {
     padding: 20px 14px 18px;
@@ -1161,7 +1170,7 @@
   }
   .form-text-input,
   .form-native-select {
-    font-size: 13px;
     padding: 10px 10px 10px 38px;
   }
 }
+

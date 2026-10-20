@@ -17,7 +17,7 @@ type GeneratorProps = {
 
 type ReviewQuestion = NotesGeneratedQuestion & { localId: string; generationIndex: number }
 
-const mixedLevels = ['Medium', 'Hard', 'Very Hard'] as const
+const mixedLevels = ['Easy', 'Medium', 'Hard'] as const
 const allowedCounts = [5, 10, 20, 30, 50, 100]
 
 const parseCustomDistribution = (value: string): Record<string, number> => {
@@ -33,6 +33,14 @@ const parseCustomDistribution = (value: string): Record<string, number> => {
   return parsed
 }
 
+const parseSelectedNames = (value: string, label: string): string[] => {
+  const names = [...new Set(value.split(/[\n,]/).map(name => name.trim()).filter(Boolean))]
+  if (names.length > 40 || names.some(name => name.length > 120)) {
+    throw new Error(`${label} must contain at most 40 names, each 120 characters or fewer.`)
+  }
+  return names
+}
+
 const mapGeneratedQuestion = (question: NotesGeneratedQuestion, index: number): ReviewQuestion => ({
   ...question,
   localId: `${index}-${question.sourcePage}-${Date.now()}`,
@@ -41,13 +49,18 @@ const mapGeneratedQuestion = (question: NotesGeneratedQuestion, index: number): 
 
 export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: GeneratorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const syllabusInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
+  const [syllabusFile, setSyllabusFile] = useState<File | null>(null)
   const [subject, setSubject] = useState('')
+  const [chapters, setChapters] = useState('')
+  const [selectedTopics, setSelectedTopics] = useState('')
+  const [questionsPerBatch, setQuestionsPerBatch] = useState(5)
   const [countPreset, setCountPreset] = useState('10')
   const [customCount, setCustomCount] = useState(15)
   const [difficulty, setDifficulty] = useState<NotesGenerationConfig['difficulty']>('Mixed')
   const [mixedDifficulty, setMixedDifficulty] = useState<Record<typeof mixedLevels[number], number>>({
-    Medium: 20, Hard: 50, 'Very Hard': 30,
+    Easy: 30, Medium: 50, Hard: 20,
   })
   const [generateExplanations, setGenerateExplanations] = useState(true)
   const [includeNumericalQuestions, setIncludeNumericalQuestions] = useState(true)
@@ -60,6 +73,7 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
   const [progress, setProgress] = useState(0)
   const [stage, setStage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [canceling, setCanceling] = useState(false)
   const [saving, setSaving] = useState(false)
   const [validatingId, setValidatingId] = useState<string | null>(null)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
@@ -84,7 +98,7 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
     question.approved && question.selected && !savedQuestionLocalIds.includes(question.localId),
   )
 
-  const selectFile = (candidate?: File) => {
+  const selectFile = (candidate?: File, kind: 'notes' | 'syllabus' = 'notes') => {
     setError('')
     setWarning('')
     if (!candidate) return
@@ -96,11 +110,13 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
       setError('This file is larger than 25 MB. Split it into smaller notes files and try again.')
       return
     }
-    setFile(candidate)
+    if (kind === 'syllabus') setSyllabusFile(candidate)
+    else setFile(candidate)
   }
 
   const generate = async () => {
     if (!file) return setError('Upload a PDF or PPTX notes file first.')
+    if (!syllabusFile) return setError('Upload the official CET syllabus as a separate PDF or PPTX file.')
     if (!subject.trim()) return setError('Enter or select a subject for the new questions.')
     if (!Number.isInteger(selectedCount) || selectedCount < 1 || selectedCount > 100) return setError('Choose between 1 and 100 questions.')
     if (difficulty === 'Mixed' && (mixedLevels.some(level =>
@@ -111,6 +127,8 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
 
     try {
       const values = topicMode === 'custom' ? parseCustomDistribution(customTopics) : undefined
+      const selectedChapters = parseSelectedNames(chapters, 'Chapter selection')
+      const selectedTopicNames = parseSelectedNames(selectedTopics, 'Topic selection')
       setBusy(true)
       setProgress(0)
       setStage('Starting')
@@ -122,15 +140,19 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
       setDetectedSubjects([])
       setSavedIds([])
       setSavedQuestionLocalIds([])
-      const result = await questionsAPI.generateFromNotes(file, {
+      setJobId('')
+      const result = await questionsAPI.generateFromNotes(file, syllabusFile, {
         subject: subject.trim(),
         count: selectedCount,
+        chapters: selectedChapters,
+        topics: selectedTopicNames,
+        questionsPerBatch,
         difficulty,
         ...(difficulty === 'Mixed' ? { mixedDifficulty } : {}),
         generateExplanations,
         includeNumericalQuestions,
         topicDistribution: { mode: topicMode, ...(values ? { values } : {}) },
-      }, (percent, nextStage) => {
+      }, (startedJobId) => setJobId(startedJobId), (percent, nextStage) => {
         setProgress(percent)
         setStage(nextStage || 'Processing notes')
       })
@@ -143,6 +165,24 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
       setError(generationError instanceof Error ? generationError.message : 'Question generation failed. Try again.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const cancelGeneration = async () => {
+    if (!jobId || canceling) return
+    setCanceling(true)
+    setError('')
+    try {
+      const response = await questionsAPI.cancelNotesGenerationJob(jobId)
+      if (response.alreadyFinished) {
+        setError('Generation already finished; refresh the results before starting another job.')
+      } else {
+        setStage('Cancellation requested')
+      }
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'Could not cancel generation.')
+    } finally {
+      setCanceling(false)
     }
   }
 
@@ -249,6 +289,7 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
           isActive: true,
           sourcePdf: question.sourceDocument,
           sourcePage: question.sourcePage,
+          generationJobId: jobId,
         })
         ids.push(saved._id)
         savedLocalIds.push(question.localId)
@@ -321,9 +362,25 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
             <input ref={fileInputRef} type="file" accept=".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
               onChange={event => { selectFile(event.target.files?.[0]); event.target.value = '' }} hidden />
           </div>
+          <div className="qb-ai-drop" onClick={() => syllabusInputRef.current?.click()} onDragOver={event => event.preventDefault()}
+            onDrop={event => { event.preventDefault(); selectFile(event.dataTransfer.files[0], 'syllabus') }}>
+            <FileText size={30} />
+            <strong>{syllabusFile ? syllabusFile.name : 'Choose official CET syllabus'}</strong>
+            <span>{syllabusFile ? `${(syllabusFile.size / (1024 * 1024)).toFixed(1)} MB` : 'Required · PDF or PowerPoint · up to 25 MB'}</span>
+            <input ref={syllabusInputRef} type="file" accept=".pdf,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              onChange={event => { selectFile(event.target.files?.[0], 'syllabus'); event.target.value = '' }} hidden />
+          </div>
           <div className="qb-ai-fields">
             <label>Subject
               <input value={subject} onChange={event => setSubject(event.target.value)} placeholder="e.g. Biology" maxLength={80} />
+            </label>
+            <label>Chapters (optional)
+              <textarea value={chapters} onChange={event => setChapters(event.target.value)}
+                placeholder="Exact chapter names from the uploaded syllabus" rows={2} />
+            </label>
+            <label>Topics (optional)
+              <textarea value={selectedTopics} onChange={event => setSelectedTopics(event.target.value)}
+                placeholder="Exact topic names from the uploaded syllabus" rows={2} />
             </label>
             <label>Number of questions
               <select value={countPreset} onChange={event => setCountPreset(event.target.value)}>
@@ -336,10 +393,16 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
             </label>}
             <label>Difficulty
               <select value={difficulty} onChange={event => setDifficulty(event.target.value as NotesGenerationConfig['difficulty'])}>
-                {['Medium', 'Hard', 'Very Hard', 'Mixed'].map(value => <option key={value}>{value}</option>)}
+                {['Easy', 'Medium', 'Hard', 'Mixed'].map(value => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+            <label>Questions per batch
+              <select value={questionsPerBatch} onChange={event => setQuestionsPerBatch(Number(event.target.value))}>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(size => <option key={size} value={size}>{size}</option>)}
               </select>
             </label>
           </div>
+          <p className="qb-ai-note">Enter one exact syllabus chapter or topic name per line or separated by commas. Leave blank to include all confirmed matches.</p>
           {difficulty === 'Mixed' && <div className="qb-ai-mixed">
             <strong>Mixed difficulty percentages</strong>
             <div>{mixedLevels.map(level => <label key={level}>{level}
@@ -381,6 +444,10 @@ export default function AiNotesQuestionGenerator({ onClose, onCreateTest }: Gene
           {busy && <div className="qb-ai-progress">
             <div className="qb-ai-progress-label"><span>{stage}</span><span>{progress}%</span></div>
             <div className="qb-ai-progress-track"><div style={{ width: `${progress}%` }} /></div>
+            {jobId && <button type="button" className="qb-btn qb-btn-outline" onClick={() => void cancelGeneration()} disabled={canceling}>
+              {canceling ? <LoaderCircle className="qb-ai-spinner" size={15} /> : <X size={15} />}
+              {canceling ? 'Requesting cancellation…' : 'Cancel generation'}
+            </button>}
           </div>}
         </div>
       )}

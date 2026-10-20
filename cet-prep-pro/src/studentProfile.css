@@ -184,8 +184,9 @@
 
 .sp-password-value {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   min-height: 38px;
   padding: 8px 10px 8px 12px;
@@ -201,9 +202,9 @@
 
 .sp-password-value > span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1 1 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .sp-password-toggle {
@@ -222,6 +223,27 @@
 
 .sp-password-toggle:hover { background: #DBEAFE; }
 .sp-password-toggle .material-symbols-outlined { font-size: 18px; }
+
+.sp-password-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #BFDBFE;
+  border-radius: 7px;
+  background: #fff;
+  color: #1D4ED8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sp-password-reset-btn:hover:not(:disabled) { background: #EFF6FF; }
+.sp-password-reset-btn:disabled { cursor: not-allowed; opacity: 0.65; }
+.sp-password-reset-btn .material-symbols-outlined { font-size: 16px; }
 
 .sp-sidebar-actions {
   padding: 20px 24px;

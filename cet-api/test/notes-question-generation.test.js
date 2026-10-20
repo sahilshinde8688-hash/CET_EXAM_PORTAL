@@ -7,8 +7,10 @@ const {
   extractDocument,
   normalizeQuestion,
   planQuestions,
+  matchTopicsToSyllabus,
   validateEditedQuestion,
   validateConfig,
+  generateFromNotes,
 } = require('../services/notesQuestionGeneration')
 
 const slideXml = (paragraphs) => `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree>${paragraphs.map((text) => `<a:p><a:r><a:t>${text}</a:t></a:r></a:p>`).join('')}</p:spTree></p:cSld></p:sld>`
@@ -121,6 +123,9 @@ test('validates mixed difficulty and custom topic configuration', () => {
   const config = validateConfig({
     subject: 'Biology',
     count: 20,
+    chapters: ['Cell Biology'],
+    topics: ['Cell Division'],
+    questionsPerBatch: 3,
     difficulty: 'Mixed',
     mixedDifficulty: { Medium: 20, Hard: 50, 'Very Hard': 30 },
     topicDistribution: { mode: 'custom', values: { Genetics: 60, 'Cell Biology': 40 } },
@@ -128,13 +133,16 @@ test('validates mixed difficulty and custom topic configuration', () => {
     includeNumericalQuestions: true,
   })
   assert.equal(config.count, 20)
+  assert.deepEqual(config.chapters, ['Cell Biology'])
+  assert.deepEqual(config.topics, ['Cell Division'])
+  assert.equal(config.questionsPerBatch, 3)
   assert.equal(config.topicDistribution.mode, 'custom')
-  assert.deepEqual(config.mixedDifficulty, { Medium: 20, Hard: 50, 'Very Hard': 30 })
+  assert.deepEqual(config.mixedDifficulty, { Easy: 0, Medium: 20, Hard: 80 })
   assert.equal(config.generateExplanations, false)
   assert.equal(config.includeNumericalQuestions, true)
 
   const defaultMixedConfig = validateConfig({ subject: 'Physics', count: 10, difficulty: 'Mixed' })
-  assert.deepEqual(defaultMixedConfig.mixedDifficulty, { Medium: 20, Hard: 50, 'Very Hard': 30 })
+  assert.deepEqual(defaultMixedConfig.mixedDifficulty, { Easy: 30, Medium: 50, Hard: 20 })
 
   assert.throws(() => validateConfig({
     subject: 'Biology',
@@ -147,7 +155,7 @@ test('validates mixed difficulty and custom topic configuration', () => {
     count: 5,
     difficulty: 'Mixed',
     mixedDifficulty: { Easy: 20, Medium: 20, Hard: 50, 'Very Hard': 10 },
-  }), /Medium, Hard and Very Hard/)
+  }), /Easy, Medium and Hard/)
   assert.throws(() => validateConfig({
     subject: 'Biology',
     count: 101,
@@ -156,7 +164,7 @@ test('validates mixed difficulty and custom topic configuration', () => {
   assert.throws(() => validateConfig({
     subject: 'Biology',
     count: 5,
-    difficulty: 'Easy',
+    difficulty: 'Impossible',
   }), /supported difficulty/)
   assert.throws(() => validateConfig({
     subject: 'Biology',
@@ -173,12 +181,58 @@ test('allocates the default mixed difficulty proportions across the whole questi
     { name: 'Forces', subtopics: [], concepts: ['force'], keyFacts: ['Newton laws'], sourcePages: [2] },
   ]
   const questions = planQuestions(config, topics, 'page')
-  const counts = Object.fromEntries(['Medium', 'Hard', 'Very Hard'].map((difficulty) => [
+  const counts = Object.fromEntries(['Easy', 'Medium', 'Hard'].map((difficulty) => [
     difficulty,
     questions.filter((question) => question.difficulty === difficulty).length,
   ]))
-  assert.deepEqual(counts, { Medium: 2, Hard: 5, 'Very Hard': 3 })
+  assert.deepEqual(counts, { Easy: 3, Medium: 5, Hard: 2 })
   assert.equal(questions.length, config.count)
+})
+
+test('restricts question planning to the selected syllabus chapters and topics', () => {
+  const config = validateConfig({
+    subject: 'Physics',
+    count: 5,
+    difficulty: 'Easy',
+    chapters: ['Chapter 2'],
+    topics: ['Thermodynamics'],
+  })
+  const questions = planQuestions(config, [
+    { name: 'Oscillations', chapterName: 'Chapter 1', syllabusTopicName: 'Oscillations', syllabusStatus: 'confirmed', subtopics: [], concepts: [], keyFacts: [], sourcePages: [1] },
+    { name: 'Thermodynamics', chapterName: 'Chapter 2', syllabusTopicName: 'Thermodynamics', syllabusStatus: 'confirmed', subtopics: [], concepts: [], keyFacts: [], sourcePages: [2] },
+  ], 'page')
+  assert.equal(questions.length, 5)
+  assert.ok(questions.every(({ topic }) => topic.name === 'Thermodynamics'))
+})
+
+test('matches topics conservatively and preserves the syllabus chapter/topic order', () => {
+  const mapped = matchTopicsToSyllabus([
+    { name: 'Thermodynamics', subtopics: [], concepts: [], keyFacts: [], sourcePages: [2] },
+    { name: 'Unrelated notes topic', subtopics: [], concepts: [], keyFacts: [], sourcePages: [1] },
+    { name: 'Oscillations', subtopics: [], concepts: [], keyFacts: [], sourcePages: [3] },
+  ], [
+    { name: 'Chapter 1', topics: [{ name: 'Oscillations', subtopics: [] }] },
+    { name: 'Chapter 2', topics: [{ name: 'Thermodynamics', subtopics: [] }] },
+  ])
+
+  assert.deepEqual(mapped.map(({ syllabusTopicName, syllabusStatus }) => [syllabusTopicName, syllabusStatus]), [
+    ['Oscillations', 'confirmed'],
+    ['Thermodynamics', 'confirmed'],
+    ['', 'out_of_syllabus'],
+  ])
+  assert.deepEqual(mapped.map(({ name }) => name), ['Oscillations', 'Thermodynamics', 'Unrelated notes topic'])
+})
+
+test('requires a separately extracted syllabus before generating questions', async () => {
+  await assert.rejects(
+    generateFromNotes({
+      fileName: 'notes.pptx',
+      rawConfig: { subject: 'Physics', count: 5, difficulty: 'Easy' },
+      pages: [{ sourcePage: 1, text: 'A sufficiently long source page with useful educational notes covering concepts, examples, formulas, and explanations for students.' }],
+      sourceType: 'slide',
+    }),
+    /official CET syllabus as a separate/,
+  )
 })
 
 test('rejects malformed edited MCQs before accepting them for review', async () => {
