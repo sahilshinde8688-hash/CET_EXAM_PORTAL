@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import renderMathInElement from 'katex/contrib/auto-render'
 import { renderMathWithKaTeX } from '../lib/mathDisplay'
 import {
@@ -134,23 +134,18 @@ function renderLegacyMatrices(container: HTMLDivElement) {
 }
 
 export default function RichQuestionContent({ content, className = '' }: RichQuestionContentProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
   const displayHtml = useMemo(() => {
     if (!content) return ''
     const reconstructed = reconstructDisconnectedMatrices(content)
     const withDelimiters = ensureMathDelimiters(reconstructed)
     const sanitized = sanitizeQuestionContent(withDelimiters)
-    if (isRichQuestionContent(content) || /<\/?[a-z][\s\S]*>/i.test(sanitized)) {
-      return sanitized
-    }
-    return sanitized.split(/\r?\n/).join('<br>')
-  }, [content])
-
-  useEffect(() => {
-    if (!containerRef.current) return
-    renderLegacyMatrices(containerRef.current)
-    renderMathInElement(containerRef.current, {
+    const html = isRichQuestionContent(content) || /<\/?[a-z][\s\S]*>/i.test(sanitized)
+      ? sanitized
+      : sanitized.split(/\r?\n/).join('<br>')
+    const container = document.createElement('div')
+    container.innerHTML = html
+    renderLegacyMatrices(container)
+    renderMathInElement(container, {
       delimiters: [
         { left: '$$', right: '$$', display: true },
         { left: '\\[', right: '\\]', display: true },
@@ -162,13 +157,13 @@ export default function RichQuestionContent({ content, className = '' }: RichQue
       trust: false,
       ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
     })
-  }, [displayHtml])
+    return container.innerHTML
+  }, [content])
 
   if (!content) return null
 
   return (
     <div
-      ref={containerRef}
       className={`rich-question-content ${className}`.trim()}
       dangerouslySetInnerHTML={{ __html: displayHtml }}
     />
