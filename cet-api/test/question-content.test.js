@@ -146,6 +146,16 @@ test('preserves fractions, square roots, and superscripts alongside matrices', (
   assert.match(clean, /\\begin\{pmatrix\}3 &amp; -2 \\\\ 1 &amp; -1\\end\{pmatrix\}/)
 })
 
+test('preserves editable CET equation LaTeX through save and reopen sanitization', () => {
+  const raw = '<p>If y = \\[ y=\\left[\\sin^{-1}\\left(\\frac{2x}{1+x^2}\\right)\\right]^2 \\], find \\(\\frac{dy}{dx}\\).</p>'
+  const saved = sanitizeQuestionContent(raw)
+  const reopened = sanitizeQuestionContent(saved)
+
+  assert.ok(reopened.includes('\\left[\\sin^{-1}\\left(\\frac{2x}{1+x^2}\\right)\\right]^2'))
+  assert.ok(reopened.includes('\\frac{dy}{dx}'))
+  assert.doesNotMatch(reopened, /<script|onerror/)
+})
+
 test('sanitizes malicious scripts and event handlers while preserving safe math', () => {
   const malicious = '<p>If A = \\(\\begin{pmatrix}3 &amp; -2 \\\\ 1 &amp; -1\\end{pmatrix}\\)<script>alert("hack")</script><img src="x" onerror="alert(1)"></p>'
   const clean = sanitizeQuestionContent(malicious)

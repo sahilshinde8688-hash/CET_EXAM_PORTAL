@@ -1908,6 +1908,7 @@ export const mockTestAssignmentsAPI = {
 export interface Question {
   _id: string
   questionCode?: string | null
+  classLevel?: '11' | '12' | ''
   subject: string
   chapter?: string
   subTopic?: string

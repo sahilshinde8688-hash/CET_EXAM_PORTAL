@@ -20,6 +20,49 @@ import '../question-bank.css'
 
 type Tab = 'dashboard' | 'list' | 'add' | 'bulk'
 
+const MATHEMATICS_CHAPTERS_BY_CLASS: Record<'11' | '12', string[]> = {
+  '11': [
+    'Basic Math',
+    'Trigonometry',
+    'Trigonometric Equations',
+    'Properties of Triangles',
+    'Heights & Distances',
+    'Math Induction',
+    'Complex Numbers',
+    'Quadratic Equations',
+    'P&C',
+    'Binomial Theorem',
+    'Sequences & Series',
+    'Straight Lines',
+    'Pair of Lines',
+    'Circle',
+    'Parabola',
+    'Ellipse',
+    'Hyperbola',
+    'Limits',
+    'Mathematical Reasoning',
+    'Statistics',
+  ],
+  '12': [
+    'Functions',
+    'Sets & Relations',
+    'ITF',
+    'Matrices',
+    'Determinants',
+    'C&D',
+    'Differentiation',
+    'AOD',
+    'Indefinite Integration',
+    'Definite Integration',
+    'Area Under Curves',
+    'Differential Eqns',
+    'Vector Algebra',
+    '3D Geometry',
+    'Linear Programming',
+    'Probability',
+  ],
+}
+
 export default function QuestionBank({ onCreateTest }: { onCreateTest: (questionIds: string[]) => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [questions, setQuestions] = useState<Question[]>([])
@@ -202,7 +245,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
 
   // Edit / Add State
   const initialForm = {
-    subject: '', chapter: '', topic: '', subTopic: '', language: 'English',
+    classLevel: '' as '' | '11' | '12', subject: '', chapter: '', topic: '', subTopic: '', language: 'English',
     difficulty: 'Medium' as 'Easy'|'Medium'|'Hard', qType: 'Single Correct',
     text: '', imageUrl: '', options: ['', '', '', ''], correctIndex: 0,
     marks: 4, negativeMarks: 1, estimatedTime: 2, expectedAccuracy: 65, tags: '',
@@ -246,9 +289,13 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const selectedSubjectChapters = chapterCatalog.find(
     subject => subject.name.toLowerCase() === subjectFilter.toLowerCase(),
   )?.chapters.map(chapter => chapter.name) || []
-  const formSubjectChapters = chapterCatalog.find(
-    subject => subject.name.toLowerCase() === form.subject.toLowerCase(),
-  )?.chapters || []
+  const isMathematicsSubject = form.subject.trim().toLowerCase() === 'mathematics'
+  const formSubjectChapters = isMathematicsSubject && form.classLevel
+    ? MATHEMATICS_CHAPTERS_BY_CLASS[form.classLevel]
+    : isMathematicsSubject
+      ? []
+      : chapterCatalog.find(subject => subject.name.toLowerCase() === form.subject.toLowerCase())
+        ?.chapters.map(chapter => chapter.name) || []
   const questionChapters = questions
     .filter(q => !subjectFilter || q.subject?.toLowerCase() === subjectFilter.toLowerCase())
     .map(q => q.chapter)
@@ -277,6 +324,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     }
     
     const payload = {
+      classLevel: form.classLevel,
       subject,
       chapter: form.chapter,
       topic: form.topic || form.chapter,
@@ -312,6 +360,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     setEditingId(q._id)
     setForm({
       ...form,
+      classLevel: q.classLevel || '',
       subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: sanitizeQuestionContent(q.text || ''), imageUrl: q.imageUrl || '', options: (q.options || ['', '', '', '']).map(sanitizeQuestionContent),
       solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
@@ -324,6 +373,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     setEditingId(null)
     setForm({
       ...form,
+      classLevel: q.classLevel || '',
       subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text ? `${sanitizeQuestionContent(q.text)} (Copy)` : '', imageUrl: q.imageUrl || '', options: q.options ? q.options.map(sanitizeQuestionContent) : ['', '', '', ''],
       solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
@@ -596,6 +646,27 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   <h3 className="qb-card-title"><BookOpen size={20}/> Basic Information</h3>
                   <div className="qb-form-row" style={{marginBottom: 16}}>
                     <div>
+                      <label className="qb-label" htmlFor="question-class">Class</label>
+                      <select
+                        id="question-class"
+                        className="qb-input"
+                        value={form.classLevel}
+                        onChange={e => setForm({
+                          ...form,
+                          classLevel: e.target.value as '' | '11' | '12',
+                          chapter: '',
+                          topic: '',
+                          subTopic: '',
+                        })}
+                      >
+                        <option value="">Select a class</option>
+                        <option value="11">11</option>
+                        <option value="12">12</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="qb-form-row" style={{marginBottom: 16}}>
+                    <div>
                       <label className="qb-label" htmlFor="question-subject">Subject</label>
                       <select
                         id="question-subject"
@@ -616,14 +687,14 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                         id="question-chapter"
                         className="qb-input"
                         value={form.chapter}
-                        disabled={!form.subject}
+                        disabled={!form.subject || (isMathematicsSubject && !form.classLevel)}
                         onChange={e => setForm({ ...form, chapter: e.target.value, topic: '', subTopic: '' })}
                       >
-                        <option value="">{form.subject ? 'Select a chapter' : 'Select a subject first'}</option>
-                        {form.chapter && !formSubjectChapters.some(chapter => chapter.name === form.chapter) && (
+                        <option value="">{!form.subject ? 'Select a subject first' : isMathematicsSubject && !form.classLevel ? 'Select a class first' : 'Select a chapter'}</option>
+                        {form.chapter && !formSubjectChapters.includes(form.chapter) && (
                           <option value={form.chapter}>{form.chapter}</option>
                         )}
-                        {formSubjectChapters.map(chapter => <option key={chapter.name} value={chapter.name}>{chapter.name}</option>)}
+                        {formSubjectChapters.map(chapter => <option key={chapter} value={chapter}>{chapter}</option>)}
                       </select>
                     </div>
                   </div>

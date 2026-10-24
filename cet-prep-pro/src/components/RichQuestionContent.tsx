@@ -3,9 +3,9 @@ import renderMathInElement from 'katex/contrib/auto-render'
 import { renderMathWithKaTeX } from '../lib/mathDisplay'
 import {
   ensureMathDelimiters,
-  isRichQuestionContent,
   reconstructDisconnectedMatrices,
   sanitizeQuestionContent,
+  wrapBareLatexMath,
 } from '../lib/questionContent'
 import './rich-question-editor.css'
 
@@ -139,11 +139,12 @@ export default function RichQuestionContent({ content, className = '' }: RichQue
     const reconstructed = reconstructDisconnectedMatrices(content)
     const withDelimiters = ensureMathDelimiters(reconstructed)
     const sanitized = sanitizeQuestionContent(withDelimiters)
-    const html = isRichQuestionContent(content) || /<\/?[a-z][\s\S]*>/i.test(sanitized)
+    const html = /<\/?[a-z][\s\S]*>/i.test(sanitized)
       ? sanitized
       : sanitized.split(/\r?\n/).join('<br>')
     const container = document.createElement('div')
     container.innerHTML = html
+    wrapBareLatexMath(container)
     renderLegacyMatrices(container)
     renderMathInElement(container, {
       delimiters: [

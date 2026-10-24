@@ -86,6 +86,7 @@ const questionToCamel = (row) => {
     _id: row.id,
     id: row.id,
     questionCode: row.question_code || null,
+    classLevel: row.class_level || '',
     subject: row.subject,
     chapter: row.chapter,
     topic: row.topic,
@@ -658,6 +659,7 @@ const getQuestionById = async (id, { isAdmin = false } = {}) => {
 
 const createQuestion = async (qData, { includeClassificationMetadata = true } = {}) => {
   const payload = {
+    class_level: qData.classLevel || '',
     subject: qData.subject,
     chapter: qData.chapter || '',
     topic: qData.topic || qData.chapter || 'General',
@@ -722,6 +724,7 @@ const updateQuestion = async (id, updates) => {
     currentQuestion.solution = sanitizeQuestionContent(currentQuestion.solution)
     payload.normalized_question_hash = createQuestionHash(currentQuestion)
   }
+  if (updates.classLevel !== undefined) payload.class_level = updates.classLevel
   if (updates.subject !== undefined) payload.subject = updates.subject
   if (updates.chapter !== undefined) payload.chapter = updates.chapter
   if (updates.topic !== undefined) payload.topic = updates.topic

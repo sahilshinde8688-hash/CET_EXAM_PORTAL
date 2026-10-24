@@ -460,8 +460,74 @@ function extractMjxCellText(cell: Element): string {
   return (cell.textContent || '').trim().replace(/[−–—]/g, '-')
 }
 
+function ommlName(element: Element): string {
+  return element.localName.split(':').at(-1)?.toLowerCase() || ''
+}
+
+function ommlChild(element: Element, name: string): Element | null {
+  return Array.from(element.children).find(child => ommlName(child) === name.toLowerCase()) || null
+}
+
+function ommlAttribute(element: Element | null, name: string): string {
+  if (!element) return ''
+  return Array.from(element.attributes).find(attribute => attribute.localName.toLowerCase() === name.toLowerCase())?.value || ''
+}
+
+function ommlToLatex(element: Element): string {
+  const name = ommlName(element)
+  const children = Array.from(element.children)
+  const child = (childName: string) => {
+    const found = ommlChild(element, childName)
+    return found ? ommlToLatex(found) : ''
+  }
+
+  if (name === 't' || name === 'r') {
+    return children.map(ommlToLatex).join('') || element.textContent || ''
+  }
+  if (name === 'f') return `\\frac{${child('num')}}{${child('den')}}`
+  if (name === 'ssup') return `${child('e')}^{${child('sup')}}`
+  if (name === 'ssub') return `${child('e')}_{${child('sub')}}`
+  if (name === 'ssubsup') return `${child('e')}_{${child('sub')}}^{${child('sup')}}`
+  if (name === 'rad') {
+    const degree = child('deg')
+    const radicand = child('e')
+    return degree ? `\\sqrt[${degree}]{${radicand}}` : `\\sqrt{${radicand}}`
+  }
+  if (name === 'd') {
+    const properties = ommlChild(element, 'dpr')
+    const open = ommlAttribute(properties ? ommlChild(properties, 'begchr') : null, 'val') || '('
+    const close = ommlAttribute(properties ? ommlChild(properties, 'endchr') : null, 'val') || ')'
+    return `\\left${open}${child('e')}\\right${close}`
+  }
+  if (name === 'func') return `${child('fname')}${child('e')}`
+  if (name === 'nary') {
+    const properties = ommlChild(element, 'narypr')
+    const operator = ommlAttribute(properties ? ommlChild(properties, 'chr') : null, 'val')
+    const base = operator === '∫' ? '\\int' : operator === '∏' ? '\\prod' : '\\sum'
+    const lower = child('sub')
+    const upper = child('sup')
+    return `${base}${lower ? `_{${lower}}` : ''}${upper ? `^{${upper}}` : ''}${child('e')}`
+  }
+  if (name === 'limlow') return `${child('e')}_{${child('lim')}}`
+  if (name === 'limupp') return `${child('e')}^{${child('lim')}}`
+
+  return children.map(ommlToLatex).join('') || (children.length ? '' : element.textContent || '')
+}
+
+function extractOfficeMath(document: Document): boolean {
+  const expressions = Array.from(document.querySelectorAll('*'))
+    .filter(element => ommlName(element) === 'omath')
+  if (!expressions.length) return false
+
+  expressions.forEach(expression => {
+    const latex = ommlToLatex(expression).trim()
+    expression.replaceWith(document.createTextNode(latex ? `\\(${latex}\\)` : ''))
+  })
+  return true
+}
+
 function extractSupportedMath(document: Document): { found: boolean; svgWithoutText: boolean } {
-  let found = false
+  let found = extractOfficeMath(document)
   let svgWithoutText = false
 
   // 1. Script math tags
@@ -661,6 +727,72 @@ export function ensureMathDelimiters(content: string): string {
   )
 }
 
+const bareLatexPatterns = [
+  /\\(?:d?frac|tfrac)\s*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\s*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g,
+  /\\sqrt(?:\[[^\]]+\])?\s*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}/g,
+  /\\(?:sin|cos|tan|cot|sec|csc|log|ln)\s*(?:\^\s*(?:\{[^{}]*\}|[A-Za-z0-9]))?\s*(?:\\left\s*[(\[][\s\S]*?\\right\s*[)\]]|\([^()\n]*\)|\{[^{}]*\}|[A-Za-z0-9])/g,
+  /\\left\s*[(\[{|.][\s\S]*?\\right\s*[)\]}|.]/g,
+  /\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix|cases|aligned)\}[\s\S]*?\\end\{(?:pmatrix|bmatrix|vmatrix|matrix|Bmatrix|cases|aligned)\}/g,
+  /[A-Za-z0-9]\s*[\^_]\s*(?:\{(?:[^{}]|\{[^{}]*\})*\}|[A-Za-z0-9]+)/g,
+]
+
+function isInsideMathDelimiters(value: string, offset: number): boolean {
+  const prefix = value.slice(0, offset)
+  const inlineOpen = prefix.lastIndexOf('\\(')
+  const inlineClose = prefix.lastIndexOf('\\)')
+  const displayOpen = prefix.lastIndexOf('\\[')
+  const displayClose = prefix.lastIndexOf('\\]')
+  const dollarCount = (prefix.match(/\$\$/g) || []).length
+  const singleDollarCount = (prefix.match(/(?<!\$)\$(?!\$)/g) || []).length
+  return inlineOpen > inlineClose
+    || displayOpen > displayClose
+    || dollarCount % 2 === 1
+    || singleDollarCount % 2 === 1
+}
+
+function wrapBareLatexInText(value: string): string {
+  const ranges: Array<{ start: number; end: number }> = []
+  for (const pattern of bareLatexPatterns) {
+    pattern.lastIndex = 0
+    for (const match of value.matchAll(pattern)) {
+      const start = match.index ?? 0
+      if (isInsideMathDelimiters(value, start)) continue
+      ranges.push({ start, end: start + match[0].length })
+    }
+  }
+
+  ranges.sort((left, right) => left.start - right.start || right.end - left.end)
+  const selected: Array<{ start: number; end: number }> = []
+  for (const range of ranges) {
+    const previous = selected[selected.length - 1]
+    if (previous && range.start < previous.end) continue
+    selected.push(range)
+  }
+
+  return selected.reverse().reduce(
+    (result, range) => `${result.slice(0, range.start)}\\(${result.slice(range.start, range.end)}\\)${result.slice(range.end)}`,
+    value,
+  )
+}
+
+export function wrapBareLatexMath(root: ParentNode): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return node.parentElement?.closest('code, pre, .katex, .rich-question-equation')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT
+    },
+  })
+  const nodes: Text[] = []
+  let current: Node | null
+  while ((current = walker.nextNode())) {
+    if (current.nodeValue) nodes.push(current as Text)
+  }
+  nodes.forEach(node => {
+    node.data = wrapBareLatexInText(node.data)
+  })
+}
+
 export function sanitizeQuestionContent(content: string): string {
   let normalized = normalizeEscapedQuestionContent(content)
   normalized = reconstructDisconnectedMatrices(normalized)
@@ -698,25 +830,150 @@ export function preparePastedQuestionContent(html: string, text: string): string
   return preparePastedQuestion(html, text).content
 }
 
+function extractClipboardTextFromHtml(document: Document): string {
+  const blockTags = new Set(['address', 'article', 'blockquote', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'p', 'pre', 'tr'])
+  const visit = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+    const content = Array.from(node.childNodes).map(visit).join('')
+    if (node.nodeType === Node.ELEMENT_NODE && blockTags.has((node as Element).localName.toLowerCase())) {
+      return `${content}\n`
+    }
+    if (node.nodeType === Node.ELEMENT_NODE && (node as Element).localName.toLowerCase() === 'br') {
+      return '\n'
+    }
+    return content
+  }
+
+  return visit(document.body).replace(/\n{3,}/g, '\n\n').trim()
+}
+
+function normalizeFragmentedPasteText(text: string): { text: string; recovered: boolean } {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n')
+  const normalized: string[] = []
+  let recovered = false
+
+  for (let index = 0; index < lines.length;) {
+    if (!lines[index].trim() || lines[index].trim().length > 16) {
+      normalized.push(lines[index].trim())
+      index += 1
+      continue
+    }
+
+    const fragments: string[] = []
+    let cursor = index
+    let blankCount = 0
+    while (cursor < lines.length) {
+      const line = lines[cursor].trim()
+      if (!line) {
+        if (fragments.length && blankCount === 0 && cursor + 1 < lines.length && lines[cursor + 1].trim().length <= 16) {
+          blankCount += 1
+          cursor += 1
+          continue
+        }
+        break
+      }
+      if (line.length > 16) break
+      fragments.push(line)
+      blankCount = 0
+      cursor += 1
+    }
+
+    const hasStandaloneOperator = fragments.some(fragment => /^[=+\-*/^_<>≤≥×÷]$/.test(fragment))
+    if (fragments.length >= 4 && hasStandaloneOperator) {
+      normalized.push(fragments.join(' '))
+      recovered = true
+      index = cursor
+      while (index < lines.length && !lines[index].trim()) index += 1
+      continue
+    }
+
+    normalized.push(lines[index].trim())
+    index += 1
+  }
+
+  return { text: normalized.join('\n').replace(/[ \t]+\n/g, '\n').trim(), recovered }
+}
+
+function normalizePlainTextMath(text: string): string {
+  const superscripts: Record<string, string> = {
+    '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+    '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+    '⁺': '+', '⁻': '-', '⁽': '(', '⁾': ')',
+  }
+  const subscripts: Record<string, string> = {
+    '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4',
+    '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9',
+    '₊': '+', '₋': '-', '₍': '(', '₎': ')',
+  }
+  let normalized = text
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+/g, value => `^{${Array.from(value, character => superscripts[character]).join('')}}`)
+    .replace(/[₀₁₂₃₄₅₆₇₈₉₊₋₍₎]+/g, value => `_{${Array.from(value, character => subscripts[character]).join('')}}`)
+
+  const equation = /([A-Za-z][A-Za-z0-9'′]*(?:\s*\([^()\n]*\))?)\s*(=|≤|≥|≠|≈)\s*([^\n,;.!?]+?)(?=\s+\b(?:and|then)\b|[,;.!?]|$)/gi
+  normalized = normalized.replace(equation, (match, _left: string, _operator: string, right: string) => {
+    const hasMathExpression = /[()+\-*/^_{}×÷]/.test(right)
+      || /\b(?:sin|cos|tan|cot|sec|csc|log|ln|sqrt)\b/i.test(right)
+    if (match.includes('\\(') || match.includes('$$') || !hasMathExpression) return match
+    const latex = match
+      .replace(/([A-Za-z][A-Za-z0-9'′]*)\s+\(/g, '$1(')
+      .replace(/([A-Za-z])(\d+)(?=$|[\s+\-*/),])/g, '$1^{$2}')
+      .replace(/\b(sin|cos|tan|cot|sec|csc|log|ln|sqrt)\b/gi, (_fn, name: string) => `\\${name}`)
+      .replace(/[×]/g, '\\times ')
+      .replace(/[÷]/g, '\\div ')
+    return `\\(${latex.trim()}\\)`
+  })
+  normalized = normalized.replace(
+    /(\([^()\n]+\)|[A-Za-z0-9]+)\s*\/\s*(\([^()\n]+\)|[A-Za-z0-9]+)/g,
+    (match, numerator: string, denominator: string, offset: number, source: string) => {
+      const before = source.slice(0, offset)
+      const inMath = before.lastIndexOf('\\(') > before.lastIndexOf('\\)')
+        || before.lastIndexOf('\\[') > before.lastIndexOf('\\]')
+        || (before.match(/\$\$/g)?.length ?? 0) % 2 === 1
+      const fraction = `\\frac{${numerator}}{${denominator}}`
+      return inMath ? fraction : `\\(${fraction}\\)`
+    },
+  )
+  return normalized
+}
+
 export function preparePastedQuestion(html: string, text: string, imageAvailable = false): PreparedPaste {
-  const reconstructedText = reconstructDisconnectedMatrices(text)
+  const parsed = html.trim()
+    ? new DOMParser().parseFromString(normalizeEscapedQuestionContent(html), 'text/html')
+    : null
+  const clipboardText = text.trim() || (parsed ? extractClipboardTextFromHtml(parsed) : '')
+  const normalizedText = normalizeFragmentedPasteText(clipboardText)
+  const reconstructedText = normalizePlainTextMath(reconstructDisconnectedMatrices(normalizedText.text))
   const plainContent = sanitizeQuestionContent(reconstructedText)
 
-  if (!html.trim()) {
+  if (!parsed) {
     return {
       content: plainContent,
-      warning: hasQuestionContent(plainContent) ? '' : 'Could not find readable question content in the clipboard.',
+      warning: hasQuestionContent(plainContent)
+        ? ''
+        : 'Could not find readable question content in the clipboard.',
     }
   }
 
-  const parsed = new DOMParser().parseFromString(normalizeEscapedQuestionContent(html), 'text/html')
   const math = extractSupportedMath(parsed)
+  const hasUnparsedVisualMath = math.svgWithoutText
+    || (!math.found && /<(?:svg|canvas)\b|class\s*=\s*["'][^"']*(?:fraction|numerator|denominator|mathjax|katex)/i.test(html))
+  const visualMathWarning = imageAvailable
+    ? 'The copied equation has no editable math markup. Its source image is being attached to preserve the exact layout.'
+    : 'The copied equation has no editable math markup. Copy it as MathML/LaTeX or attach its source image to preserve the exact layout.'
   parsed.querySelectorAll(
     'style, script, noscript, iframe, object, embed, nav, header, footer, aside, button, form, input, select, textarea, [role="navigation"], .advertisement, .ad-container',
   ).forEach(element => element.remove())
 
   const sanitizedHtml = sanitizeQuestionContent(parsed.body.innerHTML)
   const htmlContent = hasQuestionContent(sanitizedHtml)
+  const plainTextHasMath = /\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(plainContent)
+  const htmlHasMathStructure = /<(?:math|mfrac|msqrt|mroot|msup|msub|msubsup|mfenced|mtable|mtr|mtd|sup|sub)\b|(?:data-latex|data-tex)\s*=|vertical-align\s*:\s*(?:super|sub)/i.test(sanitizedHtml)
+  if (normalizedText.recovered && !math.found) {
+    return {
+      content: plainContent,
+      warning: '',
+    }
+  }
   const htmlHasMatrix = /\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix)\}/.test(sanitizedHtml)
   const textHasMatrix = /\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix)\}/.test(plainContent)
 
@@ -728,10 +985,25 @@ export function preparePastedQuestion(html: string, text: string, imageAvailable
     }
   }
 
+  if (hasUnparsedVisualMath && hasQuestionContent(plainContent) && containsMathSignal(plainContent)) {
+    return {
+      content: plainContent,
+      warning: imageAvailable
+        ? 'The copied equation has no editable math markup. Plain text is being used for editing, and its source image is being attached as a visual reference.'
+        : 'The copied equation has no editable math markup. The plain-text version was used; copy it as MathML/LaTeX or attach its source image to preserve the exact layout.',
+    }
+  }
+
+  if (!math.found && plainTextHasMath && !htmlHasMathStructure) {
+    return { content: plainContent, warning: '' }
+  }
+
   if (htmlContent) {
     return {
       content: sanitizedHtml,
-      warning: math.svgWithoutText
+      warning: hasUnparsedVisualMath
+        ? visualMathWarning
+        : math.svgWithoutText
         ? (imageAvailable
             ? 'The equation was SVG-only; the clipboard image is being attached. Verify the image in the preview.'
             : 'A pasted equation was SVG-only and had no accessible math text. Copy the equation as text/MathML or paste it as an image.')
@@ -745,7 +1017,9 @@ export function preparePastedQuestion(html: string, text: string, imageAvailable
 
   return {
     content: sanitizedHtml,
-    warning: 'Could not extract valid question content from the clipboard. Verify the question before saving.',
+    warning: hasUnparsedVisualMath
+      ? visualMathWarning
+      : 'Could not extract valid question content from the clipboard. Verify the question before saving.',
   }
 }
 
@@ -779,4 +1053,6 @@ export function isRichQuestionContent(content: string): boolean {
   return /<\/?[a-z][\s\S]*?>/i.test(normalized)
     || /\$\$[\s\S]+?\$\$|\$[^$\n]+\$|\\\([\s\S]+?\\\)|\\\[[\s\S]+?\\\]/.test(normalized)
     || /\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix|aligned|align|gather)\}/.test(normalized)
+    || /\\(?:d?frac|tfrac|sqrt|sin|cos|tan|cot|sec|csc|log|ln|left|right|begin)\b/.test(normalized)
+    || /[A-Za-z0-9]\s*[\^_]\s*\{/.test(normalized)
 }
