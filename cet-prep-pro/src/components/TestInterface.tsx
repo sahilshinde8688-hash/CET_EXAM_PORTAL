@@ -8,6 +8,8 @@ import { generateQuestionExplanation } from '../lib/openrouter'
 import FullscreenWarningModal from './FullscreenWarningModal'
 import SubmissionAnimation from './SubmissionAnimation'
 import { useFullscreenGuard } from '../lib/useFullscreenGuard'
+import '../mocktests.css'
+import '../results.css'
 import '../testInterface.css'
 
 const QUESTION_ORDER_KEY = 'cet_exam_question_order_v2'
@@ -51,6 +53,7 @@ const normalizeQuestion = (question: Partial<Question> & { [key: string]: any })
   topic: question.topic || 'General',
   text: question.text || '',
   imageUrl: question.imageUrl,
+  imageAltText: question.imageAltText,
   options: Array.isArray(question.options) ? question.options : [],
   solution: question.solution,
   correctIndex: Number(question.correctIndex ?? 0),
@@ -1370,7 +1373,7 @@ export default function TestInterface({
                     <img
                       className="test-question-image"
                       src={currentQuestion.imageUrl}
-                      alt="Question prompt"
+                      alt={currentQuestion.imageAltText || 'Question prompt'}
                       onClick={() => openLightbox(currentQuestion.imageUrl!)}
                       style={{ cursor: 'pointer' }}
                     />

@@ -8,7 +8,7 @@ import {
   Copy, FileText, FileSpreadsheet
 } from 'lucide-react'
 import { exportQuestionBankHTML } from '../lib/exportUtils'
-import { questionsAPI, Question, PdfExtractResponse, PdfImportQuestion, CetTaxonomySubject } from '../lib/api'
+import { questionsAPI, questionAIToolsAPI, Question, PdfExtractResponse, PdfImportQuestion, SpreadsheetImportPreview, CetTaxonomySubject } from '../lib/api'
 import { sanitizeQuestionContent } from '../lib/questionContent'
 import RichQuestionContent from './RichQuestionContent'
 import RichQuestionEditor from './RichQuestionEditor'
@@ -77,6 +77,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const [uploading, setUploading] = useState(false)
   const [uploadResult, setUploadResult] = useState<{ imported: number; total: number; errors: Array<{ row?: number; message: string }> } | null>(null)
   const [uploadError, setUploadError] = useState<{ message: string; details?: any } | null>(null)
+  const [spreadsheetReview, setSpreadsheetReview] = useState<SpreadsheetImportPreview | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -110,16 +111,51 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const importSpreadsheet = async (file: File) => {
     setUploadResult(null)
     setUploadError(null)
+    setSpreadsheetReview(null)
     setUploading(true)
     try {
       const result = await questionsAPI.upload(file)
-      setUploadResult(result)
-      showToast(`Imported ${result.imported} of ${result.total} questions`, 'success')
-      load()
+      setSpreadsheetReview(result)
+      showToast(`Prepared ${result.questions.length} questions for review`, 'success')
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Upload failed'
       const details = error instanceof Error ? (error as any).details : undefined
       setUploadError({ message, details })
+      showToast(message, 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+  const confirmSpreadsheetImport = async () => {
+    if (!spreadsheetReview) return
+    const selected = spreadsheetReview.questions.filter(question => question.selected)
+    if (!selected.length) {
+      showToast('Select at least one valid question to import.', 'error')
+      return
+    }
+
+    setUploading(true)
+    const summary = { imported: 0, replaced: 0, skipped: 0, failed: 0, errors: [] as Array<{ row?: number; message: string }> }
+    try {
+      for (let offset = 0; offset < selected.length; offset += 300) {
+        const batch = await questionsAPI.importBatch(selected.slice(offset, offset + 300))
+        summary.imported += batch.imported
+        summary.replaced += batch.replaced
+        summary.skipped += batch.skipped
+        summary.failed += batch.failed
+        summary.errors.push(...batch.errors.map(error => ({ row: error.questionNumber, message: error.message })))
+      }
+      const imported = summary.imported + summary.replaced
+      setUploadResult({ imported, total: selected.length, errors: summary.errors })
+      setSpreadsheetReview(null)
+      const parts = [`imported ${imported}`]
+      if (summary.skipped) parts.push(`skipped ${summary.skipped} duplicates`)
+      if (summary.failed) parts.push(`${summary.failed} failed`)
+      showToast(`Spreadsheet import finished: ${parts.join(', ')}`, summary.failed ? 'error' : 'success')
+      await load()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Import confirmation failed'
+      setUploadError({ message })
       showToast(message, 'error')
     } finally {
       setUploading(false)
@@ -228,6 +264,26 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     showToast('CSV export started', 'success')
   }
 
+  const downloadCSVTemplate = () => {
+    const headers = [
+      'Subject', 'Chapter', 'Topic', 'Sub Topic', 'Question', 'Question LaTeX',
+      'Option A', 'Option A LaTeX', 'Option B', 'Option B LaTeX',
+      'Option C', 'Option C LaTeX', 'Option D', 'Option D LaTeX',
+      'Correct Answer', 'Explanation', 'Explanation LaTeX', 'Marks',
+      'Negative Marks', 'Difficulty', 'Status', 'Image URL', 'Image Alt Text',
+    ]
+    const csv = headers.map(cell => `"${cell}"`).join(',')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'cet-question-import-template.csv'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
   const handleDownloadPDF = () => exportQuestionBankHTML(filteredQuestions, 'CET Question Bank')
 
   // Dashboard Stats (Calculated)
@@ -247,13 +303,15 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const initialForm = {
     classLevel: '' as '' | '11' | '12', subject: '', chapter: '', topic: '', subTopic: '', language: 'English',
     difficulty: 'Medium' as 'Easy'|'Medium'|'Hard', qType: 'Single Correct',
-    text: '', imageUrl: '', options: ['', '', '', ''], correctIndex: 0,
+    text: '', imageUrl: '', imageAltText: '', options: ['', '', '', ''], correctIndex: 0,
     marks: 4, negativeMarks: 1, estimatedTime: 2, expectedAccuracy: 65, tags: '',
     solution: '', hints: '', videoUrl: '',
     status: 'Draft', visibility: 'Public'
   }
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(initialForm)
+  const [aiBusy, setAiBusy] = useState<string | null>(null)
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [uploadingSolutionImage, setUploadingSolutionImage] = useState(false)
   const [imageInputRef, setImageInputRef] = useState<HTMLInputElement | null>(null)
@@ -331,13 +389,14 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
       subTopic: form.subTopic,
       text,
       imageUrl: form.imageUrl,
+      imageAltText: form.imageAltText,
       options: form.options,
       solution: form.solution,
       correctIndex: form.correctIndex,
       marks: form.marks,
       negativeMarks: form.negativeMarks,
       difficulty: form.difficulty,
-      isActive: form.status !== 'Archived'
+      isActive: form.status === 'Published'
     }
 
     try {
@@ -361,7 +420,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     setForm({
       ...form,
       classLevel: q.classLevel || '',
-      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: sanitizeQuestionContent(q.text || ''), imageUrl: q.imageUrl || '', options: (q.options || ['', '', '', '']).map(sanitizeQuestionContent),
+      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: sanitizeQuestionContent(q.text || ''), imageUrl: q.imageUrl || '', imageAltText: q.imageAltText || '', options: (q.options || ['', '', '', '']).map(sanitizeQuestionContent),
       solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
       difficulty: q.difficulty || 'Medium', status: q.isActive ? 'Published' : 'Draft'
@@ -374,7 +433,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     setForm({
       ...form,
       classLevel: q.classLevel || '',
-      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text ? `${sanitizeQuestionContent(q.text)} (Copy)` : '', imageUrl: q.imageUrl || '', options: q.options ? q.options.map(sanitizeQuestionContent) : ['', '', '', ''],
+      subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: q.text ? `${sanitizeQuestionContent(q.text)} (Copy)` : '', imageUrl: q.imageUrl || '', imageAltText: q.imageAltText || '', options: q.options ? q.options.map(sanitizeQuestionContent) : ['', '', '', ''],
       solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
       difficulty: q.difficulty || 'Medium', status: 'Draft'
@@ -429,9 +488,90 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     }
   }
 
-  // Fake AI click
-  const triggerAI = (task: string) => {
-    showToast(`AI ${task} initiated (Coming soon...)`, 'success')
+  const triggerAI = async (operation: 'generate' | 'improve-grammar' | 'distractors' | 'duplicates') => {
+    if (aiBusy) return
+    if (operation !== 'generate' && !form.text.trim()) {
+      showToast('Enter a question before using this tool', 'error')
+      return
+    }
+
+    const labels = {
+      generate: 'Question generation',
+      'improve-grammar': 'Grammar improvement',
+      distractors: 'Distractor generation',
+      duplicates: 'Duplicate detection',
+    } as const
+    setAiBusy(operation)
+    setAiFeedback(null)
+    try {
+      const response = await questionAIToolsAPI.run(operation, {
+        id: editingId,
+        classLevel: form.classLevel,
+        subject: form.subject,
+        chapter: form.chapter,
+        topic: form.topic,
+        difficulty: form.difficulty,
+        qType: form.qType,
+        text: form.text,
+        options: form.options,
+        correctIndex: form.correctIndex,
+      })
+
+      if (operation === 'duplicates') {
+        const duplicates = response.duplicates || []
+        if (duplicates.length) {
+          const match = duplicates[0]
+          const detail = `Possible ${match.type} duplicate (${Math.round(match.score * 100)}% match): ${match.text}`
+          setAiFeedback(detail)
+          showToast('Possible duplicate found', 'error')
+        } else {
+          setAiFeedback('No likely duplicate was found in the question bank.')
+          showToast('No duplicate found')
+        }
+        return
+      }
+
+      const result = response.result
+      if (!result) throw new Error('The AI service returned no result.')
+
+      if (operation === 'generate') {
+        if (!result.text || !result.options || result.correctIndex === undefined) {
+          throw new Error('The AI service returned an incomplete question.')
+        }
+        setForm(current => ({
+          ...current,
+          text: result.text!,
+          options: result.options!,
+          correctIndex: result.correctIndex!,
+          solution: result.solution || current.solution,
+        }))
+      } else if (operation === 'improve-grammar') {
+        if (!result.text) throw new Error('The AI service returned no corrected question.')
+        setForm(current => ({ ...current, text: result.text! }))
+      } else {
+        if (!result.distractors?.length) throw new Error('The AI service returned no answer choices.')
+        setForm(current => {
+          const options = [...current.options]
+          let distractorIndex = 0
+          for (let index = 0; index < options.length && distractorIndex < result.distractors!.length; index += 1) {
+            if (index !== current.correctIndex) options[index] = result.distractors![distractorIndex++]
+          }
+          while (distractorIndex < result.distractors!.length) {
+            options.push(result.distractors![distractorIndex++])
+          }
+          return { ...current, options }
+        })
+      }
+
+      setAiFeedback(`${labels[operation]} completed. Review the result before saving.`)
+      showToast(`${labels[operation]} completed`)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : `${labels[operation]} failed`
+      setAiFeedback(message)
+      showToast(message, 'error')
+    } finally {
+      setAiBusy(null)
+    }
   }
 
   return (
@@ -457,12 +597,12 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
             <Upload size={18} /> Bulk Import
           </button>
         </div>
-        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.json" style={{ display: 'none' }} onChange={handleBulkFileChange} />
+        <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: 'none' }} onChange={handleBulkFileChange} />
         <input ref={pdfInputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={handlePdfFileChange} />
         <input
           ref={node => setImageInputRef(node)}
           type="file"
-          accept="image/*"
+          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
           style={{ display: 'none' }}
           onChange={handleQuestionImageUpload}
         />
@@ -636,10 +776,15 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   <span style={{fontSize: 14, fontWeight: 600, color: 'var(--primary)', marginRight: 'auto'}}>
                     <Wand2 size={16} style={{display:'inline', verticalAlign:'text-bottom'}}/> AI Copilot Tools:
                   </span>
-                  <button className="qb-ai-btn" onClick={() => triggerAI('Question Generator')}><BrainCircuit size={14}/> Generate Question</button>
-                  <button className="qb-ai-btn" onClick={() => triggerAI('Grammar Check')}><SpellCheck size={14}/> Improve Grammar</button>
-                  <button className="qb-ai-btn" onClick={() => triggerAI('Duplicate Check')}><Layers size={14}/> Detect Duplicates</button>
+                  <button className="qb-ai-btn" disabled={aiBusy !== null} onClick={() => triggerAI('generate')}><BrainCircuit size={14}/> {aiBusy === 'generate' ? 'Generating…' : 'Generate Question'}</button>
+                  <button className="qb-ai-btn" disabled={aiBusy !== null} onClick={() => triggerAI('improve-grammar')}><SpellCheck size={14}/> {aiBusy === 'improve-grammar' ? 'Improving…' : 'Improve Grammar'}</button>
+                  <button className="qb-ai-btn" disabled={aiBusy !== null} onClick={() => triggerAI('duplicates')}><Layers size={14}/> {aiBusy === 'duplicates' ? 'Checking…' : 'Detect Duplicates'}</button>
                 </div>
+                {(aiBusy || aiFeedback) && (
+                  <div role="status" aria-live="polite" style={{ margin: '8px 0 16px', color: aiBusy ? 'var(--text-muted)' : 'var(--text)' }}>
+                    {aiBusy ? `${aiBusy === 'duplicates' ? 'Checking the question bank…' : 'AI is working…'}` : aiFeedback}
+                  </div>
+                )}
 
                 {/* Section 1: Basic Info */}
                 <div className="qb-card">
@@ -726,12 +871,21 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   )}
                   {form.imageUrl && !uploadingImage && (
                     <div style={{marginBottom: 12, border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: '#fff'}}>
-                      <img src={form.imageUrl} alt="Question attachment" style={{maxHeight: 220, width: '100%', objectFit: 'contain', borderRadius: 8}} />
+                      <img src={form.imageUrl} alt={form.imageAltText || 'Question attachment'} style={{maxHeight: 220, width: '100%', objectFit: 'contain', borderRadius: 8}} />
+                      <label className="qb-label" htmlFor="question-image-alt">Image description (alt text)</label>
+                      <input
+                        id="question-image-alt"
+                        className="qb-input"
+                        value={form.imageAltText}
+                        maxLength={500}
+                        onChange={event => setForm(current => ({ ...current, imageAltText: event.target.value }))}
+                        placeholder="Describe the diagram for students using assistive technology"
+                      />
                       <div style={{marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                         <button className="qb-btn qb-btn-outline" type="button" onClick={() => imageInputRef?.click()}>
                           <ImageIcon size={16} style={{marginRight: 6}} /> Change Image
                         </button>
-                        <button className="qb-btn qb-btn-outline" type="button" onClick={() => setForm({ ...form, imageUrl: '' })}>
+                        <button className="qb-btn qb-btn-outline" type="button" onClick={() => setForm(current => ({ ...current, imageUrl: '', imageAltText: '' }))}>
                           <Trash2 size={16} style={{marginRight: 6}} /> Delete Image
                         </button>
                       </div>
@@ -759,7 +913,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 <div className="qb-card">
                   <div style={{display:'flex', justifyContent:'space-between'}}>
                     <h3 className="qb-card-title"><Target size={20}/> Options Section</h3>
-                    <button className="qb-ai-btn" onClick={() => triggerAI('Distractor Generator')}><BrainCircuit size={14}/> Generate Distractors</button>
+                    <button className="qb-ai-btn" disabled={aiBusy !== null} onClick={() => triggerAI('distractors')}><BrainCircuit size={14}/> {aiBusy === 'distractors' ? 'Generating…' : 'Generate Distractors'}</button>
                   </div>
                   
                   {(form.options || []).map((opt, i) => (
@@ -885,6 +1039,89 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 onClose={() => setShowNotesGenerator(false)}
                 onCreateTest={onCreateTest}
               />
+            ) : spreadsheetReview ? (
+              <div className="qb-card" style={{maxWidth: 1000, margin: '0 auto', padding: 28}}>
+                <h2 style={{fontSize: 22, marginBottom: 8}}>Review spreadsheet import</h2>
+                <p style={{color: 'var(--text-muted)', marginTop: 0}}>
+                  Nothing is saved until you confirm. New rows default to Draft; rows marked Published are published only when that status was explicitly set in the file.
+                </p>
+                <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', margin: '16px 0'}}>
+                  <span><strong>{spreadsheetReview.questions.length}</strong> valid questions</span>
+                  <span><strong>{spreadsheetReview.duplicateCount}</strong> possible duplicates (skipped by default)</span>
+                  <span><strong>{spreadsheetReview.errors.length}</strong> invalid rows</span>
+                </div>
+                {spreadsheetReview.errors.length > 0 && (
+                  <div role="alert" style={{marginBottom: 16, padding: 14, borderRadius: 10, background: '#fff1f2', color: '#9f1239'}}>
+                    <strong>Rows needing correction</strong>
+                    <ul style={{marginBottom: 0, paddingLeft: 20}}>
+                      {spreadsheetReview.errors.slice(0, 25).map((error, index) => (
+                        <li key={`${error.row}-${index}`}>Row {error.row}: {error.message}</li>
+                      ))}
+                      {spreadsheetReview.errors.length > 25 && <li>…and {spreadsheetReview.errors.length - 25} more errors</li>}
+                    </ul>
+                  </div>
+                )}
+                <div style={{display: 'grid', gap: 12, maxHeight: '55vh', overflowY: 'auto', paddingRight: 4}}>
+                  {spreadsheetReview.questions.map((question, index) => (
+                    <article key={`${question.questionNumber}-${index}`} style={{border: '1px solid var(--border)', borderRadius: 12, padding: 16}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
+                        <label style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                          <input
+                            type="checkbox"
+                            checked={question.selected}
+                            onChange={event => setSpreadsheetReview(current => current && ({
+                              ...current,
+                              questions: current.questions.map((item, itemIndex) => itemIndex === index ? { ...item, selected: event.target.checked } : item),
+                            }))}
+                          />
+                          Row {question.questionNumber}
+                        </label>
+                        <span className="qb-badge medium">{question.subject}</span>
+                        <span>{question.chapter || question.topic}</span>
+                        <span>{question.isActive ? 'Will publish' : 'Will save as draft'}</span>
+                        {question.duplicate && (
+                          <label style={{marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8}}>
+                            Duplicate: {question.duplicateType}
+                            <select
+                              className="qb-input"
+                              value={question.duplicateAction}
+                              onChange={event => setSpreadsheetReview(current => current && ({
+                                ...current,
+                                questions: current.questions.map((item, itemIndex) => itemIndex === index
+                                  ? { ...item, duplicateAction: event.target.value as 'skip' | 'import' }
+                                  : item),
+                              }))}
+                            >
+                              <option value="skip">Skip duplicate</option>
+                              <option value="import">Import anyway</option>
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                      <div style={{marginTop: 12}}><RichQuestionContent content={question.text} /></div>
+                      <div style={{display: 'grid', gap: 6, marginTop: 8}}>
+                        {question.options.map((option, optionIndex) => (
+                          <div key={optionIndex} style={{display: 'flex', gap: 8}}>
+                            <strong>{String.fromCharCode(65 + optionIndex)}.</strong>
+                            <RichQuestionContent content={option} />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{marginTop: 8, fontSize: 13, color: 'var(--text-muted)'}}>
+                        Correct answer: {String.fromCharCode(65 + question.correctIndex)} · {question.marks} marks · −{question.negativeMarks} · {question.difficulty}
+                      </div>
+                      {question.solution && <details style={{marginTop: 8}}><summary>Explanation</summary><FormattedSolution content={question.solution} /></details>}
+                      {question.imageUrl && <img src={question.imageUrl} alt={question.imageAltText || 'Question diagram'} style={{maxWidth: '100%', maxHeight: 240, objectFit: 'contain', marginTop: 10}} />}
+                    </article>
+                  ))}
+                </div>
+                <div style={{display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 20}}>
+                  <button className="qb-btn qb-btn-outline" type="button" disabled={uploading} onClick={() => setSpreadsheetReview(null)}>Cancel</button>
+                  <button className="qb-btn qb-btn-primary" type="button" disabled={uploading || !spreadsheetReview.questions.some(question => question.selected)} onClick={confirmSpreadsheetImport}>
+                    <CheckCircle2 size={16}/>{uploading ? 'Importing…' : 'Confirm and import selected'}
+                  </button>
+                </div>
+              </div>
             ) : pdfStage === 'review' ? (
               <PdfImportReview
                 questions={pdfQuestions}
@@ -905,9 +1142,9 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
               <div className="qb-import-formats">
                 <button className="qb-import-format" onClick={handleBulkImportClick} type="button">
                   <FileSpreadsheet size={26} />
-                  <strong>Excel / CSV / JSON</strong>
-                  <span>.xlsx · .xls · .csv · .json</span>
-                  <em>Instant import with row-level validation</em>
+                  <strong>Excel / CSV</strong>
+                  <span>.xlsx · .xls · .csv</span>
+                  <em>Validate → review → confirm import</em>
                 </button>
                 <button className="qb-import-format" onClick={handlePdfImportClick} type="button">
                   <FileText size={26} />
@@ -931,8 +1168,8 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 onDrop={handleBulkDrop}
               >
                 <p style={{fontWeight: 600, color: 'var(--primary)'}}>Click to browse or drag and drop files here</p>
-                <p style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 8}}>Supports .csv, .xlsx, .xls, .json and .pdf (Max 25MB for PDF)</p>
-                {uploading && <p style={{marginTop: 16, color: 'var(--primary)'}}>Uploading and importing questions…</p>}
+                <p style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 8}}>Supports .csv, .xlsx, .xls and .pdf (Max 25MB for PDF)</p>
+                {uploading && <p style={{marginTop: 16, color: 'var(--primary)'}}>Preparing or saving question batches…</p>}
                 {pdfStage === 'working' && (
                   <div className="qb-pdf-progress">
                     <p style={{marginTop: 16, color: 'var(--primary)'}}>{pdfStatus}</p>
@@ -973,7 +1210,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
               </div>
 
               <div style={{display: 'flex', gap: 16, justifyContent: 'center'}}>
-                <button className="qb-btn qb-btn-outline" onClick={downloadCSV}><Download size={16}/> Download CSV Template</button>
+                <button className="qb-btn qb-btn-outline" onClick={downloadCSVTemplate}><Download size={16}/> Download CSV Template</button>
                 <button className="qb-btn qb-btn-outline" onClick={handleDownloadPDF}><ShieldCheck size={16}/> View Validation Rules</button>
               </div>
             </div>
@@ -1003,7 +1240,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 <div className="qb-preview-text"><RichQuestionContent content={previewQ.text} /></div>
                 {previewQ.imageUrl && (
                   <div style={{marginTop: 18, borderRadius: 12, overflow: 'hidden', background: '#fff', border: '1px solid var(--border)'}}>
-                    <img src={previewQ.imageUrl} alt="Question preview" style={{width: '100%', maxHeight: 280, objectFit: 'contain', display: 'block'}} />
+                    <img src={previewQ.imageUrl} alt={previewQ.imageAltText || 'Question preview'} style={{width: '100%', maxHeight: 280, objectFit: 'contain', display: 'block'}} />
                   </div>
                 )}
                 

@@ -193,8 +193,77 @@ test('splits inline option packs on a single line', () => {
   assert.equal(parts.length, 4)
   assert.deepEqual(parts.map((p) => p.letter), ['A', 'B', 'C', 'D'])
   assert.equal(parts[3].text, '20 kg')
+  assert.deepEqual(
+    splitInlineOptions('A) 2x B) x^2 C) x/2 D) 1/x').map((p) => p.text),
+    ['2x', 'x^2', 'x/2', '1/x'],
+  )
+  assert.deepEqual(
+    splitInlineOptions('(A) \\frac{1}{2} (B) \\sqrt{x} (C) x^2 (D) \\int x\\,dx')
+      .map((p) => p.letter),
+    ['A', 'B', 'C', 'D'],
+  )
   // Math parentheses must not be mistaken for options
   assert.equal(splitInlineOptions('the value of (a+b) c and (d+e) f'), null)
+})
+
+test('keeps differentiation question statements and inline options in separate fields', () => {
+  const { questions } = parseQuestions([lines([
+    '1. Differentiate x^2 + 1 with respect to x. A) 2x B) x^2 C) x/2 D) 1/x',
+    'Ans: A',
+    '2. Evaluate the derivative of sin x. A) cos x B) -sin x C) tan x D) sec x',
+    'Ans: A',
+  ])])
+
+  assert.equal(questions.length, 2)
+  assert.equal(questions[0].question, 'Differentiate x^2 + 1 with respect to x.')
+  assert.deepEqual(questions[0].options, { A: '2x', B: 'x^2', C: 'x/2', D: '1/x' })
+  assert.equal(questions[0].correctAnswer, 'A')
+  assert.equal(questions[0].needsReview, false)
+  assert.equal(questions[1].question, 'Evaluate the derivative of sin x.')
+  assert.deepEqual(questions[1].options, { A: 'cos x', B: '-sin x', C: 'tan x', D: 'sec x' })
+  assert.equal(questions[1].correctAnswer, 'A')
+})
+
+test('flags missing A-D options and does not invent an answer key', () => {
+  const { questions } = parseQuestions([lines([
+    '1. Differentiate x^3 with respect to x.',
+    'A) 3x^2 B) x^3 C) x/3',
+  ])])
+
+  assert.equal(questions.length, 1)
+  assert.equal(questions[0].correctAnswer, '')
+  assert.equal(questions[0].correctIndex, -1)
+  assert.equal(questions[0].needsReview, true)
+  assert.match(questions[0].reviewReason, /missing|unreadable/i)
+  assert.match(questions[0].warnings.join(' '), /D/i)
+  assert.match(questions[0].warnings.join(' '), /No correct answer was detected/)
+})
+
+test('flags references to diagrams for manual association review', () => {
+  const { questions } = parseQuestions([lines([
+    '1. Find the slope shown in the graph.',
+    'A) 1',
+    'B) 2',
+    'C) 3',
+    'D) 4',
+    'Ans: B',
+  ])])
+  assert.equal(questions[0].needsReview, true)
+  assert.match(questions[0].warnings.join(' '), /may depend on a PDF diagram/i)
+})
+
+test('flags OCR or font-mapping artifacts in inverse-trigonometric notation', () => {
+  const { questions } = parseQuestions([lines([
+    '1. Differentiate y = tann¹[(1 - x)/(1 + x)].',
+    'A) -1/(1 + x^2)',
+    'B) 1/(1 + x^2)',
+    'C) -2/(1 + x^2)',
+    'D) -1/(1 - x^2)',
+    'Ans: A',
+  ])])
+  assert.equal(questions[0].correctAnswer, 'A')
+  assert.equal(questions[0].needsReview, true)
+  assert.match(questions[0].warnings.join(' '), /notation may have been corrupted/i)
 })
 
 test('applies a trailing ANSWER KEY section by question number', () => {
@@ -215,6 +284,34 @@ test('applies a trailing ANSWER KEY section by question number', () => {
   assert.equal(questions.length, 2)
   assert.equal(questions[0].correctAnswer, 'A')
   assert.equal(questions[1].correctAnswer, 'B')
+  assert.ok(questions.every((q) => q.needsReview === false))
+})
+
+test('attaches numbered answer explanations to questions instead of importing them as new questions', () => {
+  const { questions } = parseQuestions([lines([
+    '1. Differentiate y = x^2 + 1.',
+    'A) 2x',
+    'B) x^2',
+    'C) x/2',
+    'D) 1/x',
+    '2. Differentiate y = sin x.',
+    'A) cos x',
+    'B) -sin x',
+    'C) tan x',
+    'D) sec x',
+    'Answer Key and Detailed Explanations',
+    'Review the method and verify each item.',
+    'Q1. Answer: A — Power rule',
+    'Differentiate term by term: y\' = 2x. Answer A.',
+    'Q2. Answer: A — Trigonometric differentiation',
+    'Using the standard derivative, y\' = cos x. Answer A.',
+  ])])
+
+  assert.equal(questions.length, 2)
+  assert.equal(questions[0].correctAnswer, 'A')
+  assert.match(questions[0].solution, /Power rule.*y' = 2x/)
+  assert.equal(questions[1].correctAnswer, 'A')
+  assert.match(questions[1].solution, /Trigonometric differentiation.*y' = cos x/)
   assert.ok(questions.every((q) => q.needsReview === false))
 })
 
@@ -309,6 +406,25 @@ test('strips repeated headers, footers and page numbers', () => {
   assert.ok(!questions[0].question.includes('CET'))
 })
 
+test('geometric footer cleanup preserves a real question continuation near the page edge', () => {
+  const cleaned = stripChrome([{
+    pageNumber: 1,
+    height: 792,
+    lines: [
+      { text: 'CETNova MHT-CET Question Bank', y: 754 },
+      { text: '1. Find the derivative of', y: 720 },
+      { text: 'x^2 + 2x at x = 1.', y: 28 },
+      { text: '1', y: 12 },
+    ],
+  }])
+  assert.deepEqual(cleaned[0].lines.map((line) => line.text), [
+    '1. Find the derivative of',
+    'x^2 + 2x at x = 1.',
+  ])
+  const { questions } = parseQuestions(cleaned)
+  assert.equal(questions[0].question, 'Find the derivative of x^2 + 2x at x = 1.')
+})
+
 // ── end-to-end text-layer extraction on a synthetic PDF ───────────────────
 
 test('extracts structured questions from a synthetic multi-page PDF', async () => {
@@ -372,6 +488,26 @@ test('extracts structured questions from a synthetic multi-page PDF', async () =
   const allText = questions.map((q) => q.question).join(' ')
   assert.ok(!allText.includes('MHT CET'))
   warnings.forEach(() => {}) // warnings are informational
+})
+
+test('reconstructs a vertically stacked PDF fraction without converting prose to math', async () => {
+  const pdf = buildTestPdf([[
+    { text: '1. Simplify the fraction', x: 72, y: 700 },
+    { text: '1', x: 350, y: 680 },
+    { text: '2', x: 350, y: 668 },
+    { text: 'A) 1/2', x: 90, y: 640 },
+    { text: 'B) 2', x: 90, y: 622 },
+    { text: 'C) 1', x: 90, y: 604 },
+    { text: 'D) 0', x: 90, y: 586 },
+    { text: 'Ans: A', x: 90, y: 568 },
+  ]])
+
+  const { questions } = await runPipeline(pdf)
+  assert.equal(questions.length, 1)
+  assert.match(questions[0].question, /\\frac\{1\}\{2\}/)
+  assert.deepEqual(questions[0].options, { A: '1/2', B: '2', C: '1', D: '0' })
+  assert.equal(questions[0].correctAnswer, 'A')
+  assert.equal(questions[0].needsReview, false)
 })
 
 test('rejects non-pdf garbage with a meaningful error', async () => {

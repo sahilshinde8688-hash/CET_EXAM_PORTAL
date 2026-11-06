@@ -1287,6 +1287,14 @@
   }
 }
 
+.btn-label-desktop {
+  display: inline;
+}
+
+.btn-label-mobile {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .test-header {
     height: auto;
@@ -1309,14 +1317,6 @@
   }
 
   .test-sep {
-    display: none;
-  }
-
-  /* Default button labels for exam action bar */
-  .btn-label-desktop {
-    display: inline;
-  }
-  .btn-label-mobile {
     display: none;
   }
 

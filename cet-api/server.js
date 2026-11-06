@@ -1,4 +1,4 @@
-require('dotenv').config()
+require('dotenv').config({ path: require('path').join(__dirname, '.env') })
 const express = require('express')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
@@ -43,12 +43,12 @@ app.use(cors(corsOptions))
 // Body parsing with safe size limits to prevent DoS
 app.use(express.json({
   limit: '50kb',
-  type: (req) => !req.path.startsWith('/api/questions'),
+  type: (req) => !req.path.startsWith('/api/questions') && !req.path.startsWith('/api/upload'),
 }))
 app.use(express.urlencoded({
   extended: true,
   limit: '50kb',
-  type: (req) => !req.path.startsWith('/api/questions'),
+  type: (req) => !req.path.startsWith('/api/questions') && !req.path.startsWith('/api/upload'),
 }))
 
 // Cookie parser

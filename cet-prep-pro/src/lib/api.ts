@@ -86,12 +86,12 @@ const getCsrfToken = (): string | null => {
   return null
 }
 
-const ensureCsrfToken = async (): Promise<string | null> => {
+const ensureCsrfToken = async (signal?: AbortSignal): Promise<string | null> => {
   const existingToken = getCsrfToken()
   if (existingToken) return existingToken
 
   try {
-    const res = await fetch(`${BASE}/auth/csrf`, { credentials: 'include' })
+    const res = await fetch(`${BASE}/auth/csrf`, { credentials: 'include', signal })
     const headerToken = res.headers.get('X-CSRF-Token')
     if (headerToken) {
       setCsrfToken(headerToken)
@@ -102,7 +102,9 @@ const ensureCsrfToken = async (): Promise<string | null> => {
       setCsrfToken(data.csrfToken)
       return data.csrfToken
     }
-  } catch {}
+  } catch (error) {
+    if (signal?.aborted) throw error
+  }
   return getCsrfToken()
 }
 
@@ -151,6 +153,9 @@ const fetch: typeof globalThis.fetch = async (input, init) => {
 
   if (!bypassRefresh && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     const headers = new Headers(requestInit.headers || (input instanceof Request ? input.headers : undefined))
+    if (typeof FormData !== 'undefined' && requestInit.body instanceof FormData) {
+      headers.delete('Content-Type')
+    }
     if (!headers.has('X-CSRF-Token')) {
       const csrfToken = await ensureCsrfToken()
       if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
@@ -169,7 +174,10 @@ const fetch: typeof globalThis.fetch = async (input, init) => {
 
   try {
     if (!refreshPromise) {
-      refreshPromise = doRefreshTokens().finally(() => { refreshPromise = null })
+      const refreshSignal = requestPath === `${apiPath}/auth/session`
+        ? requestInit.signal
+        : undefined
+      refreshPromise = doRefreshTokens(refreshSignal ?? undefined).finally(() => { refreshPromise = null })
     }
     await refreshPromise
   } catch (error) {
@@ -236,8 +244,8 @@ async function handle(res: Response) {
 /**
  * Refresh access token using refresh token (internal, doesn't use handle to avoid recursion)
  */
-async function doRefreshTokens(): Promise<void> {
-  const csrfToken = await ensureCsrfToken()
+async function doRefreshTokens(signal?: AbortSignal): Promise<void> {
+  const csrfToken = await ensureCsrfToken(signal)
   const headers: Record<string, string> = {}
   if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
@@ -245,6 +253,7 @@ async function doRefreshTokens(): Promise<void> {
     method: 'POST',
     credentials: 'include',
     headers,
+    signal,
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -465,13 +474,14 @@ export const authAPI = {
       inactivityTimeoutSeconds: data.inactivityTimeoutSeconds,
     }
   },
-  checkSession: async (): Promise<AuthenticatedSession> => {
+  checkSession: async (signal?: AbortSignal): Promise<AuthenticatedSession> => {
     if (!sessionCheckPromise) {
       sessionCheckPromise = (async () => {
         const res = await fetch(`${BASE}/auth/session`, {
           method: 'GET',
           credentials: 'include',
           cache: 'no-store',
+          signal,
         })
         return await handle(res).then(response => response.json() as Promise<AuthenticatedSession>)
       })().finally(() => { sessionCheckPromise = null })
@@ -1915,6 +1925,7 @@ export interface Question {
   topic: string
   text: string
   imageUrl?: string
+  imageAltText?: string
   options: string[]
   solution?: string
   correctIndex: number
@@ -1954,6 +1965,8 @@ export interface ExtractedPdfQuestion {
   classificationSource?: string
   sourcePdf?: string
   solution: string
+  imageUrl?: string
+  imageAltText?: string
   confidence: number
   needsReview: boolean
   reviewReason: string
@@ -2047,6 +2060,40 @@ export interface PdfExtractResponse {
 /** Payload sent to POST /api/questions/import/batch after admin review. */
 export interface PdfImportQuestion extends ExtractedPdfQuestion {
   selected: boolean
+}
+
+export interface SpreadsheetImportQuestion {
+  questionNumber: number
+  subject: string
+  chapter: string
+  topic: string
+  subTopic: string
+  text: string
+  options: string[]
+  solution: string
+  imageUrl: string
+  imageAltText: string
+  correctIndex: number
+  marks: number
+  negativeMarks: number
+  difficulty: 'Easy' | 'Medium' | 'Hard'
+  isActive: boolean
+  selected: boolean
+  duplicate: boolean
+  duplicateType: 'exact' | 'similar' | null
+  duplicateOfId: string | null
+  duplicateOfText: string | null
+  duplicateScore: number
+  duplicateInBatch?: boolean
+  duplicateAction: 'skip' | 'import' | 'replace'
+}
+
+export interface SpreadsheetImportPreview {
+  success: boolean
+  questions: SpreadsheetImportQuestion[]
+  total: number
+  duplicateCount: number
+  errors: Array<{ row: number; message: string }>
 }
 
 export interface NotesGeneratedQuestion {
@@ -2213,6 +2260,45 @@ const getNotesGenerationResults = async (jobId: string): Promise<NotesGeneration
   return { ...baseResult, questions: results }
 }
 
+export const questionAIToolsAPI = {
+  async run(
+    operation: 'generate' | 'improve-grammar' | 'distractors' | 'duplicates',
+    question: {
+      id?: string | null
+      classLevel?: string
+      subject?: string
+      chapter?: string
+      topic?: string
+      difficulty?: string
+      qType?: string
+      text?: string
+      options?: string[]
+      correctIndex?: number
+    },
+  ) {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/ai/question-tools`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ operation, question }),
+    })
+    return await handle(res).then(response => response.json()) as {
+      success: boolean
+      result?: {
+        text?: string
+        options?: string[]
+        correctIndex?: number
+        solution?: string
+        distractors?: string[]
+      }
+      duplicates?: Array<{ id: string | null; text: string; type: 'exact' | 'similar'; score: number }>
+    }
+  },
+}
+
 export const questionsAPI = {
   async getAll(filters?: { subject?: string; topic?: string; difficulty?: string; isActive?: boolean; includeAnswers?: boolean; ids?: string[] }) {
     const qs = new URLSearchParams()
@@ -2322,14 +2408,14 @@ export const questionsAPI = {
     const headers: Record<string, string> = {}
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
 
-    const res = await fetch(`${BASE}/questions/upload`, {
+    const res = await fetch(`${BASE}/questions/upload?preview=true`, {
       method: 'POST',
       credentials: 'include',
       headers,
       body: form,
     })
     const data = await handle(res).then(() => res.json())
-    return data as { imported: number; total: number; errors: Array<{ row: number; message: string }> }
+    return data as SpreadsheetImportPreview
   },
   /**
    * Upload a PDF for question extraction and track upload progress.
@@ -2365,7 +2451,7 @@ export const questionsAPI = {
     })
   },
   /** Persist the admin-reviewed extraction result via the shared import pipeline. */
-  async importBatch(questions: PdfImportQuestion[]) {
+  async importBatch(questions: Array<PdfImportQuestion | SpreadsheetImportQuestion>) {
     const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken

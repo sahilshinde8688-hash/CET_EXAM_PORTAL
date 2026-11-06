@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Lottie } from 'lottie-react'
+import { lazy, Suspense, useState } from 'react'
 import { authAPI, usersAPI, session, type AuthUser } from '../lib/api'
 import '../signin.css'
+
+const HeroLottie = lazy(() => import('lottie-react').then(({ Lottie }) => ({ default: Lottie })))
 
 type Tab = 'login' | 'register'
 type SubmitState = 'idle' | 'loading' | 'success' | 'error' | 'pending'
@@ -11,6 +12,7 @@ interface Props {
   sessionExpired?: boolean
   sessionExpiredMessage?: string
   sessionCheckError?: string | null
+  sessionChecking?: boolean
   onRetrySession?: () => void
 }
 
@@ -19,6 +21,7 @@ export default function SignIn({
   sessionExpired = false,
   sessionExpiredMessage = 'Your session expired because you were inactive. Please sign in again.',
   sessionCheckError,
+  sessionChecking = false,
   onRetrySession,
 }: Props) {
   const [activeTab, setActiveTab]             = useState<Tab>('login')
@@ -270,14 +273,16 @@ export default function SignIn({
                   </defs>
                 </svg>
               </div>
-              <Lottie
-                className="hero-lottie-anim"
-                src="/education.json"
-                loop
-                autoplay
-                aria-hidden="true"
-                rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
-              />
+              <Suspense fallback={<div className="hero-lottie-anim" aria-hidden="true" />}>
+                <HeroLottie
+                  className="hero-lottie-anim"
+                  src="/education.json"
+                  loop
+                  autoplay
+                  aria-hidden="true"
+                  rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+                />
+              </Suspense>
             </div>
           </div>
         </section>
@@ -313,6 +318,12 @@ export default function SignIn({
                   ? 'Welcome back! Continue your CET journey.'
                   : 'Join CET Nova and start preparing for your exam.'}
             </p>
+
+            {sessionChecking && (
+              <p className="signin-session-checking" role="status">
+                Checking for an existing session…
+              </p>
+            )}
 
             {sessionCheckError && (
               <div className="signin-connection-warning" role="alert">

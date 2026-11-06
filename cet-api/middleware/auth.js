@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken')
 const db = require('../services/dbService')
 const { getSessionExpiresAt, sendSessionExpired } = require('../config/auth')
 const { clearSessionCookies } = require('../utils/authHelpers')
-const { isSuperAdminUser } = require('../utils/adminRoles')
+const { isSuperAdminUser, hasAdminPrivileges } = require('../utils/adminRoles')
 const SESSION_ACTIVITY_WRITE_INTERVAL_MS = 60 * 1000
 
 const rejectExpiredSession = (res) => {
@@ -108,11 +108,7 @@ const adminOnly = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Authentication required.' })
   }
 
-  const allowedRoles = new Set(['Super Admin', 'ADMIN'])
-  const isApprovedAdmin = req.user.role === 'admin'
-    && (req.user.status === 'approved' || req.user.status == null)
-    && allowedRoles.has(req.user.adminRole)
-  if (isApprovedAdmin) {
+  if (hasAdminPrivileges(req.user)) {
     return next()
   }
 

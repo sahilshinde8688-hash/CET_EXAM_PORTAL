@@ -3,6 +3,7 @@ export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics
 import { useEffect, useState } from 'react'
 import { Lottie } from 'lottie-react'
 import { authAPI, session } from '../lib/api'
+import '../dashboard.css'
 
 interface SidebarProps {
   activePage: Page

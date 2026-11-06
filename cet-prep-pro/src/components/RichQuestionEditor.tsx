@@ -118,6 +118,19 @@ function createEquationToken(latex: string, display: boolean): HTMLSpanElement {
   return token
 }
 
+function getImageAltText(file: File): string {
+  const fileDescription = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Question diagram'
+  return window.prompt('Describe this image for students using assistive technology.', fileDescription)?.trim() ?? fileDescription
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 function renderMathTokens(root: ParentNode) {
   wrapBareLatexMath(root)
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -328,7 +341,8 @@ export default function RichQuestionEditor({
     if (image && onPasteImage && editor) {
       void Promise.resolve(onPasteImage(image)).then(imageUrl => {
         if (!imageUrl || !editor.isConnected) return
-        insertFragment(editor, `<img src="${imageUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="Pasted solution image">`, pasteRange)
+        const altText = escapeHtmlAttribute(getImageAltText(image))
+        insertFragment(editor, `<img src="${escapeHtmlAttribute(imageUrl)}" alt="${altText}">`, pasteRange)
         const content = readEditorContent(editor)
         lastValueRef.current = content
         onChange(content)
@@ -421,12 +435,13 @@ export default function RichQuestionEditor({
     if (!editor || !onPasteImage) return
     void Promise.resolve(onPasteImage(file)).then(imageUrl => {
       if (!imageUrl || !editor.isConnected) return
+      const altText = escapeHtmlAttribute(getImageAltText(file))
       const selection = window.getSelection()
       if (range && editor.contains(range.commonAncestorContainer)) {
         selection?.removeAllRanges()
         selection?.addRange(range)
       }
-      insertFragment(editor, `<img src="${imageUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" alt="Pasted solution image">`)
+      insertFragment(editor, `<img src="${escapeHtmlAttribute(imageUrl)}" alt="${altText}">`)
       const content = readEditorContent(editor)
       lastValueRef.current = content
       onChange(content)
@@ -629,7 +644,7 @@ export default function RichQuestionEditor({
           const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null
           const input = document.createElement('input')
           input.type = 'file'
-          input.accept = 'image/*'
+          input.accept = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
           input.onchange = () => {
             const file = input.files?.[0]
             if (file) uploadImageFromPicker(file, range)

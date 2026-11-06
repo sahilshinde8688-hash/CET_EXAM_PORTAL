@@ -1,10 +1,170 @@
 const express = require('express')
-const { protect } = require('../middleware/auth')
+const db = require('../services/dbService')
+const { protect, adminOnly } = require('../middleware/auth')
+const { validateCsrfToken } = require('../middleware/csrf')
+const { apiLimiter } = require('../middleware/rateLimit')
+const { flagDuplicates } = require('../utils/duplicateDetection')
 const router = express.Router()
 
 router.use(protect)
 
 const getApiKey = () => process.env.OPENROUTER_API_KEY
+const MAX_QUESTION_LENGTH = 12000
+
+const requestQuestionAI = async (prompt, temperature = 0.3) => {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    signal: AbortSignal.timeout(45000),
+    headers: {
+      Authorization: `Bearer ${getApiKey()}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.FRONTEND_URL || process.env.CLIENT_URL || 'http://localhost:5173',
+      'X-Title': 'CET Exam Portal',
+    },
+    body: JSON.stringify({
+      model: 'openai/gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature,
+      response_format: { type: 'json_object' },
+    }),
+  })
+
+  if (!response.ok) {
+    console.error(`OpenRouter question-tool request failed with status ${response.status}.`)
+    const error = new Error('The AI service could not complete this request.')
+    error.status = 502
+    throw error
+  }
+
+  const result = await response.json()
+  const content = result.choices?.[0]?.message?.content
+  if (typeof content !== 'string' || !content.trim()) {
+    const error = new Error('The AI service returned an empty response.')
+    error.status = 502
+    throw error
+  }
+
+  try {
+    return JSON.parse(content)
+  } catch {
+    const error = new Error('The AI service returned an invalid response.')
+    error.status = 502
+    throw error
+  }
+}
+
+const questionText = (value) => String(value || '').trim().slice(0, MAX_QUESTION_LENGTH)
+
+router.post('/question-tools', adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
+  const { operation, question = {} } = req.body || {}
+  const text = questionText(question.text)
+
+  if (!['generate', 'improve-grammar', 'distractors', 'duplicates'].includes(operation)) {
+    return res.status(400).json({ success: false, message: 'Choose a supported question tool.' })
+  }
+  if (operation !== 'generate' && !text) {
+    return res.status(400).json({ success: false, message: 'Enter a question before using this tool.' })
+  }
+  if (operation !== 'duplicates' && !getApiKey()) {
+    return res.status(503).json({ success: false, message: 'OpenRouter API key is not configured.' })
+  }
+
+  try {
+    if (operation === 'duplicates') {
+      const bank = await db.getQuestions({}, { isAdmin: true })
+      const currentId = String(question.id || '')
+      const candidates = bank
+        .filter((item) => !currentId || String(item._id || item.id || '') !== currentId)
+        .map((item) => ({ id: item._id || item.id, text: item.text }))
+      const [match] = flagDuplicates([{ question: text }], candidates)
+      const duplicates = match.duplicate
+        ? [{
+            id: match.duplicateOfId,
+            text: match.duplicateOfText,
+            type: match.duplicateType,
+            score: match.duplicateScore,
+          }]
+        : []
+      return res.json({ success: true, duplicates })
+    }
+
+    const context = [
+      `Class: ${question.classLevel || 'Not specified'}`,
+      `Subject: ${question.subject || 'Not specified'}`,
+      `Chapter: ${question.chapter || 'Not specified'}`,
+      `Topic: ${question.topic || 'Not specified'}`,
+      `Difficulty: ${question.difficulty || 'Medium'}`,
+      `Question type: ${question.qType || 'Single Correct'}`,
+    ].join('\n')
+    const options = Array.isArray(question.options)
+      ? question.options.map((option) => String(option || '').slice(0, 2000))
+      : []
+    let prompt
+    let temperature = 0.3
+
+    if (operation === 'generate') {
+      temperature = 0.5
+      prompt = `Create one accurate, original MHT-CET multiple-choice question.
+${context}
+Return only a JSON object with this shape:
+{"text":"question text","options":["A","B","C","D"],"correctIndex":0,"solution":"step-by-step explanation"}
+Use four concise options, exactly one correct answer, and make correctIndex the zero-based index of that answer. Preserve valid mathematical notation using LaTeX where useful.`
+    } else if (operation === 'improve-grammar') {
+      prompt = `Correct grammar, spelling, and clarity in the following exam question without changing its meaning, facts, mathematical notation, or HTML markup. Return only {"text":"corrected question"} as JSON.
+${context}
+Question:
+${text}`
+    } else {
+      const correctIndex = Number.isInteger(question.correctIndex) ? question.correctIndex : 0
+      prompt = `Write exactly ${Math.max(1, Math.min(options.length - 1, 3))} plausible but incorrect answer choices for this MHT-CET question. Do not include the correct answer or explanations in the choices. Return only {"distractors":["..."]} as JSON.
+${context}
+Question:
+${text}
+Correct answer:
+${options[correctIndex] || '(not supplied)'}
+Existing options to avoid repeating:
+${options.filter((_, index) => index !== correctIndex).join('\n')}`
+    }
+
+    const result = await requestQuestionAI(prompt, temperature)
+    if (operation === 'improve-grammar' && (
+      typeof result.text !== 'string'
+      || !result.text.trim()
+      || result.text.length > MAX_QUESTION_LENGTH
+    )) {
+      return res.status(502).json({ success: false, message: 'The AI service returned an invalid corrected question.' })
+    }
+    if (operation === 'generate' && (
+      typeof result.text !== 'string'
+      || !result.text.trim()
+      || result.text.length > MAX_QUESTION_LENGTH
+      || !Array.isArray(result.options)
+      || result.options.length !== 4
+      || result.options.some((option) => typeof option !== 'string' || !option.trim())
+      || !Number.isInteger(result.correctIndex)
+      || result.correctIndex < 0
+      || result.correctIndex > 3
+      || (result.solution !== undefined && typeof result.solution !== 'string')
+    )) {
+      return res.status(502).json({ success: false, message: 'The AI service returned an incomplete question.' })
+    }
+    if (operation === 'distractors' && (
+      !Array.isArray(result.distractors)
+      || result.distractors.length !== Math.max(1, Math.min(options.length - 1, 3))
+      || result.distractors.some((item) => typeof item !== 'string' || !item.trim() || item.length > 2000)
+    )) {
+      return res.status(502).json({ success: false, message: 'The AI service returned invalid answer choices.' })
+    }
+
+    return res.json({ success: true, result })
+  } catch (error) {
+    console.error('AI question-tool endpoint error:', error.message)
+    return res.status(error.status || 502).json({
+      success: false,
+      message: error.status ? error.message : 'The AI question tool could not complete this request.',
+    })
+  }
+})
 
 // POST /api/ai/analytics
 // Generates deep diagnostic analytics and personalized recommendations for a test attempt

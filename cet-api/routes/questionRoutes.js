@@ -7,6 +7,7 @@ const router = express.Router()
 const { apiLimiter, uploadLimiter } = require('../middleware/rateLimit')
 const { protect, adminOnly, optionalAuth } = require('../middleware/auth')
 const { validateCsrfToken } = require('../middleware/csrf')
+const { hasAdminPrivileges } = require('../utils/adminRoles')
 const { extractAndFlagDuplicates, looksLikePdf, PdfTextError } = require('../services/pdfImportService')
 const {
   buildAnalysis,
@@ -385,9 +386,9 @@ router.post('/notes/jobs/:jobId/regenerate', protect, adminOnly, validateCsrfTok
 // GET /api/questions/:id
 router.get('/:id', optionalAuth, apiLimiter, async (req, res) => {
   try {
-    const isAdmin = req.user?.role === 'admin'
+    const isAdmin = hasAdminPrivileges(req.user)
     const question = await db.getQuestionById(req.params.id, { isAdmin })
-    if (!question) {
+    if (!question || (!isAdmin && !question.isActive)) {
       return res.status(404).json({ success: false, message: 'Question not found' })
     }
     res.json(question)
@@ -491,9 +492,13 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
     const difficultyIndex = headerIndex(['difficulty', 'level', 'difficulty level'])
     const correctIndex = headerIndex(['correct answer', 'correct option', 'answer', 'correct'])
     const explanationIndex = headerIndex(['explanation', 'solution', 'detailed solution', 'answer explanation'])
+    const explanationLatexIndex = headerIndex(['explanation latex', 'solution latex', 'latex explanation'])
     const marksIndex = headerIndex(['marks', 'score', 'points'])
     const negativeIndex = headerIndex(['negative marks', 'neg marks', 'penalty'])
     const statusIndex = headerIndex(['status', 'is active', 'active'])
+    const imageIndex = headerIndex(['image url', 'image reference', 'image ref', 'question image'])
+    const imageAltIndex = headerIndex(['image alt text', 'image alt', 'alt text'])
+    const questionLatexIndex = headerIndex(['question latex', 'latex question', 'question formula'])
 
     let optionIndices = headers
       .map((key, index) => ({ key, index }))
@@ -510,6 +515,10 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
       })
       .map((item) => item.index)
 
+    const optionLatexIndices = ['a', 'b', 'c', 'd'].map((letter) =>
+      headerIndex([`option ${letter} latex`, `${letter} latex`, `latex option ${letter}`]),
+    )
+
     if (!optionIndices.length) {
       const questionCol = textIndex !== undefined ? textIndex : headers.indexOf('question')
       const maxCol = correctIndex !== undefined ? correctIndex : Math.min(questionCol + 5, headers.length)
@@ -520,19 +529,18 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
     }
 
     const convertCorrectIndex = (raw, options) => {
-      if (raw === undefined || raw === null) return 0
+      if (raw === undefined || raw === null) return -1
       const value = String(raw).trim()
       if (/^[1-4]$/.test(value)) return Number(value) - 1
       if (/^[a-d]$/i.test(value)) return value.toLowerCase().charCodeAt(0) - 97
       const optionIndex = options.findIndex((opt) => opt.toLowerCase() === value.toLowerCase())
-      return optionIndex >= 0 ? optionIndex : 0
+      return optionIndex
     }
 
     const parseBool = (raw) => {
       if (typeof raw === 'boolean') return raw
       const value = String(raw).trim().toLowerCase()
-      if (['false', 'no', '0', 'draft', 'inactive', 'not active'].includes(value)) return false
-      return true
+      return ['true', 'yes', '1', 'published', 'active'].includes(value)
     }
 
     const rowsToSave = []
@@ -572,7 +580,13 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
         continue
       }
 
-      const options = optionIndices.map((idx) => String(get(idx)).trim()).filter(Boolean)
+      const options = optionIndices.map((idx, optionIndex) => {
+        const text = String(get(idx)).trim()
+        const latex = optionLatexIndices[optionIndex] !== undefined
+          ? String(get(optionLatexIndices[optionIndex])).trim()
+          : ''
+        return [text, latex ? `\\(${latex}\\)` : ''].filter(Boolean).join('\n')
+      }).filter(Boolean)
       if (!options.length) {
         options.push(...findFallbackOptions(row, textIndex))
       }
@@ -587,6 +601,20 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
         continue
       }
 
+      if (options.length !== 4) {
+        errors.push({ row: rowIndex + 1, message: `Expected four non-empty options; found ${options.length}` })
+        continue
+      }
+      const correctOptionIndex = convertCorrectIndex(correctIndex !== undefined ? get(correctIndex) : '', options)
+      if (correctOptionIndex < 0 || correctOptionIndex >= options.length) {
+        errors.push({ row: rowIndex + 1, message: 'Correct answer must be A, B, C, or D (or match an option)' })
+        continue
+      }
+
+      const questionBase = questionText
+      const questionLatex = questionLatexIndex !== undefined ? String(get(questionLatexIndex)).trim() : ''
+      const explanation = explanationIndex !== undefined ? String(get(explanationIndex)).trim() : ''
+      const explanationLatex = explanationLatexIndex !== undefined ? String(get(explanationLatexIndex)).trim() : ''
       const question = {
         subject: subjectIndex !== undefined ? String(get(subjectIndex)).trim() || 'General' : 'General',
         chapter: chapterIndex !== undefined ? String(get(chapterIndex)).trim() : '',
@@ -597,17 +625,20 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
             ? String(get(chapterIndex)).trim() || 'General'
             : 'General',
         subTopic: subTopicIndex !== undefined ? String(get(subTopicIndex)).trim() : '',
-        text: questionText,
+        text: [questionBase, questionLatex ? `\\(${questionLatex}\\)` : ''].filter(Boolean).join('\n'),
         options,
-        solution: explanationIndex !== undefined ? String(get(explanationIndex)).trim() : '',
-        correctIndex: convertCorrectIndex(correctIndex !== undefined ? get(correctIndex) : '', options),
+        solution: [explanation, explanationLatex ? `\\(${explanationLatex}\\)` : ''].filter(Boolean).join('\n'),
+        imageUrl: imageIndex !== undefined ? String(get(imageIndex)).trim() : '',
+        imageAltText: imageAltIndex !== undefined ? String(get(imageAltIndex)).trim() : '',
+        correctIndex: correctOptionIndex,
         marks: Number(marksIndex !== undefined ? get(marksIndex) : 0) || 2,
         negativeMarks: Number(negativeIndex !== undefined ? get(negativeIndex) : 0) || 0,
         difficulty:
           difficultyIndex !== undefined && ['Easy', 'Medium', 'Hard'].includes(String(get(difficultyIndex)).trim())
             ? String(get(difficultyIndex)).trim()
             : 'Medium',
-        isActive: statusIndex !== undefined ? parseBool(get(statusIndex)) : true,
+        isActive: statusIndex !== undefined ? parseBool(get(statusIndex)) : false,
+        questionNumber: rowIndex + 1,
       }
       rowsToSave.push(question)
     }
@@ -620,13 +651,18 @@ router.post('/upload', protect, adminOnly, validateCsrfToken, uploadLimiter, upl
       })
     }
 
-    const created = []
-    for (const qData of rowsToSave) {
-      const q = await db.createQuestion(qData, { includeClassificationMetadata: false })
-      created.push(q)
-    }
-
-    res.status(201).json({ success: true, imported: created.length, total: rowsToSave.length, errors })
+    const existingQuestions = await db.getQuestionFingerprints()
+    const questions = flagDuplicates(
+      rowsToSave.map((question) => ({ ...question, question: question.text, selected: true })),
+      existingQuestions,
+    )
+    return res.json({
+      success: true,
+      questions,
+      total: rawRows.length - headerRowIndex - 1,
+      duplicateCount: questions.filter((question) => question.duplicate).length,
+      errors,
+    })
   } catch (e) {
     res.status(500).json({ success: false, message: 'Failed to upload questions: ' + (e.message || e) })
   }
@@ -841,14 +877,22 @@ const validateImportQuestion = (raw, position) => {
 
   const text = cleanImportString(raw.question ?? raw.text, 5000)
   if (!text) return fail('Missing question text')
+  const isPdfImport = (raw.sourcePage !== undefined && raw.sourcePage !== null)
+    || Boolean(raw.sourcePdf)
 
   let optionList = []
   if (Array.isArray(raw.options)) {
     optionList = raw.options.map((opt) => cleanImportString(opt, 1000)).filter(Boolean)
   } else if (raw.options && typeof raw.options === 'object') {
+    if (isPdfImport && OPTION_KEYS.slice(0, 4).some((key) => !cleanImportString(raw.options[key], 1000))) {
+      return fail('PDF question must have all four A-D options. Complete the missing options in the review screen.')
+    }
     optionList = OPTION_KEYS
       .map((key) => cleanImportString(raw.options[key], 1000))
       .filter(Boolean)
+  }
+  if (isPdfImport && optionList.length !== 4) {
+    return fail('PDF question must have exactly four non-empty A-D options.')
   }
   if (optionList.length < 2) return fail('At least two non-empty options are required')
   if (optionList.length > 6) optionList = optionList.slice(0, 6)
@@ -915,12 +959,15 @@ const validateImportQuestion = (raw, position) => {
       subTopic: cleanImportString(raw.subTopic, 200),
       text,
       options: optionList,
+      imageUrl: cleanImportString(raw.imageUrl, 2048),
+      imageAltText: cleanImportString(raw.imageAltText, 500),
       correctIndex,
       solution: cleanImportString(raw.solution, 5000),
       marks: Number.isFinite(Number(raw.marks)) && Number(raw.marks) > 0 ? Number(raw.marks) : 2,
       negativeMarks: Number.isFinite(Number(raw.negativeMarks)) ? Number(raw.negativeMarks) : 0,
       difficulty,
-      isActive: raw.isActive !== undefined ? Boolean(raw.isActive) : true,
+      isActive: raw.isActive === true
+        || ['true', 'published', 'active', 'yes', '1'].includes(String(raw.isActive ?? '').trim().toLowerCase()),
       questionType,
       cetDifficulty,
       cetRelevance,
@@ -1002,12 +1049,15 @@ router.post('/import/batch', protect, adminOnly, validateCsrfToken, apiLimiter, 
         topic: data.topic,
         subTopic: data.subTopic,
         text: data.text,
+        imageUrl: data.imageUrl,
+        imageAltText: data.imageAltText,
         options: data.options,
         correctIndex: data.correctIndex,
         solution: data.solution,
         marks: data.marks,
         negativeMarks: data.negativeMarks,
         difficulty: data.difficulty,
+        isActive: data.isActive,
         questionType: data.questionType,
         cetDifficulty: data.cetDifficulty,
         cetRelevance: data.cetRelevance,

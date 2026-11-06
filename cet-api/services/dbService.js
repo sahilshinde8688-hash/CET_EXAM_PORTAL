@@ -93,6 +93,7 @@ const questionToCamel = (row) => {
     subTopic: row.sub_topic,
     text: row.text,
     imageUrl: row.image_url,
+    imageAltText: row.image_alt_text || '',
     options: row.options || [],
     correctIndex: row.correct_index,
     solution: row.solution,
@@ -666,6 +667,7 @@ const createQuestion = async (qData, { includeClassificationMetadata = true } = 
     sub_topic: qData.subTopic || '',
     text: sanitizeQuestionContent(qData.text),
     image_url: qData.imageUrl || '',
+    image_alt_text: String(qData.imageAltText || '').trim().slice(0, 500),
     options: (qData.options || []).map(sanitizeQuestionContent),
     correct_index: Number(qData.correctIndex),
     solution: sanitizeQuestionContent(qData.solution),
@@ -731,6 +733,7 @@ const updateQuestion = async (id, updates) => {
   if (updates.subTopic !== undefined) payload.sub_topic = updates.subTopic
   if (updates.text !== undefined) payload.text = sanitizeQuestionContent(updates.text)
   if (updates.imageUrl !== undefined) payload.image_url = updates.imageUrl
+  if (updates.imageAltText !== undefined) payload.image_alt_text = String(updates.imageAltText).trim().slice(0, 500)
   if (updates.options !== undefined) payload.options = updates.options.map(sanitizeQuestionContent)
   if (updates.correctIndex !== undefined) payload.correct_index = Number(updates.correctIndex)
   if (updates.solution !== undefined) payload.solution = sanitizeQuestionContent(updates.solution)

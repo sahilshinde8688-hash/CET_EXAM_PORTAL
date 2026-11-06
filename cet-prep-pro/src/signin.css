@@ -50,7 +50,7 @@
   flex-direction: column;
   color: var(--cet-text-body);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   box-sizing: border-box;
 }
 
@@ -538,6 +538,13 @@
   text-align: left;
 }
 
+.signin-session-checking {
+  margin: -12px 0 16px;
+  color: var(--cet-text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 /* Alerts & Notifications */
 .signin-alert-banner {
   display: flex;
@@ -664,15 +671,26 @@
   transition: all 0.2s ease;
 }
 
+.form-input-container {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(217, 154, 22, 0.28);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.025), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
 .form-input-container:hover {
-  border-color: #CBD5E1;
-  background: #FFFFFF;
+  border-color: rgba(217, 154, 22, 0.58);
+  background: rgba(255, 255, 255, 0.96);
+  transform: translateY(-1px);
 }
 
 .form-input-container:focus-within {
   background: #FFFFFF;
-  border-color: var(--cet-input-focus);
-  box-shadow: 0 0 0 3.5px rgba(22, 119, 255, 0.12);
+  border-color: #d99a16;
+  box-shadow: 0 0 0 3.5px rgba(217, 154, 22, 0.16), 0 10px 24px rgba(217, 154, 22, 0.09);
+  transform: translateY(-1px);
 }
 
 .input-leading-icon {
@@ -684,7 +702,7 @@
 }
 
 .form-input-container:focus-within .input-leading-icon {
-  color: var(--cet-primary);
+  color: var(--cet-gold);
 }
 
 .form-text-input {
@@ -696,6 +714,7 @@
   font-size: 14px;
   color: var(--cet-text-title);
   outline: none;
+  transition: color 0.3s ease;
 }
 
 .form-text-input::placeholder {
@@ -815,46 +834,58 @@
   box-shadow: var(--cet-shadow-btn);
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(100deg, #b77912 0%, #e4ad32 28%, #ffd76a 50%, #dfaa2e 72%, #b77912 100%);
+  background-size: 200% 100%;
+  color: #172033;
+  border: 1px solid rgba(255, 216, 117, 0.78);
+  box-shadow: 0 7px 18px rgba(183, 121, 18, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.form-submit-btn > * {
+  position: relative;
+  z-index: 2;
+}
+
+.form-submit-btn::after {
+  z-index: 1;
+}
+
+.form-submit-btn.is-success::after {
+  display: none;
+}
+
+.form-submit-btn::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: -40%;
+  bottom: -40%;
+  left: -55%;
+  width: 42%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  animation: cet-gold-shimmer 3.8s ease-in-out infinite;
 }
 
 .form-submit-btn:hover:not(:disabled) {
-  background: var(--cet-primary-hover);
-  box-shadow: var(--cet-shadow-btn-hover);
-  transform: translateY(-1px);
+  color: #101827;
+  background-position: 100% 0;
+  box-shadow: 0 10px 26px rgba(183, 121, 18, 0.34), 0 0 18px rgba(255, 211, 99, 0.22);
+  transform: translateY(-2px);
 }
 
 .form-submit-btn:active:not(:disabled) {
-  background: var(--cet-primary-active);
   transform: translateY(0);
+  box-shadow: 0 5px 14px rgba(183, 121, 18, 0.25);
 }
 
-.form-submit-btn:disabled {
-  opacity: 0.8;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.form-submit-btn.is-success {
-  background: #10B981 !important;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
-}
-
-.btn-arrow {
-  font-size: 18px !important;
-  transition: transform 0.2s ease;
-}
-
-.form-submit-btn:hover:not(:disabled) .btn-arrow {
-  transform: translateX(3px);
-}
-
-.btn-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2.5px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #FFFFFF;
-  border-radius: 50%;
-  animation: btnSpin 0.75s linear infinite;
+@keyframes cet-gold-shimmer {
+  0%, 20% { left: -55%; }
+  55%, 100% { left: 115%; }
 }
 
 @keyframes btnSpin {
@@ -1173,4 +1204,3 @@
     padding: 10px 10px 10px 38px;
   }
 }
-

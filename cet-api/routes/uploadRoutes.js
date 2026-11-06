@@ -1,10 +1,11 @@
 const express = require('express')
 const router = express.Router()
-const { upload, uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary')
+const { upload, uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } = require('../config/cloudinary')
 const db = require('../services/dbService')
 const { protect, adminOnly } = require('../middleware/auth')
 const { uploadLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
+const { isSupportedQuestionImage } = require('../utils/questionImageValidation')
 
 const handleUploadError = (err, req, res, next) => {
   if (err) {
@@ -122,6 +123,16 @@ router.post(
   async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ success: false, message: 'No image file provided' })
+      if (!isSupportedQuestionImage(req.file.buffer, req.file.mimetype)) {
+        return res.status(400).json({ success: false, message: 'The uploaded file is not a valid JPEG, PNG, or WebP image.' })
+      }
+      if (!isCloudinaryConfigured()) {
+        return res.status(503).json({
+          success: false,
+          code: 'QUESTION_IMAGE_STORAGE_UNAVAILABLE',
+          message: 'Question image storage is not configured. Set the Cloudinary server environment variables and try again.',
+        })
+      }
 
       const result = await uploadToCloudinary(
         req.file.buffer,

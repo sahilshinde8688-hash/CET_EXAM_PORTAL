@@ -120,7 +120,7 @@ const buildLinesFromItems = (items, pageHeight) => {
   // baseline is computed from body-size fragments only: averaging in the
   // script glyphs themselves would shrink their own offset below detection.
   const scriptToken = /^[0-9A-Za-z+\-°'"]{1,6}$/
-  return lines
+  const positionedLines = lines
     .sort((a, b) => b.y - a.y)
     .map((line) => {
       const sorted = line.items.sort((a, b) => a.x - b.x)
@@ -153,9 +153,41 @@ const buildLinesFromItems = (items, pageHeight) => {
         text += piece
         prevEnd = frag.x + frag.width
       }
-      return { text: text.replace(/\s+/g, ' ').trim(), y: baseline, pageHeight }
+      const lineStart = Math.min(...sorted.map((fragment) => fragment.x))
+      const lineEnd = Math.max(...sorted.map((fragment) => fragment.x + fragment.width))
+      return {
+        text: text.replace(/\s+/g, ' ').trim(),
+        y: baseline,
+        x: lineStart,
+        centerX: (lineStart + lineEnd) / 2,
+        pageHeight,
+      }
     })
     .filter((line) => line.text.length > 0)
+
+  const fractionPart = /^[+-]?(?:(?:\d+(?:\.\d+)?|[A-Za-z])(?:[+-](?:\d+(?:\.\d+)?|[A-Za-z]))*|(?:\d+(?:\.\d+)?|[A-Za-z])(?:\^\d+|_\d+)|\d*[A-Za-z])$/
+  const reconstructedLines = []
+  for (let index = 0; index < positionedLines.length; index += 1) {
+    const numerator = positionedLines[index]
+    const denominator = positionedLines[index + 1]
+    const aligned = denominator
+      && Math.abs(numerator.centerX - denominator.centerX) <= dominantSize * 0.45
+    const verticallyPaired = denominator
+      && numerator.y > denominator.y
+      && numerator.y - denominator.y <= dominantSize * 1.05
+    const numeratorText = numerator.text.replace(/\s+/g, '')
+    const denominatorText = denominator?.text.replace(/\s+/g, '') || ''
+    if (aligned && verticallyPaired && fractionPart.test(numeratorText) && fractionPart.test(denominatorText)) {
+      reconstructedLines.push({
+        ...numerator,
+        text: `\\(\\frac{${numeratorText}}{${denominatorText}}\\)`,
+      })
+      index += 1
+    } else {
+      reconstructedLines.push(numerator)
+    }
+  }
+  return reconstructedLines
 }
 
 /**

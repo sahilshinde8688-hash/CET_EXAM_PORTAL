@@ -8,4 +8,8 @@ const getEffectiveAdminRole = (user) => {
   return isSuperAdminUser(user) ? 'Super Admin' : 'ADMIN'
 }
 
-module.exports = { SUPER_ADMIN_EMAIL, isSuperAdminUser, getEffectiveAdminRole }
+const hasAdminPrivileges = (user) => user?.role === 'admin'
+  && (user.status === 'approved' || user.status == null)
+  && ['Super Admin', 'ADMIN'].includes(user.adminRole)
+
+module.exports = { SUPER_ADMIN_EMAIL, isSuperAdminUser, getEffectiveAdminRole, hasAdminPrivileges }

@@ -30,7 +30,7 @@ const QUESTION_MARKERS = [
 
 const OPTION_LINE = /^\[\s*([A-Da-d])\s*\]\s*(.*)$|^\(\s*([A-Da-d])\s*\)\s*(.*)$|^\(?([A-Da-d])\s*[).:\-]\s*(.*)$/
 // Inline options inside a single physical line, e.g. "A) 5 kg  B) 10 kg"
-const INLINE_OPTION = /(?:^|[\s(])([A-Da-d])[).]\s*/g
+const INLINE_OPTION = /(?:^|\s)(?:\(\s*([A-Da-d])\s*\)|([A-Da-d])[).])\s*/g
 
 const ANSWER_LINE = /^(?:ans(?:wer)?|correct\s*(?:answer|option|choice)?|key)\s*[:.\-–)\]]?\s*\(?\s*([A-Da-d1-4])\s*\)?\s*\.?\s*(.*)$/i
 const ANSWER_TRAILING = /[,;]?\s*\b(?:ans(?:wer)?|correct\s*(?:answer|option|choice))\s*[:.\-–]?\s*\(?\s*([A-Da-d1-4])\s*\)?\s*\.?\s*$/i
@@ -43,6 +43,8 @@ const TOPIC_LINE = /^(?:topic|module)\s*[:\-–]\s*(.+)$/i
 const SECTION_LINE = /^section\s*[-–:]?\s*[ivx]+\b\s*[:\-–]?\s*(.*)$/i
 const DIFFICULTY_LINE = /^(?:difficulty|level)\s*[:.\-–]\s*(easy|medium|hard|moderate|difficult|tough)\b/i
 const ANSWER_KEY_HEADER = /^(?:answers?\s*key|key\s*answers?|answers?)\s*[:\-–]?\s*$/i
+const SOLUTION_SECTION_HEADER = /^(?:answer\s*key\s*(?:and|&)\s*(?:detailed\s*)?(?:solutions?|explanations?)|detailed\s*(?:solutions?|explanations?))\s*$/i
+const SOLUTION_QUESTION_HEADER = /^\s*(?:q(?:uestion)?\s*)?(\d{1,3})[.)]\s*answer\s*[:\-–]\s*([A-D])(?:\s*[—–-]\s*(.*))?\s*$/i
 const SKIP_LINE = /^(?:directions?|instructions?|general\s+instructions|note\s*:)\b/i
 const SUBJECT_HEADING = /^(physics|chemistry|biology|mathematics|maths|math|botany|zoology)\b[:\s]*$/i
 
@@ -66,6 +68,7 @@ const DIFFICULTY_VALUES = { easy: 'Easy', medium: 'Medium', moderate: 'Medium', 
 const MAX_QUESTION_CHARS = 5000
 const MAX_OPTION_CHARS = 1000
 const MAX_SOLUTION_CHARS = 5000
+const SUSPICIOUS_MATH_PATTERN = /\b(?:sin|cos|tan|cot|sec|csc)n\^?1\b/i
 
 /** Strip noise (control chars, trailing junk) and cap length defensively. */
 const sanitizeValue = (value, maxLen) => {
@@ -111,17 +114,26 @@ const splitInlineOptions = (text) => {
   let match
   while ((match = INLINE_OPTION.exec(text)) !== null) {
     marks.push({
-      letter: match[1].toUpperCase(),
+      letter: String(match[1] || match[2]).toUpperCase(),
+      markerStart: match.index + (match[0].length - match[0].trimStart().length),
       contentStart: match.index + match[0].length,
     })
   }
   if (marks.length < 2) return null
   const parts = []
   marks.forEach((mark, i) => {
-    const end = i + 1 < marks.length ? marks[i + 1].contentStart : text.length
-    parts.push({ letter: mark.letter, text: text.slice(mark.contentStart, end).trim() })
+    const end = i + 1 < marks.length ? marks[i + 1].markerStart : text.length
+    parts.push({
+      letter: mark.letter,
+      text: text.slice(mark.contentStart, end).trim(),
+      markerStart: mark.markerStart,
+    })
   })
-  return parts.filter((p) => p.text.length > 0)
+  const nonEmptyParts = parts.filter((p) => p.text.length > 0)
+  if (nonEmptyParts.length < 2) return null
+  if (nonEmptyParts.some((part, index) => index > 0
+    && part.letter.charCodeAt(0) !== nonEmptyParts[index - 1].letter.charCodeAt(0) + 1)) return null
+  return nonEmptyParts
 }
 
 /**
@@ -154,7 +166,14 @@ const stripChrome = (pages) => {
       const raw = line.text.trim()
       const key = normalizeForMatching(raw)
       const atEdge = index < 2 || index >= page.lines.length - 2
+      const hasCoordinates = !page.ocr && Number.isFinite(line.y) && Number.isFinite(page.height)
+      const inPageMargin = hasCoordinates
+        && (line.y >= page.height * 0.92 || line.y <= page.height * 0.07)
       if (PAGE_NUM_LINE.test(raw) && (atEdge || raw.length <= 6)) return
+      if (inPageMargin && raw.length < 180
+        && ((key && (edgeCounts.get(key) || 0) >= 2)
+          || (atEdge && /(?:cetnova|mht[\s-]?cet|question\s*bank|practice\s*(?:paper|test)|mock\s*test)/i.test(raw)))) return
+      if (atEdge && /(?:cetnova|mht[\s-]?cet|question\s*bank|practice\s*(?:paper|test)|mock\s*test)/i.test(raw)) return
       if (key && chromeKeys.has(key)) return
       if (AD_LINE.test(raw) && raw.length < 150) return
       if (AD_SOFT_LINE.test(raw) && (atEdge || raw.length < 80)) return
@@ -238,6 +257,9 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
 
   let current = null // in-flight question accumulator
   let inAnswerKeySection = false
+  let inSolutionSection = false
+  let activeSolutionQuestion = null
+  let activeSolutionLines = []
   let target = 'question' // where continuation lines go: question | option | solution
   let lastOptionLetter = null
   let sectionSeen = { subject: false, topic: false }
@@ -278,12 +300,26 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
     if (!text) {
       q.warnings.push('Question text was not detected (options only).')
     }
+    const hasDiagramReference = /\b(?:fig(?:ure)?\.?\s*\d*|diagram|graph|circuit|shown\s+(?:above|below|in))\b/i.test(text)
+    if (hasDiagramReference) {
+      q.warnings.push('This question may depend on a PDF diagram. Verify it and attach a cropped image in the review screen.')
+    }
+    const hasSuspiciousMath = SUSPICIOUS_MATH_PATTERN.test(
+      normalizeMathText([text, ...Object.values(options), ...q.solutionLines].join(' ')),
+    )
+    if (hasSuspiciousMath) {
+      q.warnings.push('Mathematical notation may have been corrupted during PDF extraction. Verify and correct the formula in review.')
+    }
 
     // Detect missing letters in an A-D run (e.g. C) missing) so admins can fix
     if (letters.length >= 2) {
       const expected = 'ABCDEFG'.slice(0, letters[letters.length - 1].charCodeAt(0) - 64)
       const missing = expected.split('').filter((l) => !q.options.has(l) && l <= 'D')
       if (missing.length) q.warnings.push(`Option ${missing.join(', ')} may be missing (not detected in the PDF).`)
+    }
+    const missingRequiredOptions = ['A', 'B', 'C', 'D'].filter((letter) => !q.options.has(letter))
+    if (missingRequiredOptions.length) {
+      q.warnings.push(`Option ${missingRequiredOptions.join(', ')} may be missing or unreadable.`)
     }
 
     // Inline answer only — answer-key sections are parsed later, so pairs
@@ -294,6 +330,9 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
       : -1
     if (answerLetter && correctIndex === -1) {
       q.warnings.push(`Answer "${answerLetter}" was detected but option ${answerLetter} was not found.`)
+    }
+    if (correctIndex < 0) {
+      q.warnings.push('No correct answer was detected. Verify the answer key before importing.')
     }
 
     const subject = q.subject || context.subject || ''
@@ -318,7 +357,10 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
     let needsReview = false
     let reviewReason = ''
     if (!text) { needsReview = true; reviewReason = 'Question text was not detected' }
+    else if (missingRequiredOptions.length) { needsReview = true; reviewReason = 'One or more required options are missing or unreadable' }
     else if (letters.length < 2) { needsReview = true; reviewReason = 'Fewer than two options were detected' }
+    else if (hasSuspiciousMath) { needsReview = true; reviewReason = 'Potentially corrupted mathematical notation needs manual verification' }
+    else if (hasDiagramReference) { needsReview = true; reviewReason = 'A referenced diagram may need to be attached or verified' }
     else if (correctIndex < 0) { needsReview = true; reviewReason = 'Correct answer not found (no answer key)' }
     else if (confidence < 0.6) { needsReview = true; reviewReason = mode === 'ocr' ? 'Low OCR confidence — please verify' : 'Low extraction confidence — please verify' }
 
@@ -337,8 +379,22 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
       needsReview,
       reviewReason,
       warnings: q.warnings,
+      imageUrl: '',
+      imageAltText: '',
       sourcePage: q.firstPage || undefined,
     })
+  }
+
+  const flushActiveSolution = () => {
+    if (activeSolutionQuestion && activeSolutionLines.length) {
+      const existing = activeSolutionQuestion.solution ? `${activeSolutionQuestion.solution} ` : ''
+      activeSolutionQuestion.solution = sanitizeValue(
+        `${existing}${activeSolutionLines.join(' ')}`,
+        MAX_SOLUTION_CHARS,
+      )
+    }
+    activeSolutionQuestion = null
+    activeSolutionLines = []
   }
 
   const flattened = []
@@ -352,6 +408,54 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
     const rawLine = flattened[i].text.trim()
     if (!rawLine) continue
     if (SKIP_LINE.test(rawLine) && rawLine.length < 200) continue
+
+    if (SOLUTION_SECTION_HEADER.test(rawLine)) {
+      if (current) finalizeCurrent()
+      flushActiveSolution()
+      inAnswerKeySection = false
+      inSolutionSection = true
+      continue
+    }
+
+    if (inSolutionSection) {
+      const solutionHeader = rawLine.match(SOLUTION_QUESTION_HEADER)
+      if (solutionHeader) {
+        flushActiveSolution()
+        const number = Number(solutionHeader[1])
+        activeSolutionQuestion = questions.find((question) => question.questionNumber === number) || null
+        const answer = solutionHeader[2].toUpperCase()
+        if (activeSolutionQuestion) {
+          if (activeSolutionQuestion.correctAnswer && activeSolutionQuestion.correctAnswer !== answer) {
+            activeSolutionQuestion.warnings.push(
+              `Conflicting answers were found: ${activeSolutionQuestion.correctAnswer} in the question section and ${answer} in the solution section.`,
+            )
+            activeSolutionQuestion.needsReview = true
+            activeSolutionQuestion.reviewReason = 'Conflicting answer keys need manual verification'
+          } else if (activeSolutionQuestion.options[answer] !== undefined) {
+            activeSolutionQuestion.correctAnswer = answer
+            activeSolutionQuestion.correctIndex = answer.charCodeAt(0) - 65
+            if (activeSolutionQuestion.reviewReason === 'Correct answer not found (no answer key)') {
+              activeSolutionQuestion.needsReview = false
+              activeSolutionQuestion.reviewReason = ''
+            }
+          } else {
+            activeSolutionQuestion.warnings.push(`Solution answer "${answer}" does not match a detected option.`)
+          }
+          if (solutionHeader[3]) activeSolutionLines.push(solutionHeader[3].trim())
+        }
+        continue
+      }
+
+      if (!activeSolutionQuestion && QUESTION_MARKERS.some((marker) => marker.test(rawLine))) {
+        inSolutionSection = false
+      } else {
+        if (activeSolutionQuestion) {
+          const line = rawLine.replace(/\s*Answer\s*[:\-–]?\s*[A-D]\s*\.?\s*$/i, '').trim()
+          if (line) activeSolutionLines.push(line)
+        }
+        continue
+      }
+    }
 
     // ── Answer key section ─────────────────────────────────────────────
     if (ANSWER_KEY_HEADER.test(rawLine)) {
@@ -448,7 +552,26 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
       const remainder = rawLine.replace(/^(\s*(?:q(?:ues|uestion)?\s*\.?\s*(?:no\.?\s*:?)?\s*)?(?:question\s*)?\d{1,3}\s*[.)\]:\-]?\s*)/i, '')
         .replace(/^\((\d{1,3})\)\s*/, '')
         .trim()
-      if (remainder) current.textLines.push(remainder)
+      const inlineParts = remainder ? splitInlineOptions(remainder) : null
+      if (inlineParts?.[0]?.letter === 'A') {
+        const firstOptionStart = inlineParts[0].markerStart
+        const statement = remainder.slice(0, firstOptionStart).trim()
+        if (statement) current.textLines.push(statement)
+        const finalPart = inlineParts[inlineParts.length - 1]
+        const trailingAnswer = finalPart.text.match(ANSWER_TRAILING)
+        if (trailingAnswer) {
+          const value = trailingAnswer[1].toUpperCase()
+          current.answer = /\d/.test(value)
+            ? String.fromCharCode(64 + parseInt(value, 10))
+            : value
+          finalPart.text = finalPart.text.slice(0, trailingAnswer.index).trim().replace(/[,;]$/, '')
+        }
+        inlineParts.forEach((part) => current.options.set(part.letter, part.text))
+        target = 'option'
+        lastOptionLetter = inlineParts[inlineParts.length - 1].letter
+      } else if (remainder) {
+        current.textLines.push(remainder)
+      }
       continue
     }
 
@@ -519,17 +642,18 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
       const letter = (optionMatch[1] || optionMatch[3] || optionMatch[5] || '').toUpperCase()
       const remainder = (optionMatch[2] || optionMatch[4] || optionMatch[6] || '').replace(/^[:.]\s*/, '').trim()
       if (letter && !current.options.has(letter)) {
-        const inlineParts = remainder ? splitInlineOptions(remainder) : null
-        if (inlineParts) {
-          current.options.set(letter, inlineParts[0].text)
-          inlineParts.slice(1).forEach((part) => {
+        const inlineParts = splitInlineOptions(rawLine)
+        if (inlineParts && inlineParts[0].letter === letter) {
+          inlineParts.forEach((part) => {
             if (!current.options.has(part.letter)) current.options.set(part.letter, part.text)
           })
+          target = 'option'
+          lastOptionLetter = inlineParts[inlineParts.length - 1].letter
         } else {
           current.options.set(letter, remainder)
+          target = 'option'
+          lastOptionLetter = letter
         }
-        target = 'option'
-        lastOptionLetter = letter
         continue
       }
     }
@@ -569,6 +693,7 @@ const parseQuestions = (pages, { mode = 'text', ocrConfidence } = {}) => {
   }
 
   finalizeCurrent()
+  flushActiveSolution()
 
   // Answer-key sections follow the questions they refer to, so the pairs can
   // only be applied once every line has been processed.

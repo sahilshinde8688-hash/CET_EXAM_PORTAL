@@ -2,14 +2,8 @@ import { lazy, startTransition, Suspense, useEffect, useRef, useState } from 're
 import SignIn from './components/SignIn'
 import { clearAdminCredentials } from './adminAuth'
 import { ApiResponseError, authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
-import './dashboard.css'
-import './mocktests.css'
-import './results.css'
-import './analysis.css'
-import './settings.css'
 
-import MobileQRModal from './components/MobileQRModal'
-
+const MobileQRModal = lazy(() => import('./components/MobileQRModal'))
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const MockTests = lazy(() => import('./components/MockTests'))
 const Results = lazy(() => import('./components/Results'))
@@ -49,6 +43,9 @@ const pageToPath = (page: Page) => {
 }
 
 const getSessionCheckErrorMessage = (error: unknown): string => {
+  if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+    return 'Session verification timed out. Please retry; you can still sign in below.'
+  }
   if (error instanceof ApiResponseError) {
     return `Authentication service returned HTTP ${error.status}: ${error.message}`
   }
@@ -77,6 +74,8 @@ const PAGE_LABELS: Record<string, string> = {
   settings:  'Settings',
   unauthorized: 'Access denied',
 }
+
+const SESSION_CHECK_TIMEOUT_MS = 10_000
 
 /* ── Page transition loader ── */
 function PageLoader({ target }: { target: Page }) {
@@ -136,14 +135,19 @@ export default function App() {
   const lastActivityProjectionRef = useRef(0)
   const activityRequestInProgressRef = useRef(false)
   const restoreSessionRef = useRef<(requestedPage: Page) => Promise<void>>(async () => {})
+  const sessionRestoreGenerationRef = useRef(0)
 
   const restoreSession = async (requestedPage: Page, showLoader = true) => {
+    const generation = ++sessionRestoreGenerationRef.current
     const hadClientSession = Boolean(session.get())
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), SESSION_CHECK_TIMEOUT_MS)
     if (showLoader) setAuthLoading(true)
     setSessionExpired(false)
     setSessionCheckError(null)
     try {
-      const checkedSession = await authAPI.checkSession()
+      const checkedSession = await authAPI.checkSession(controller.signal)
+      if (generation !== sessionRestoreGenerationRef.current) return
       if (!checkedSession.authenticated || !checkedSession.user) throw new SessionExpiredError()
       const user = checkedSession.user
       session.save(user)
@@ -168,6 +172,7 @@ export default function App() {
       }
       startTransition(() => setPage(destination))
     } catch (error) {
+      if (generation !== sessionRestoreGenerationRef.current) return
       if (!(error instanceof SessionExpiredError)) {
         setSessionCheckError(getSessionCheckErrorMessage(error))
         if (requestedPage !== 'signin') {
@@ -188,7 +193,8 @@ export default function App() {
       }
       setPage('signin')
     } finally {
-      if (showLoader) setAuthLoading(false)
+      window.clearTimeout(timeoutId)
+      if (generation === sessionRestoreGenerationRef.current) setAuthLoading(false)
     }
   }
   restoreSessionRef.current = restoreSession
@@ -289,6 +295,7 @@ export default function App() {
       }
     }
     const handleSessionExpired = (event: Event) => {
+      sessionRestoreGenerationRef.current += 1
       const detail = (event as CustomEvent<{ hadSession?: boolean; message?: string }>).detail
       setSessionExpired(Boolean(detail?.hadSession))
       setSessionExpiredMessage(detail?.message || 'Your session expired because you were inactive. Please sign in again.')
@@ -371,6 +378,32 @@ export default function App() {
     }).finally(() => setNavigatingTo(null))
   }
 
+  const handleSignInSuccess = (user: AuthUser) => {
+    sessionRestoreGenerationRef.current += 1
+    session.save(user)
+    setSessionExpired(false)
+    setSessionCheckError(null)
+    setSessionExpiresAt(user.expiresAt || null)
+    setSessionInactivityTimeoutSeconds(user.inactivityTimeoutSeconds || null)
+    setShowSessionWarning(false)
+    lastClientActivityRef.current = Date.now()
+    const destination = getLoginDestination(user)
+    window.history.replaceState({ page: destination.page }, '', destination.path)
+    setPage(destination.page)
+    setAuthLoading(false)
+  }
+
+  const signInView = (
+    <SignIn
+      sessionExpired={sessionExpired}
+      sessionExpiredMessage={sessionExpiredMessage}
+      onSuccess={handleSignInSuccess}
+      sessionCheckError={sessionCheckError}
+      sessionChecking={authLoading}
+      onRetrySession={() => void restoreSession(pathToPage(window.location.pathname))}
+    />
+  )
+
   if (maintenanceMessage !== null) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
@@ -382,31 +415,12 @@ export default function App() {
       </div>
     )
   }
-  if (authLoading) return <PageLoader target={page} />
+  if (authLoading) return signInView
   if (navigatingTo) return <PageLoader target={navigatingTo} />
   return (
     <>
     <Suspense fallback={<PageLoader target={page} />}>
-      {page === 'signin' && (
-        <SignIn
-          sessionExpired={sessionExpired}
-          sessionExpiredMessage={sessionExpiredMessage}
-          onSuccess={user => {
-            session.save(user)
-            setSessionExpired(false)
-            setSessionCheckError(null)
-            setSessionExpiresAt(user.expiresAt || null)
-            setSessionInactivityTimeoutSeconds(user.inactivityTimeoutSeconds || null)
-            setShowSessionWarning(false)
-            lastClientActivityRef.current = Date.now()
-            const destination = getLoginDestination(user)
-            window.history.replaceState({ page: destination.page }, '', destination.path)
-            setPage(destination.page)
-          }}
-          sessionCheckError={sessionCheckError}
-          onRetrySession={() => void restoreSession(pathToPage(window.location.pathname))}
-        />
-      )}
+      {page === 'signin' && signInView}
       {page === 'mocktests' && <MockTests onNavigate={navigate} />}
       {page === 'results' && <Results onNavigate={navigate} />}
       {page === 'analytics' && <Analysis onNavigate={navigate} />}
@@ -457,10 +471,11 @@ export default function App() {
         </section>
       </div>
     )}
-    <MobileQRModal
-      isOpen={showQrModal}
-      onClose={() => setShowQrModal(false)}
-    />
+    {showQrModal && (
+      <Suspense fallback={null}>
+        <MobileQRModal isOpen onClose={() => setShowQrModal(false)} />
+      </Suspense>
+    )}
     </>
   )
 }

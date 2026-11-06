@@ -3,11 +3,18 @@ import {
   AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Copy, Edit2,
   FileText, Trash2, Upload, X,
 } from 'lucide-react'
-import { MathRenderer } from '../lib/mathDisplay'
-import type { PdfExtractResponse, PdfImportQuestion } from '../lib/api'
+import RichQuestionContent from './RichQuestionContent'
+import ImageCropModal from './ImageCropModal'
+import { questionsAPI, type PdfExtractResponse, type PdfImportQuestion } from '../lib/api'
 
 const OPTION_KEYS = ['A', 'B', 'C', 'D', 'E', 'F']
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard']
+
+function PdfImagePreview({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed) return <p className="qb-pir-image-error">Image preview is unavailable. Replace or remove it before importing.</p>
+  return <img className="qb-pir-image-preview" src={src} alt={alt} onError={() => setFailed(true)} />
+}
 
 interface Props {
   questions: PdfImportQuestion[]
@@ -27,6 +34,9 @@ interface Props {
 export default function PdfImportReview({ questions, meta, importing, onChange, onImport, onCancel }: Props) {
   const [editing, setEditing] = useState<number | null>(null)
   const [showDuplicates, setShowDuplicates] = useState<string | null>(null) // questionNumber as string
+  const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null)
+  const [imageUploadError, setImageUploadError] = useState<{ index: number; message: string } | null>(null)
+  const [cropRequest, setCropRequest] = useState<{ index: number; url: string } | null>(null)
 
   const stats = useMemo(() => ({
     total: questions.length,
@@ -56,6 +66,23 @@ export default function PdfImportReview({ questions, meta, importing, onChange, 
     onChange(questions.filter((_, i) => i !== index))
   }
 
+  const uploadImage = async (index: number, file?: File) => {
+    if (!file) return
+    setUploadingImageIndex(index)
+    setImageUploadError(null)
+    try {
+      const uploaded = await questionsAPI.uploadQuestionImage(file)
+      update(index, { imageUrl: uploaded.imageUrl })
+    } catch (error) {
+      setImageUploadError({
+        index,
+        message: error instanceof Error ? error.message : 'Image upload failed. Please try again.',
+      })
+    } finally {
+      setUploadingImageIndex(null)
+    }
+  }
+
   const toggleAll = () => {
     const allSelected = stats.selected === questions.length
     onChange(questions.map((q) => ({ ...q, selected: !allSelected })))
@@ -74,6 +101,8 @@ export default function PdfImportReview({ questions, meta, importing, onChange, 
       topic: '',
       difficulty: 'Medium',
       solution: '',
+      imageUrl: '',
+      imageAltText: '',
       confidence: 1,
       needsReview: false,
       reviewReason: '',
@@ -239,7 +268,47 @@ export default function PdfImportReview({ questions, meta, importing, onChange, 
                   onChange={(e) => update(index, { question: e.target.value })}
                 />
               ) : (
-                <div className="qb-pir-text"><MathRenderer value={q.question} /></div>
+                <div className="qb-pir-text"><RichQuestionContent content={q.question} /></div>
+              )}
+
+              {(q.imageUrl || isEditing) && (
+                <div className="qb-pir-media">
+                  {q.imageUrl && <PdfImagePreview key={q.imageUrl} src={q.imageUrl} alt={q.imageAltText || `Diagram for question ${q.questionNumber}`} />}
+                  {isEditing && (
+                    <div className="qb-pir-media-controls">
+                      <label className="qb-btn qb-btn-outline">
+                        <Upload size={14} /> {uploadingImageIndex === index ? 'Uploading…' : q.imageUrl ? 'Replace diagram' : 'Add diagram'}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          hidden
+                          disabled={uploadingImageIndex !== null}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0]
+                            if (file) {
+                              if (cropRequest) URL.revokeObjectURL(cropRequest.url)
+                              setCropRequest({ index, url: URL.createObjectURL(file) })
+                            }
+                            event.currentTarget.value = ''
+                          }}
+                        />
+                      </label>
+                      {q.imageUrl && (
+                        <button className="qb-btn qb-btn-outline" type="button" onClick={() => update(index, { imageUrl: '' })}>
+                          <X size={14} /> Remove diagram
+                        </button>
+                      )}
+                      <input
+                        className="qb-pir-input"
+                        aria-label="Diagram alternative text"
+                        placeholder="Diagram description (alt text)"
+                        value={q.imageAltText || ''}
+                        onChange={(event) => update(index, { imageAltText: event.target.value })}
+                      />
+                    </div>
+                  )}
+                  {imageUploadError?.index === index && <p className="qb-pir-image-error">{imageUploadError.message}</p>}
+                </div>
               )}
 
               {/* Options + correct answer */}
@@ -262,7 +331,7 @@ export default function PdfImportReview({ questions, meta, importing, onChange, 
                         onChange={(e) => update(index, { options: { ...q.options, [letter]: e.target.value } })}
                       />
                     ) : (
-                      <div className="qb-pir-option-text"><MathRenderer value={q.options[letter]} /></div>
+                      <div className="qb-pir-option-text"><RichQuestionContent content={q.options[letter]} /></div>
                     )}
                   </div>
                 ))}
@@ -317,6 +386,12 @@ export default function PdfImportReview({ questions, meta, importing, onChange, 
                   />
                 </label>
               )}
+              {!isEditing && q.solution && (
+                <div className="qb-pir-solution-preview">
+                  <strong>Explanation</strong>
+                  <RichQuestionContent content={q.solution} />
+                </div>
+              )}
 
               {(q.warnings?.length || 0) > 0 && (
                 <div className="qb-pir-warnings">
@@ -333,6 +408,27 @@ export default function PdfImportReview({ questions, meta, importing, onChange, 
           </div>
         )}
       </div>
+
+      {cropRequest && (
+        <ImageCropModal
+          image={cropRequest.url}
+          title="Crop question diagram"
+          kicker={`Question ${questions[cropRequest.index]?.questionNumber ?? ''}`}
+          confirmLabel="Upload Diagram"
+          aspect={1.5}
+          cropShape="rect"
+          fileName="question-diagram.jpg"
+          onCancel={() => {
+            URL.revokeObjectURL(cropRequest.url)
+            setCropRequest(null)
+          }}
+          onConfirm={(file) => {
+            void uploadImage(cropRequest.index, file)
+            URL.revokeObjectURL(cropRequest.url)
+            setCropRequest(null)
+          }}
+        />
+      )}
 
       {/* ── Import bar ───────────────────────────────────────────────── */}
       <div className="qb-pir-importbar">

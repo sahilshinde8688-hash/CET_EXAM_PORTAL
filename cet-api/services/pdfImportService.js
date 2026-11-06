@@ -95,6 +95,7 @@ const extractQuestionsFromPdf = async (buffer, { onProgress } = {}) => {
     ocrConfidence: ocrInfo ? ocrInfo.meanConfidence : undefined,
   })
   warnings.push(...parsed.warnings)
+  warnings.push('PDF image regions are not automatically extracted. Verify diagrams and attach a cropped replacement to the related question in review.')
 
   // ── 4. Post-processing / normalisation ───────────────────────────────
   const questions = parsed.questions.map((q, index) => ({

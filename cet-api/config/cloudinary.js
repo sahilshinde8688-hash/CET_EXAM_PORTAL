@@ -13,6 +13,11 @@ const isConfigured = (value) => {
   return !/^your_|^your-/i.test(value.trim())
 }
 
+const isCloudinaryConfigured = () =>
+  isConfigured(process.env.CLOUDINARY_CLOUD_NAME)
+  && isConfigured(process.env.CLOUDINARY_API_KEY)
+  && isConfigured(process.env.CLOUDINARY_API_SECRET)
+
 const storage = multer.memoryStorage()
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -35,7 +40,7 @@ const upload = multer({
  */
 const uploadToCloudinary = (buffer, folder = 'cet-students', publicId = undefined, mimeType = 'image/jpeg') => {
   return new Promise((resolve, reject) => {
-    if (!isConfigured(process.env.CLOUDINARY_CLOUD_NAME) || !isConfigured(process.env.CLOUDINARY_API_KEY) || !isConfigured(process.env.CLOUDINARY_API_SECRET)) {
+    if (!isCloudinaryConfigured()) {
       // In local dev without Cloudinary, return fallback data URI
       const base64 = buffer.toString('base64')
       return resolve({
@@ -49,9 +54,6 @@ const uploadToCloudinary = (buffer, folder = 'cet-students', publicId = undefine
       resource_type: 'image',
       overwrite: true,
     }
-    if (process.env.CLOUDINARY_UPLOAD_PRESET) {
-      options.upload_preset = process.env.CLOUDINARY_UPLOAD_PRESET
-    }
     if (publicId) options.public_id = publicId
 
     cloudinary.uploader
@@ -64,8 +66,8 @@ const uploadToCloudinary = (buffer, folder = 'cet-students', publicId = undefine
 }
 
 const deleteFromCloudinary = (publicId) => {
-  if (!isConfigured(process.env.CLOUDINARY_CLOUD_NAME) || !isConfigured(process.env.CLOUDINARY_API_KEY) || !isConfigured(process.env.CLOUDINARY_API_SECRET)) return Promise.resolve()
+  if (!isCloudinaryConfigured()) return Promise.resolve()
   return cloudinary.uploader.destroy(publicId)
 }
 
-module.exports = { cloudinary, upload, uploadToCloudinary, deleteFromCloudinary }
+module.exports = { cloudinary, upload, uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured }

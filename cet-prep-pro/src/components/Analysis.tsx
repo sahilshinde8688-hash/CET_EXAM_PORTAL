@@ -4,6 +4,7 @@ import UserAvatar from './UserAvatar'
 import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import { shareTestReport } from '../lib/exportUtils'
 import { generateResultAnalytics, type AIAnalyticsData } from '../lib/openrouter'
+import '../analysis.css'
 
 interface AnalysisProps {
   onNavigate?: (page: Page) => void

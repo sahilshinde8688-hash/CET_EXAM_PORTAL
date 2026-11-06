@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Sidebar from './Sidebar'
 import ImageCropModal from './ImageCropModal'
 import { session, testsAPI, usersAPI, type AuthUser, type TestResult } from '../lib/api'
+import '../settings.css'
 
 type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
 
