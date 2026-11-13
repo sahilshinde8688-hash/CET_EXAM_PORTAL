@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type MouseEvent } from 'react'
 import katex from 'katex'
+import '../lib/katexExtensions'
 import 'mathlive'
 import 'mathlive/fonts.css'
 import type { MathfieldElement } from 'mathlive'
 import { Bold, Image as ImageIcon, Italic, List, ListOrdered, Sigma, Subscript, Superscript, Underline, X } from 'lucide-react'
-import { getClipboardMathDiagnostics, hasQuestionContent, normalizeEscapedQuestionContent, preparePastedQuestion, sanitizeQuestionContent, wrapBareLatexMath } from '../lib/questionContent'
+import { getClipboardMathDiagnostics, hasQuestionContent, normalizeEscapedQuestionContent, preparePastedQuestion, renderDelimitedMath, sanitizeQuestionContent, wrapBareLatexMath } from '../lib/questionContent'
 import './rich-question-editor.css'
 
 interface RichQuestionEditorProps {
@@ -20,7 +21,7 @@ type EquationCategory =
   | 'Fractions' | 'Scripts' | 'Radicals' | 'Integrals' | 'Operators'
   | 'Brackets' | 'Functions' | 'Accents' | 'Matrices' | 'Symbols' | 'Templates'
 
-type EquationInputMode = 'visual' | 'latex'
+type EquationInputMode = 'visual' | 'latex' | 'preview'
 
 const EQUATION_TEMPLATES: Record<EquationCategory, Array<{ label: string; latex: string }>> = {
   Fractions: [
@@ -92,8 +93,6 @@ const EQUATION_TEMPLATES: Record<EquationCategory, Array<{ label: string; latex:
 }
 
 const EQUATION_CATEGORIES = Object.keys(EQUATION_TEMPLATES) as EquationCategory[]
-const MATH_DELIMITERS = /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g
-
 function createEquationToken(latex: string, display: boolean): HTMLSpanElement {
   const token = document.createElement('span')
   token.className = `rich-question-equation${display ? ' rich-question-equation-block' : ''}`
@@ -132,37 +131,38 @@ function escapeHtmlAttribute(value: string): string {
 }
 
 function renderMathTokens(root: ParentNode) {
+  const createToken = (latex: string, display: boolean) => createEquationToken(latex, display)
+  renderDelimitedMath(root, createToken)
   wrapBareLatexMath(root)
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      return node.parentElement?.closest('code, pre, .rich-question-equation')
-        ? NodeFilter.FILTER_REJECT
-        : NodeFilter.FILTER_ACCEPT
-    },
-  })
-  const nodes: Text[] = []
-  let current: Node | null
-  while ((current = walker.nextNode())) {
-    if (current.nodeValue) nodes.push(current as Text)
-  }
+  renderDelimitedMath(root, createToken)
+}
 
-  for (const node of nodes) {
-    const source = node.data
-    MATH_DELIMITERS.lastIndex = 0
-    const matches = Array.from(source.matchAll(MATH_DELIMITERS))
-    if (!matches.length || !node.parentNode) continue
-    const fragment = document.createDocumentFragment()
-    let offset = 0
-    for (const match of matches) {
-      const start = match.index ?? 0
-      const latex = match[1] ?? match[2] ?? match[3] ?? match[4] ?? ''
-      const display = match[1] !== undefined || match[2] !== undefined
-      if (start > offset) fragment.append(document.createTextNode(source.slice(offset, start)))
-      fragment.append(createEquationToken(latex, display))
-      offset = start + match[0].length
-    }
-    if (offset < source.length) fragment.append(document.createTextNode(source.slice(offset)))
-    node.replaceWith(fragment)
+function normalizeLatexSource(source: string): string {
+  return source
+    .replace(/\\\(|\\\)|\\\[|\\\]|\$\$?/g, '')
+    .trim()
+}
+
+function getStandaloneLatexExpression(source: string): string | null {
+  const latex = normalizeLatexSource(source).replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim()
+  if (!latex || !/(?:\\[a-zA-Z]+|[\^_=])/i.test(latex)) return null
+
+  const prose = latex
+    .replace(/\\text\s*\{(?:[^{}]|\{[^{}]*\})*\}/g, ' ')
+    .replace(/\\(?:begin|end)\{[^}]+\}/g, ' ')
+    .replace(/\\[a-zA-Z]+/g, ' ')
+  if (/[a-zA-Z]{4,}/.test(prose)) return null
+
+  try {
+    katex.renderToString(latex, {
+      throwOnError: true,
+      displayMode: true,
+      strict: false,
+      trust: false,
+    })
+    return latex
+  } catch {
+    return null
   }
 }
 
@@ -204,9 +204,10 @@ function insertFragment(editor: HTMLDivElement, html: string, rangeOverride?: Ra
 
 function plainTextToHtml(text: string): string {
   return text
-    .split(/\r?\n/)
-    .map(line => line ? `<div>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : '<div><br></div>')
-    .join('')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r?\n/g, '<br>')
 }
 
 function hasHtmlMarkup(content: string): boolean {
@@ -286,6 +287,23 @@ export default function RichQuestionEditor({
     if (pasteWarning) setPasteWarning('')
   }
 
+  const convertAllEquations = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    const latex = getStandaloneLatexExpression(editor.innerText)
+    if (latex) {
+      editor.replaceChildren(createEquationToken(latex, true))
+      const content = readEditorContent(editor)
+      lastValueRef.current = content
+      onChange(content)
+      return
+    }
+    renderMathTokens(editor)
+    const content = readEditorContent(editor)
+    lastValueRef.current = content
+    onChange(content)
+  }
+
   const rememberSelection = () => {
     const selection = window.getSelection()
     if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) {
@@ -326,7 +344,10 @@ export default function RichQuestionEditor({
       ? window.getSelection()?.getRangeAt(0).cloneRange()
       : null
     if (editor && (html || text)) {
-      const prepared = preparePastedQuestion(html, text, Boolean(image))
+      const pastedLatex = getStandaloneLatexExpression(text)
+      const prepared = pastedLatex
+        ? { content: `$$${pastedLatex}$$`, warning: '' }
+        : preparePastedQuestion(html, text, Boolean(image))
       const pastedContent = prepared.content
       if (!hasQuestionContent(pastedContent)) {
         setPasteWarning(prepared.warning || 'Could not find readable question content in the clipboard. Copy the question text or HTML and try again.')
@@ -361,7 +382,7 @@ export default function RichQuestionEditor({
 
   const insertEquation = () => {
     const editor = editorRef.current
-    const latex = (equationInputMode === 'latex' ? equationDraft : mathFieldRef.current?.value || equationDraft).trim()
+    const latex = normalizeLatexSource(equationInputMode === 'visual' ? mathFieldRef.current?.value || equationDraft : equationDraft)
     if (!editor || !latex) return
 
     const display = equationMode === 'block'
@@ -404,7 +425,7 @@ export default function RichQuestionEditor({
 
   const insertMathTemplate = (latex: string) => {
     const mathField = mathFieldRef.current
-    if (equationInputMode === 'latex') {
+    if (equationInputMode !== 'visual') {
       setEquationDraft(current => `${current}${latex}`)
       return
     }
@@ -450,9 +471,9 @@ export default function RichQuestionEditor({
 
   let equationPreview = ''
   let equationPreviewError = ''
-  if (equationInputMode === 'latex' && equationDraft.trim()) {
+  if (equationInputMode !== 'visual' && equationDraft.trim()) {
     try {
-      equationPreview = katex.renderToString(equationDraft.trim(), {
+      equationPreview = katex.renderToString(normalizeLatexSource(equationDraft), {
         throwOnError: true,
         displayMode: equationMode === 'block',
         output: 'htmlAndMathml',
@@ -485,6 +506,9 @@ export default function RichQuestionEditor({
             }}
             onClick={() => openEquationEditor()}
           ><Sigma size={16} /> Equation</button>
+          <button type="button" className="rich-question-convert-all" onMouseDown={event => event.preventDefault()} onClick={convertAllEquations}>
+            Convert all
+          </button>
           <span className="rich-question-toolbar-hint">Paste rich text or an image with Ctrl+V</span>
         </div>
       )}
@@ -500,6 +524,9 @@ export default function RichQuestionEditor({
             }}
             onClick={() => openEquationEditor()}
           ><Sigma size={15} /> Equation</button>
+          <button type="button" className="rich-question-convert-all" onMouseDown={event => event.preventDefault()} onClick={convertAllEquations}>
+            Convert all
+          </button>
         </div>
       )}
       {showEquationEditor && (
@@ -528,17 +555,31 @@ export default function RichQuestionEditor({
                   setEquationError('')
                   setEquationInputMode('visual')
                 }}
-              >Visual editor</button>
+              >Visual mode</button>
               <button
                 type="button"
                 aria-pressed={equationInputMode === 'latex'}
                 className={equationInputMode === 'latex' ? 'active' : ''}
                 onClick={() => {
-                  if (mathFieldRef.current?.value) setEquationDraft(mathFieldRef.current.value)
+                  if (equationInputMode === 'visual' && mathFieldRef.current) {
+                    setEquationDraft(mathFieldRef.current.value)
+                  }
                   setEquationError('')
                   setEquationInputMode('latex')
                 }}
-              >LaTeX source</button>
+              >Code mode</button>
+              <button
+                type="button"
+                aria-pressed={equationInputMode === 'preview'}
+                className={equationInputMode === 'preview' ? 'active' : ''}
+                onClick={() => {
+                  if (equationInputMode === 'visual' && mathFieldRef.current) {
+                    setEquationDraft(mathFieldRef.current.value)
+                  }
+                  setEquationError('')
+                  setEquationInputMode('preview')
+                }}
+              >Preview mode</button>
             </div>
             <button type="button" onClick={() => mathFieldRef.current?.executeCommand('undo')}>Undo</button>
             <button type="button" onClick={() => mathFieldRef.current?.executeCommand('redo')}>Redo</button>
@@ -553,37 +594,41 @@ export default function RichQuestionEditor({
             className="rich-question-mathfield-container"
             hidden={equationInputMode !== 'visual'}
           />
-          {equationInputMode === 'latex' && (
+          {equationInputMode !== 'visual' && (
             <div className="rich-question-latex-editor">
-              <label htmlFor={`latex-source-${editorLabel.replace(/\W/g, '-')}`}>LaTeX source</label>
-              <textarea
-                id={`latex-source-${editorLabel.replace(/\W/g, '-')}`}
-                value={equationDraft}
-                onChange={event => {
-                  setEquationDraft(event.target.value)
-                  setEquationError('')
-                }}
-                onPaste={event => {
-                  const pasted = event.clipboardData.getData('text/plain')
-                  if (!pasted) return
-                  event.preventDefault()
-                  const textarea = event.currentTarget
-                  const start = textarea.selectionStart
-                  const end = textarea.selectionEnd
-                  const next = `${equationDraft.slice(0, start)}${pasted}${equationDraft.slice(end)}`
-                  setEquationDraft(next)
-                  setEquationError('')
-                  requestAnimationFrame(() => {
-                    textarea.selectionStart = start + pasted.length
-                    textarea.selectionEnd = start + pasted.length
-                  })
-                }}
-                rows={3}
-                spellCheck={false}
-                placeholder="Paste or type LaTeX, e.g. \\frac{a}{b} or \\sin^2(x)"
-              />
+              {equationInputMode === 'latex' && (
+                <>
+                  <label htmlFor={`latex-source-${editorLabel.replace(/\W/g, '-')}`}>LaTeX source</label>
+                  <textarea
+                    id={`latex-source-${editorLabel.replace(/\W/g, '-')}`}
+                    value={equationDraft}
+                    onChange={event => {
+                      setEquationDraft(event.target.value)
+                      setEquationError('')
+                    }}
+                    onPaste={event => {
+                      const pasted = event.clipboardData.getData('text/plain')
+                      if (!pasted) return
+                      event.preventDefault()
+                      const textarea = event.currentTarget
+                      const start = textarea.selectionStart
+                      const end = textarea.selectionEnd
+                      const next = `${equationDraft.slice(0, start)}${pasted}${equationDraft.slice(end)}`
+                      setEquationDraft(next)
+                      setEquationError('')
+                      requestAnimationFrame(() => {
+                        textarea.selectionStart = start + pasted.length
+                        textarea.selectionEnd = start + pasted.length
+                      })
+                    }}
+                    rows={3}
+                    spellCheck={false}
+                    placeholder="Paste or type LaTeX, e.g. \\frac{a}{b} or \\sin^2(x)"
+                  />
+                </>
+              )}
               <div className="rich-question-latex-preview" aria-live="polite">
-                <strong>Live preview</strong>
+                <strong>{equationInputMode === 'preview' ? 'Preview' : 'Live preview'}</strong>
                 {equationDraft.trim()
                   ? equationPreview
                     ? <div dangerouslySetInnerHTML={{ __html: equationPreview }} />
@@ -635,6 +680,7 @@ export default function RichQuestionEditor({
         aria-label={editorLabel}
         data-placeholder={placeholder}
         onInput={updateContent}
+        onBlur={convertAllEquations}
         onPaste={pasteContent}
         onClick={handleEquationClick}
       />

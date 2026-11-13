@@ -1,9 +1,14 @@
 import { useMemo } from 'react'
-import renderMathInElement from 'katex/contrib/auto-render'
+import ReactMarkdown from 'react-markdown'
+import katex from 'katex'
+import '../lib/katexExtensions'
+import rehypeKatex from 'rehype-katex'
+import remarkMath from 'remark-math'
 import { renderMathWithKaTeX } from '../lib/mathDisplay'
 import {
   ensureMathDelimiters,
   reconstructDisconnectedMatrices,
+  renderDelimitedMath,
   sanitizeQuestionContent,
   wrapBareLatexMath,
 } from '../lib/questionContent'
@@ -18,6 +23,95 @@ interface LegacyMatrixGroup {
   start: number
   end: number
   value: string
+}
+
+function decodeMathEntities(value: string): string {
+  const decoder = document.createElement('textarea')
+  let decoded = value
+  for (let pass = 0; pass < 3; pass += 1) {
+    decoder.innerHTML = decoded
+    if (decoder.value === decoded) break
+    decoded = decoder.value
+  }
+  return decoded
+}
+
+function decodeMarkdownMathEntities(markdown: string): string {
+  return markdown.replace(
+    /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g,
+    expression => decodeMathEntities(expression),
+  )
+}
+
+function findDisplayMathDelimiter(line: string, start: number): number {
+  for (let index = start; index < line.length; index += 1) {
+    if (line[index] === '`') {
+      const run = line.slice(index).match(/^`+/)?.[0]
+      if (run) {
+        const close = line.indexOf(run, index + run.length)
+        if (close !== -1) {
+          index = close + run.length - 1
+          continue
+        }
+      }
+    }
+    if (line.startsWith('$$', index)) return index
+  }
+  return -1
+}
+
+function normalizeDisplayMathBlocks(markdown: string): string {
+  const output: string[] = []
+  let fence: { marker: '`' | '~'; length: number } | null = null
+  let displayMath: string[] | null = null
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})/)
+    if (!displayMath && fenceMatch) {
+      const marker = fenceMatch[1][0] as '`' | '~'
+      if (!fence) {
+        fence = { marker, length: fenceMatch[1].length }
+      } else if (marker === fence.marker && fenceMatch[1].length >= fence.length && /^\s*$/.test(line.slice(fenceMatch[0].length))) {
+        fence = null
+      }
+      output.push(line)
+      continue
+    }
+    if (fence || (!displayMath && /^(?: {4}|\t)/.test(line))) {
+      output.push(line)
+      continue
+    }
+
+    let remaining = line
+    let plainText = ''
+    while (true) {
+      const delimiter = findDisplayMathDelimiter(remaining, 0)
+      if (delimiter === -1) {
+        if (displayMath) displayMath.push(remaining)
+        else plainText += remaining
+        break
+      }
+
+      if (displayMath) {
+        displayMath.push(remaining.slice(0, delimiter))
+        output.push('')
+        output.push(`$$\n${displayMath.join('\n')}\n$$`)
+        output.push('')
+        displayMath = null
+      } else {
+        plainText += remaining.slice(0, delimiter)
+        if (plainText) output.push(plainText)
+        plainText = ''
+        displayMath = []
+      }
+      remaining = remaining.slice(delimiter + 2)
+      if (!remaining) break
+    }
+    if (plainText) output.push(plainText)
+  }
+
+  if (displayMath) output.push(`$$${displayMath.join('\n')}`)
+  return output.join('\n')
 }
 
 function matrixLatex(rows: string[][]): string {
@@ -133,40 +227,64 @@ function renderLegacyMatrices(container: HTMLDivElement) {
   }
 }
 
+function renderEquation(latex: string, display: boolean): HTMLElement {
+  const equation = document.createElement(display ? 'div' : 'span')
+  equation.className = `rich-question-rendered-equation${display ? ' rich-question-rendered-equation-block' : ''}`
+  try {
+    equation.innerHTML = katex.renderToString(decodeMathEntities(latex), {
+      throwOnError: true,
+      displayMode: display,
+      output: 'htmlAndMathml',
+      strict: false,
+      trust: false,
+    })
+  } catch {
+    equation.textContent = 'Equation could not be rendered.'
+    equation.setAttribute('role', 'img')
+    equation.setAttribute('aria-label', 'Equation could not be rendered')
+  }
+  return equation
+}
+
 export default function RichQuestionContent({ content, className = '' }: RichQuestionContentProps) {
+  const isHtmlContent = /<\/?[a-z][\s\S]*>/i.test(content)
   const displayHtml = useMemo(() => {
-    if (!content) return ''
+    if (!content || !isHtmlContent) return ''
     const reconstructed = reconstructDisconnectedMatrices(content)
     const withDelimiters = ensureMathDelimiters(reconstructed)
     const sanitized = sanitizeQuestionContent(withDelimiters)
-    const html = /<\/?[a-z][\s\S]*>/i.test(sanitized)
-      ? sanitized
-      : sanitized.split(/\r?\n/).join('<br>')
     const container = document.createElement('div')
-    container.innerHTML = html
+    container.innerHTML = sanitized
+    renderDelimitedMath(container, renderEquation)
     wrapBareLatexMath(container)
     renderLegacyMatrices(container)
-    renderMathInElement(container, {
-      delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '\\[', right: '\\]', display: true },
-        { left: '\\(', right: '\\)', display: false },
-        { left: '$', right: '$', display: false },
-      ],
-      throwOnError: false,
-      strict: false,
-      trust: false,
-      ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-    })
+    renderDelimitedMath(container, renderEquation)
     return container.innerHTML
-  }, [content])
+  }, [content, isHtmlContent])
+
+  const plainTextMathHtml = useMemo(() => {
+    if (!content || isHtmlContent || !/\\\(|\\\[/.test(content)) return ''
+    const container = document.createElement('div')
+    container.textContent = content
+    renderDelimitedMath(container, renderEquation)
+    wrapBareLatexMath(container)
+    renderDelimitedMath(container, renderEquation)
+    return container.innerHTML
+  }, [content, isHtmlContent])
 
   if (!content) return null
 
   return (
-    <div
-      className={`rich-question-content ${className}`.trim()}
-      dangerouslySetInnerHTML={{ __html: displayHtml }}
-    />
+    <div className={`rich-question-content ${className}`.trim()}>
+      {isHtmlContent
+        ? <div dangerouslySetInnerHTML={{ __html: displayHtml }} />
+        : plainTextMathHtml
+          ? <div className="rich-question-content-plain" dangerouslySetInnerHTML={{ __html: plainTextMathHtml }} />
+        : (
+          <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+            {normalizeDisplayMathBlocks(decodeMarkdownMathEntities(content))}
+          </ReactMarkdown>
+        )}
+    </div>
   )
 }

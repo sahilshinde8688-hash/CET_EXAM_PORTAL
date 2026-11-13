@@ -113,6 +113,7 @@ const questionToCamel = (row) => {
     sourcePage: row.source_page || null,
     sourceQuestionNumber: row.source_question_number || null,
     isActive: row.is_active,
+    isPreviousYear: row.is_previous_year ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -146,6 +147,7 @@ const mockTestToCamel = (row) => {
     scheduledDate: row.scheduled_date,
     createdBy: row.created_by,
     questionIds: row.question_ids || [],
+    config: row.config || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -675,6 +677,7 @@ const createQuestion = async (qData, { includeClassificationMetadata = true } = 
     negative_marks: qData.negativeMarks !== undefined ? Number(qData.negativeMarks) : 0.5,
     difficulty: qData.difficulty || 'Medium',
     is_active: qData.isActive !== undefined ? qData.isActive : true,
+    is_previous_year: qData.isPreviousYear === true,
     normalized_question_hash: createQuestionHash(qData),
   }
   if (qData.generationJobId) payload.generation_job_id = qData.generationJobId
@@ -749,6 +752,7 @@ const updateQuestion = async (id, updates) => {
   if (updates.sourcePage !== undefined) payload.source_page = updates.sourcePage
   if (updates.sourceQuestionNumber !== undefined) payload.source_question_number = updates.sourceQuestionNumber
   if (updates.isActive !== undefined) payload.is_active = updates.isActive
+  if (updates.isPreviousYear !== undefined) payload.is_previous_year = updates.isPreviousYear
   payload.updated_at = new Date().toISOString()
 
   const { data, error } = await supabase.from('questions').update(payload).eq('id', id).select().single()
@@ -826,6 +830,7 @@ const createMockTest = async (testData) => {
     scheduled_date: testData.scheduledDate || null,
     created_by: testData.createdBy || null,
     question_ids: testData.questionIds || [],
+    config: testData.config || {},
   }
   const { data, error } = await supabase.from('mock_tests').insert(payload).select().single()
   if (error) throw error
@@ -847,6 +852,7 @@ const updateMockTest = async (id, updates) => {
   if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate
   if (updates.createdBy !== undefined) payload.created_by = updates.createdBy
   if (updates.questionIds !== undefined) payload.question_ids = updates.questionIds
+  if (updates.config !== undefined) payload.config = updates.config
   payload.updated_at = new Date().toISOString()
 
   const { data, error } = await supabase.from('mock_tests').update(payload).eq('id', id).select().single()

@@ -993,6 +993,7 @@ export interface MockTest {
   createdBy: string
   createdAt: string
   questionIds?: string[]
+  config?: Record<string, unknown> | null
 }
 
 export type MockTestAssignment = {
@@ -1943,6 +1944,7 @@ export interface Question {
   sourceQuestionNumber?: number | null
   generationJobId?: string
   isActive: boolean
+  isPreviousYear?: boolean
   createdAt?: string
 }
 

@@ -714,14 +714,13 @@ export function ensureMathDelimiters(content: string): string {
   if (!content) return ''
   // If already inside \( \), \[ \], $ $, or $$ $$, do not re-wrap
   return content.replace(
-    /(?:(\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix)\}[\s\S]*?\\end\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix)\}))/g,
+    /(?:(\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix|aligned|cases)\}[\s\S]*?\\end\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix|aligned|cases)\}))/g,
     (match, env: string, offset: number, full: string) => {
-      const before = full.slice(Math.max(0, offset - 3), offset)
-      const after = full.slice(offset + match.length, offset + match.length + 3)
-      if (before.endsWith('\\(') && after.startsWith('\\)')) return match
-      if (before.endsWith('\\[') && after.startsWith('\\]')) return match
-      if (before.endsWith('$$') && after.startsWith('$$')) return match
-      if (before.endsWith('$') && after.startsWith('$')) return match
+      const prefix = full.slice(0, offset).toLowerCase()
+      const codeOpen = Math.max(prefix.lastIndexOf('<code'), prefix.lastIndexOf('<pre'))
+      const codeClose = Math.max(prefix.lastIndexOf('</code>'), prefix.lastIndexOf('</pre>'))
+      if (codeOpen > codeClose) return match
+      if (isInsideMathDelimiters(full, offset)) return match
       return `\\(${env}\\)`
     },
   )
@@ -751,6 +750,22 @@ function isInsideMathDelimiters(value: string, offset: number): boolean {
 }
 
 function wrapBareLatexInText(value: string): string {
+  const expression = value.trim()
+  const hasMathSyntax = /(?:\\[a-zA-Z]+|[\^_{}=+*/<>]|[∫∑∏√])/.test(expression)
+  const withoutCommands = expression
+    .replace(/\\(?:begin|end)\{[^}]+\}/g, '')
+    .replace(/\\[a-zA-Z]+/g, '')
+  if (
+    expression &&
+    hasMathSyntax &&
+    !/[a-zA-Z]{3,}/.test(withoutCommands) &&
+    !/^(?:\\\[|\\\(|\${1,2})/.test(expression) &&
+    !isInsideMathDelimiters(value, value.indexOf(expression))
+  ) {
+    const start = value.indexOf(expression)
+    return `${value.slice(0, start)}\\[${expression}\\]${value.slice(start + expression.length)}`
+  }
+
   const ranges: Array<{ start: number; end: number }> = []
   for (const pattern of bareLatexPatterns) {
     pattern.lastIndex = 0
@@ -791,6 +806,65 @@ export function wrapBareLatexMath(root: ParentNode): void {
   nodes.forEach(node => {
     node.data = wrapBareLatexInText(node.data)
   })
+}
+
+const mathDelimiterPattern = /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|\\\(([\s\S]+?)\\\)|\$([^$\n]+?)\$/g
+
+export function renderDelimitedMath(
+  root: ParentNode,
+  createMathNode: (latex: string, display: boolean) => Node,
+): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return node.parentElement?.closest('code, pre, .katex, .rich-question-equation')
+        ? NodeFilter.FILTER_REJECT
+        : NodeFilter.FILTER_ACCEPT
+    },
+  })
+  const textNodes: Text[] = []
+  let current: Node | null
+  while ((current = walker.nextNode())) {
+    if (current.nodeValue) textNodes.push(current as Text)
+  }
+
+  const combinedText = textNodes.map(node => node.data).join('')
+  mathDelimiterPattern.lastIndex = 0
+  const matches = Array.from(combinedText.matchAll(mathDelimiterPattern), match => ({
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + match[0].length,
+    latex: match[1] ?? match[2] ?? match[3] ?? match[4] ?? '',
+    display: match[1] !== undefined || match[2] !== undefined,
+  }))
+
+  for (const match of matches.reverse()) {
+    let offset = 0
+    let startNode: Text | undefined
+    let startOffset = 0
+    let endNode: Text | undefined
+    let endOffset = 0
+
+    for (const textNode of textNodes) {
+      const nodeStart = offset
+      const nodeEnd = nodeStart + textNode.data.length
+      if (!startNode && match.start >= nodeStart && match.start < nodeEnd) {
+        startNode = textNode
+        startOffset = match.start - nodeStart
+      }
+      if (match.end > nodeStart && match.end <= nodeEnd) {
+        endNode = textNode
+        endOffset = match.end - nodeStart
+        break
+      }
+      offset = nodeEnd
+    }
+
+    if (!startNode || !endNode) continue
+    const range = document.createRange()
+    range.setStart(startNode, startOffset)
+    range.setEnd(endNode, endOffset)
+    range.deleteContents()
+    range.insertNode(createMathNode(match.latex, match.display))
+  }
 }
 
 export function sanitizeQuestionContent(content: string): string {

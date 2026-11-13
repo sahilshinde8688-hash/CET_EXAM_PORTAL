@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import {
   Plus, Search, Edit, Trash2, Eye, PlayCircle, Settings,
   Clock, Users, FileText, CheckCircle, X, Calendar, BarChart3,
-  ChevronLeft, ChevronRight, Info, HelpCircle, Lock, ClipboardList, UserCheck
+  ChevronLeft, ChevronRight, Info, HelpCircle, Lock, ClipboardList, UserCheck, Copy
 } from 'lucide-react'
 import { mockTestsAPI, mockTestAssignmentsAPI, MockTest, questionsAPI, testsAPI, usersAPI, session, type AuthUser, type Question, type TestResult } from '../lib/api'
 import RichQuestionContent from './RichQuestionContent'
 import { supabase } from '../lib/supabaseClient'
 import AdminMockTestAssignments from './AdminMockTestAssignments'
 import { dateTimeToUtc } from '../lib/timeZone'
+import CreateTestWizard from './CreateTestWizard'
 
 type TabType = 'all' | 'active' | 'scheduled' | 'draft'
 
@@ -23,6 +24,10 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
   const [activeTab, setActiveTab] = useState<TabType>('all')
   const [search, setSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showCreateWizard, setShowCreateWizard] = useState(false)
+  const [wizardQuestionIds, setWizardQuestionIds] = useState<string[]>([])
+  const [wizardTest, setWizardTest] = useState<MockTest | null>(null)
+  const [duplicateWizard, setDuplicateWizard] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([])
   const [availableChaptersBySubject, setAvailableChaptersBySubject] = useState<Record<string, string[]>>({})
@@ -186,28 +191,21 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
   }
 
   const openEditWizard = (test: MockTest) => {
-    setCreateError('')
-    const category = test.examType || (['PCM', 'PCB', 'PCMB'].includes(test.subject) ? test.subject : 'PCM')
-    setEditingTest(test)
-    setFormData(previous => ({
-      ...previous,
-      title: test.title,
-      subject: category === test.subject ? 'Mixed' : test.subject,
-      category,
-      difficulty: test.difficulty,
-      totalQuestions: test.questions,
-      duration: test.duration,
-      maxAttempts: test.maxAttempts || 1,
-      totalMarks: test.questions * marksForSubject(test.subject),
-      marksPerQuestion: marksForSubject(test.subject),
-      selectedQuestions: test.questionIds || [],
-      selectedChapters: {},
-      publishNow: test.status === 'active',
-      visibility: test.status === 'active' ? 'published' : 'draft',
-    }))
-    setQuestionSubjectFilter('Mixed')
-    setCurrentStep(1)
-    setShowCreateModal(true)
+    if (test.status !== 'draft') {
+      alert('Published and scheduled tests are read-only. Duplicate this test to make changes without affecting students.')
+      return
+    }
+    setWizardTest(test)
+    setDuplicateWizard(false)
+    setWizardQuestionIds([])
+    setShowCreateWizard(true)
+  }
+
+  const duplicateTest = (test: MockTest) => {
+    setWizardTest(test)
+    setDuplicateWizard(true)
+    setWizardQuestionIds([])
+    setShowCreateWizard(true)
   }
 
   const saveTestSettings = async (status: MockTest['status']) => {
@@ -579,54 +577,11 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
   const initialQuestionIdsKey = initialQuestionIds.join(',')
   useEffect(() => {
     if (!initialQuestionIdsKey) return
-    let cancelled = false
-    const ids = initialQuestionIdsKey.split(',').filter(Boolean)
-    questionsAPI.getAllAdmin({ isActive: true })
-      .then(allQuestions => {
-        if (cancelled) return
-        const selected = allQuestions.filter(question => ids.includes(question._id))
-        if (!selected.length) {
-          alert('The approved questions could not be loaded from the Question Bank. Please reopen test creation and select them again.')
-          return
-        }
-        const subjectNames = [...new Set(selected.map(question => question.subject.trim()))]
-        const hasMathOrBio = subjectNames.some(name => name === 'Mathematics' || name === 'Biology')
-        const hasBiology = subjectNames.includes('Biology')
-        const hasNonBiology = subjectNames.some(name => name !== 'Biology')
-        const category = hasBiology && hasNonBiology ? 'PCMB' : hasBiology ? 'PCB' : 'PCM'
-        const subject = subjectNames.length === 1 ? subjectNames[0] : 'Mixed'
-        const marks = selected.reduce((total, question) => total + (question.subject === 'Mathematics' || question.subject === 'Biology' ? 2 : 1), 0)
-        const selectedChapters = selected.reduce<Record<string, string[]>>((chapters, question) => {
-          if (question.chapter) {
-            const key = question.subject.toLowerCase()
-            chapters[key] = [...new Set([...(chapters[key] || []), question.chapter])]
-          }
-          return chapters
-        }, {})
-        setFormData(previous => ({
-          ...previous,
-          category,
-          subject,
-          totalQuestions: selected.length,
-          totalMarks: marks || selected.length * (hasMathOrBio ? 2 : 1),
-          questionSelection: 'bank',
-          selectedChapters,
-          selectedQuestions: selected.map(question => question._id),
-        }))
-        setQuestionSubjectFilter(subject)
-        setCurrentStep(1)
-        setShowCreateModal(true)
-      })
-      .catch(error => {
-        if (!cancelled) {
-          console.error('Failed to load generated questions for test creation:', error)
-          alert('Could not load the saved questions for test creation. Please try again.')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) onInitialQuestionSelectionConsumed?.()
-      })
-    return () => { cancelled = true }
+    setWizardQuestionIds(initialQuestionIdsKey.split(',').filter(Boolean))
+    setWizardTest(null)
+    setDuplicateWizard(false)
+    setShowCreateWizard(true)
+    onInitialQuestionSelectionConsumed?.()
   }, [initialQuestionIdsKey, onInitialQuestionSelectionConsumed])
 
   const filtered = mockTests.filter(test => {
@@ -1293,11 +1248,10 @@ Example:
         </div>
         <div className="amt-header-actions">
           <button className="amt-create-btn" onClick={() => {
-            setCreateError('')
-            setEditingTest(null)
-            setFormData(previous => ({ ...previous, questionSelection: 'bank', selectedQuestions: [], selectedChapters: {} }))
-            setCurrentStep(1)
-            setShowCreateModal(true)
+            setWizardQuestionIds([])
+            setWizardTest(null)
+            setDuplicateWizard(false)
+            setShowCreateWizard(true)
           }}>
             <Plus size={18} />
             Create New Test
@@ -1473,6 +1427,9 @@ Example:
                       <button className="amt-action-btn" title="Edit" onClick={() => openEditWizard(test)}>
                         <Edit size={16} />
                       </button>
+                      <button className="amt-action-btn" title="Duplicate test" onClick={() => duplicateTest(test)}>
+                        <Copy size={16} />
+                      </button>
                       <button className="amt-action-btn" title="Settings" onClick={() => setSettingsTest(test)}>
                         <Settings size={16} />
                       </button>
@@ -1596,6 +1553,13 @@ Example:
           </div>
         </div>
       )}
+      {showCreateWizard && <CreateTestWizard
+        initialQuestionIds={wizardQuestionIds}
+        initialTest={wizardTest}
+        duplicate={duplicateWizard}
+        onClose={() => setShowCreateWizard(false)}
+        onSaved={loadMockTests}
+      />}
     </div>
   )
 }

@@ -1,0 +1,2 @@
+ALTER TABLE public.questions
+  ADD COLUMN IF NOT EXISTS is_previous_year BOOLEAN NOT NULL DEFAULT FALSE;

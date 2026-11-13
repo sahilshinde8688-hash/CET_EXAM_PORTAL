@@ -158,12 +158,19 @@ function ensureMathDelimiters(content) {
   return content.replace(
     /(?:(\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix)\}[\s\S]*?\\end\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|Bmatrix)\}))/g,
     (match, env, offset, full) => {
-      const before = full.slice(Math.max(0, offset - 3), offset)
-      const after = full.slice(offset + match.length, offset + match.length + 3)
-      if (before.endsWith('\\(') && after.startsWith('\\)')) return match
-      if (before.endsWith('\\[') && after.startsWith('\\]')) return match
-      if (before.endsWith('$$') && after.startsWith('$$')) return match
-      if (before.endsWith('$') && after.startsWith('$')) return match
+      const prefix = full.slice(0, offset)
+      const inlineOpen = prefix.lastIndexOf('\\(')
+      const inlineClose = prefix.lastIndexOf('\\)')
+      const displayOpen = prefix.lastIndexOf('\\[')
+      const displayClose = prefix.lastIndexOf('\\]')
+      const displayDollarCount = (prefix.match(/\$\$/g) || []).length
+      const inlineDollarCount = (prefix.match(/(?<!\$)\$(?!\$)/g) || []).length
+      if (
+        inlineOpen > inlineClose
+        || displayOpen > displayClose
+        || displayDollarCount % 2 === 1
+        || inlineDollarCount % 2 === 1
+      ) return match
       return `\\(${env}\\)`
     },
   )

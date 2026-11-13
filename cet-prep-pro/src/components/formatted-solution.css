@@ -21,6 +21,32 @@
   margin: 6px 0;
 }
 
+.formatted-solution h1,
+.formatted-solution h2,
+.formatted-solution h3,
+.formatted-solution h4,
+.formatted-solution h5,
+.formatted-solution h6 {
+  margin: 14px 0 6px;
+  color: #0f172a;
+  font-size: 1em;
+  font-weight: 700;
+}
+
+.formatted-solution ul,
+.formatted-solution ol {
+  margin: 6px 0;
+  padding-left: 1.5em;
+}
+
+.formatted-solution pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
 .formatted-solution-equation {
   max-width: 100%;
   margin: 9px 0;

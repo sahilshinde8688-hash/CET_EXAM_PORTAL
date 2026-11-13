@@ -70,6 +70,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [subjectFilter, setSubjectFilter] = useState('')
+  const [classFilter, setClassFilter] = useState<'' | '11' | '12'>('')
   const [chapterFilter, setChapterFilter] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -95,9 +96,15 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const handlePdfImportClick = () => pdfInputRef.current?.click()
   const handleSubjectCardClick = (subject: string) => {
     setSubjectFilter(subject)
+    setClassFilter('')
     setChapterFilter('')
     setSearch('')
     setActiveTab('list')
+  }
+  const handleClassCardClick = (classLevel: '11' | '12') => {
+    setClassFilter(classLevel)
+    setChapterFilter('')
+    setSearch('')
   }
   const handleChapterClick = (chapter: string) => {
     setChapterFilter(chapter)
@@ -106,6 +113,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   }
   const clearSubjectSelection = () => {
     setSubjectFilter('')
+    setClassFilter('')
     setChapterFilter('')
   }
   const importSpreadsheet = async (file: File) => {
@@ -306,7 +314,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     text: '', imageUrl: '', imageAltText: '', options: ['', '', '', ''], correctIndex: 0,
     marks: 4, negativeMarks: 1, estimatedTime: 2, expectedAccuracy: 65, tags: '',
     solution: '', hints: '', videoUrl: '',
-    status: 'Draft', visibility: 'Public'
+    status: 'Draft', visibility: 'Public', isPreviousYear: false
   }
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(initialForm)
@@ -344,8 +352,14 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
       })
   }, [])
 
+  const normalizeSubject = (subject: string | undefined) => {
+    const normalized = subject?.trim().toLowerCase()
+    return normalized === 'math' || normalized === 'maths' || normalized === 'mathematics'
+      ? 'mathematics'
+      : normalized
+  }
   const selectedSubjectChapters = chapterCatalog.find(
-    subject => subject.name.toLowerCase() === subjectFilter.toLowerCase(),
+    subject => normalizeSubject(subject.name) === normalizeSubject(subjectFilter),
   )?.chapters.map(chapter => chapter.name) || []
   const isMathematicsSubject = form.subject.trim().toLowerCase() === 'mathematics'
   const formSubjectChapters = isMathematicsSubject && form.classLevel
@@ -355,19 +369,23 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
       : chapterCatalog.find(subject => subject.name.toLowerCase() === form.subject.toLowerCase())
         ?.chapters.map(chapter => chapter.name) || []
   const questionChapters = questions
-    .filter(q => !subjectFilter || q.subject?.toLowerCase() === subjectFilter.toLowerCase())
+    .filter(q => !subjectFilter || normalizeSubject(q.subject) === normalizeSubject(subjectFilter))
+    .filter(q => !classFilter || q.classLevel === classFilter)
     .map(q => q.chapter)
     .filter((chapter): chapter is string => Boolean(chapter))
-  const availableChapters = Array.from(new Set([...selectedSubjectChapters, ...questionChapters]))
+  const availableChapters = classFilter
+    ? Array.from(new Set(questionChapters))
+    : Array.from(new Set([...selectedSubjectChapters, ...questionChapters]))
 
   const filteredQuestions = questions.filter(q => {
     const query = search.toLowerCase()
     const matchesSearch = !query || q.questionCode?.toLowerCase().includes(query) || q.text?.toLowerCase().includes(query) || q.subject?.toLowerCase().includes(query) || q.topic?.toLowerCase().includes(query) || q.chapter?.toLowerCase().includes(query)
-    const matchesSubject = !subjectFilter || q.subject?.toLowerCase() === subjectFilter.toLowerCase()
+    const matchesSubject = !subjectFilter || normalizeSubject(q.subject) === normalizeSubject(subjectFilter)
+    const matchesClass = !classFilter || q.classLevel === classFilter
     const matchesChapter = !chapterFilter || q.chapter === chapterFilter
     const matchesDifficulty = !difficultyFilter || q.difficulty === difficultyFilter
     const matchesStatus = !statusFilter || (statusFilter === 'Published' ? q.isActive : !q.isActive)
-    return matchesSearch && matchesSubject && matchesChapter && matchesDifficulty && matchesStatus
+    return matchesSearch && matchesSubject && matchesClass && matchesChapter && matchesDifficulty && matchesStatus
   })
 
   const handleSave = async () => {
@@ -396,6 +414,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
       marks: form.marks,
       negativeMarks: form.negativeMarks,
       difficulty: form.difficulty,
+      isPreviousYear: form.isPreviousYear,
       isActive: form.status === 'Published'
     }
 
@@ -423,7 +442,8 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
       subject: q.subject || '', chapter: q.chapter || '', topic: q.topic || '', subTopic: q.subTopic || '', text: sanitizeQuestionContent(q.text || ''), imageUrl: q.imageUrl || '', imageAltText: q.imageAltText || '', options: (q.options || ['', '', '', '']).map(sanitizeQuestionContent),
       solution: sanitizeQuestionContent(q.solution || ''),
       correctIndex: q.correctIndex || 0, marks: q.marks || 4, negativeMarks: q.negativeMarks || 1,
-      difficulty: q.difficulty || 'Medium', status: q.isActive ? 'Published' : 'Draft'
+      difficulty: q.difficulty || 'Medium', status: q.isActive ? 'Published' : 'Draft',
+      isPreviousYear: q.isPreviousYear ?? false
     })
     setActiveTab('add')
   }
@@ -659,14 +679,14 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 <input type="text" className="qb-input-search" placeholder="Search by question ID, text, subject, or topic..."
                   value={search} onChange={e => setSearch(e.target.value)} />
               </div>
-              <select className="qb-filter-select" value={subjectFilter} onChange={e => { setSubjectFilter(e.target.value); setChapterFilter('') }}>
+              <select className="qb-filter-select" value={subjectFilter} onChange={e => { setSubjectFilter(e.target.value); setClassFilter(''); setChapterFilter('') }}>
                 <option value="">Subject: All</option>
                 <option value="Physics">Physics</option>
                 <option value="Chemistry">Chemistry</option>
                 <option value="Biology">Biology</option>
                 <option value="Math">Math</option>
               </select>
-              <select className="qb-filter-select" value={chapterFilter} onChange={e => setChapterFilter(e.target.value)}>
+              <select className="qb-filter-select" value={chapterFilter} disabled={Boolean(subjectFilter && !classFilter)} onChange={e => setChapterFilter(e.target.value)}>
                 <option value="">Chapter: All</option>
                 {availableChapters.map(chapter => (
                   <option key={chapter} value={chapter}>{chapter}</option>
@@ -688,27 +708,64 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
             </div>
 
             {subjectFilter && !chapterFilter && (
-              <div className="qb-card" style={{marginBottom: 20}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+              <div className="qb-card qb-hierarchy">
+                <div className="qb-hierarchy-heading">
                   <div>
-                    <div style={{fontSize: 16, fontWeight: 700}}>Choose a chapter in {subjectFilter}</div>
-                    <div style={{fontSize: 13, color: 'var(--text-muted)'}}>Click a chapter to view its questions.</div>
+                    <h3>{classFilter ? `Class ${classFilter} · ${subjectFilter} Chapters` : `${subjectFilter} · Choose a Class`}</h3>
+                    <p>{classFilter ? 'Select a chapter to view its questions.' : 'Choose Class 11 or Class 12 to browse chapters.'}</p>
                   </div>
-                  <button className="qb-btn qb-btn-outline" onClick={clearSubjectSelection}>Clear Subject</button>
+                  <div className="qb-hierarchy-actions">
+                    {classFilter && <button className="qb-btn qb-btn-outline" onClick={() => { setClassFilter(''); setChapterFilter('') }}>Back to Classes</button>}
+                    <button className="qb-btn qb-btn-outline" onClick={clearSubjectSelection}>All Questions</button>
+                  </div>
                 </div>
-                <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: 10}}>
-                  {availableChapters.length ? availableChapters.map(chapter => (
-                    <button key={chapter} className="qb-stat-card" style={{textAlign: 'left', padding: '16px', minHeight: 76, cursor: 'pointer'}} onClick={() => chapter && handleChapterClick(chapter)}>
-                      <div style={{fontSize: 14, fontWeight: 700, marginBottom: 8}}>{chapter}</div>
-                      <div style={{fontSize: 12, color: 'var(--text-muted)'}}>{questions.filter(q => q.subject?.toLowerCase() === subjectFilter.toLowerCase() && q.chapter === chapter).length} questions</div>
-                    </button>
-                  )) : (
-                    <div style={{color: 'var(--text-muted)'}}>No chapters available for this subject.</div>
-                  )}
-                </div>
+
+                {!classFilter ? (
+                  <div className="qb-hierarchy-grid">
+                    {(['11', '12'] as const).map(classLevel => {
+                      const count = questions.filter(q =>
+                        normalizeSubject(q.subject) === normalizeSubject(subjectFilter) && q.classLevel === classLevel,
+                      ).length
+                      return (
+                        <button key={classLevel} type="button" className="qb-hierarchy-card" onClick={() => handleClassCardClick(classLevel)}>
+                          <span className="qb-hierarchy-icon"><Layers size={20} /></span>
+                          <span className="qb-hierarchy-card-title">Class {classLevel}</span>
+                          <span className="qb-hierarchy-card-meta">{count} questions</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  availableChapters.length ? (
+                    <div className="qb-hierarchy-grid">
+                      {availableChapters.map(chapter => {
+                        const count = questions.filter(q =>
+                          normalizeSubject(q.subject) === normalizeSubject(subjectFilter)
+                          && q.classLevel === classFilter
+                          && q.chapter === chapter,
+                        ).length
+                        return (
+                          <button key={chapter} type="button" className="qb-hierarchy-card" onClick={() => handleChapterClick(chapter)}>
+                            <span className="qb-hierarchy-icon"><BookOpen size={20} /></span>
+                            <span className="qb-hierarchy-card-title">{chapter}</span>
+                            <span className="qb-hierarchy-card-meta">{count} questions</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="qb-hierarchy-empty">No questions with a chapter are assigned to this subject and class yet.</div>
+                  )
+                )}
               </div>
             )}
-            <div className="qb-table-container">
+            {subjectFilter && chapterFilter && (
+              <div className="qb-hierarchy-breadcrumb">
+                <span>{subjectFilter}</span><span>Class {classFilter}</span><span>{chapterFilter}</span>
+                <button className="qb-btn qb-btn-outline" onClick={() => setChapterFilter('')}>Back to Chapters</button>
+              </div>
+            )}
+            {(!subjectFilter || chapterFilter) && <div className="qb-table-container">
               <div className="qb-table-toolbar">
                 <div style={{fontWeight: 600}}>Showing {filteredQuestions.length} Questions</div>
                 <div style={{display: 'flex', gap: '8px'}}>
@@ -762,7 +819,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   </tbody>
                 </table>
               </div>
-            </div>
+            </div>}
           </motion.div>
         )}
 
@@ -796,13 +853,16 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                         id="question-class"
                         className="qb-input"
                         value={form.classLevel}
-                        onChange={e => setForm({
-                          ...form,
-                          classLevel: e.target.value as '' | '11' | '12',
-                          chapter: '',
-                          topic: '',
-                          subTopic: '',
-                        })}
+                        onChange={event => {
+                          const classLevel = event.currentTarget.value as '' | '11' | '12'
+                          setForm(current => ({
+                            ...current,
+                            classLevel,
+                            chapter: '',
+                            topic: '',
+                            subTopic: '',
+                          }))
+                        }}
                       >
                         <option value="">Select a class</option>
                         <option value="11">11</option>
@@ -817,7 +877,10 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                         id="question-subject"
                         className="qb-input"
                         value={form.subject}
-                        onChange={e => setForm({ ...form, subject: e.target.value, chapter: '', topic: '', subTopic: '' })}
+                        onChange={event => {
+                          const subject = event.currentTarget.value
+                          setForm(current => ({ ...current, subject, chapter: '', topic: '', subTopic: '' }))
+                        }}
                       >
                         <option value="">Select a subject</option>
                         {form.subject && !chapterCatalog.some(subject => subject.name === form.subject) && (
@@ -833,7 +896,10 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                         className="qb-input"
                         value={form.chapter}
                         disabled={!form.subject || (isMathematicsSubject && !form.classLevel)}
-                        onChange={e => setForm({ ...form, chapter: e.target.value, topic: '', subTopic: '' })}
+                        onChange={event => {
+                          const chapter = event.currentTarget.value
+                          setForm(current => ({ ...current, chapter, topic: '', subTopic: '' }))
+                        }}
                       >
                         <option value="">{!form.subject ? 'Select a subject first' : isMathematicsSubject && !form.classLevel ? 'Select a class first' : 'Select a chapter'}</option>
                         {form.chapter && !formSubjectChapters.includes(form.chapter) && (
@@ -975,7 +1041,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   
                   <div className="qb-form-group">
                     <label className="qb-label">Difficulty Level</label>
-                    <select className="qb-input" value={form.difficulty} onChange={e=>setForm({...form, difficulty: e.target.value as any})}>
+                    <select className="qb-input" value={form.difficulty} onChange={e => setForm(current => ({ ...current, difficulty: e.target.value as 'Easy' | 'Medium' | 'Hard' }))}>
                       <option>Easy</option><option>Medium</option><option>Hard</option>
                     </select>
                   </div>
@@ -993,7 +1059,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   
                   <div className="qb-form-group">
                     <label className="qb-label">Question Type</label>
-                    <select className="qb-input" value={form.qType} onChange={e=>setForm({...form, qType: e.target.value})}>
+                    <select className="qb-input" value={form.qType} onChange={e => setForm(current => ({ ...current, qType: e.target.value }))}>
                       <option>Single Correct</option>
                       <option>Multiple Correct</option>
                       <option>Numerical</option>
@@ -1007,14 +1073,19 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   <h3 className="qb-card-title" style={{fontSize: 16}}><ShieldCheck size={18}/> Workflow & Visibility</h3>
                   <div className="qb-form-group">
                     <label className="qb-label">Status</label>
-                    <select className="qb-input" value={form.status} onChange={e=>setForm({...form, status: e.target.value})}>
+                    <select className="qb-input" value={form.status} onChange={e => setForm(current => ({ ...current, status: e.target.value }))}>
                       <option>Draft</option><option>Pending Review</option><option>Published</option><option>Archived</option>
                     </select>
                   </div>
-                  <div className="qb-toggle">
+                  <label className="qb-toggle">
                     <span className="qb-toggle-label">Previous Year (PYQ)</span>
-                    <input type="checkbox" style={{width: 18, height: 18}} />
-                  </div>
+                    <input
+                      type="checkbox"
+                      style={{width: 18, height: 18}}
+                      checked={form.isPreviousYear}
+                      onChange={e => setForm(current => ({ ...current, isPreviousYear: e.target.checked }))}
+                    />
+                  </label>
                   <div className="qb-toggle">
                     <span className="qb-toggle-label">Institute Only</span>
                     <input type="checkbox" style={{width: 18, height: 18}} defaultChecked />

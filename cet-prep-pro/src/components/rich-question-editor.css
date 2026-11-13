@@ -382,6 +382,14 @@
   padding: 4px 0 !important;
 }
 
+.rich-question-rendered-equation-block {
+  max-width: 100%;
+  margin: 6px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 .rich-question-matrix {
   display: inline-block;
   max-width: 100%;

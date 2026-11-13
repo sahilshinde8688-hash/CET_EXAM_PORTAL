@@ -1,4 +1,5 @@
 import katex from 'katex'
+import './katexExtensions'
 
 const greekSymbolMap: Record<string, string> = {
   alpha: '\\alpha',
@@ -144,4 +145,3 @@ export function MathRenderer({ value = '', className = '' }: { value?: string; c
 }
 
 export const MathText = MathRenderer
-

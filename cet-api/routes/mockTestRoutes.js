@@ -59,10 +59,12 @@ router.get('/:id', requireAdminQuery, apiLimiter, async (req, res) => {
 router.post('/', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, res) => {
   try {
     const { title, subject, questions, duration, difficulty } = req.body
+    const status = req.body.status || 'draft'
     if (
       typeof title !== 'string' || !title.trim()
       || typeof subject !== 'string' || !subject.trim()
-      || !Number.isInteger(Number(questions)) || Number(questions) < 1
+      || !Number.isInteger(Number(questions)) || Number(questions) < 0
+      || (status !== 'draft' && Number(questions) < 1)
       || !Number.isInteger(Number(duration)) || Number(duration) < 1
       || !Number.isInteger(Number(req.body.maxAttempts)) || Number(req.body.maxAttempts) < 1
       || !['Easy', 'Medium', 'Hard'].includes(difficulty)
@@ -78,11 +80,11 @@ router.post('/', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, 
   } catch (err) {
     console.error('Failed to create mock test:', err)
     const missingMockTestSchema = ['PGRST204', '42703'].includes(err?.code)
-      && /exam_type|max_attempts/.test(String(err?.message || ''))
+      && /exam_type|max_attempts|config/.test(String(err?.message || ''))
     if (missingMockTestSchema) {
       return res.status(503).json({
         success: false,
-        message: 'The database is missing fields required for mock tests. Apply all Supabase migrations, including 20261007_mock_test_assignments.sql and 20261008_mock_test_attempt_limits.sql, then retry.',
+        message: 'The database is missing fields required for mock tests. Apply all Supabase migrations, including 20261007_mock_test_assignments.sql, 20261008_mock_test_attempt_limits.sql, and 20261108_mock_test_configuration.sql, then retry.',
       })
     }
     res.status(500).json({ success: false, message: 'The mock test could not be saved. Please retry; if this continues, contact the administrator.' })
@@ -100,10 +102,10 @@ router.put('/:id', protect, adminOnly, validateCsrfToken, apiLimiter, async (req
     res.json(updated)
   } catch (err) {
     if (['PGRST204', '42703'].includes(err?.code)
-      && /max_attempts/.test(String(err?.message || ''))) {
+      && /max_attempts|config/.test(String(err?.message || ''))) {
       return res.status(503).json({
         success: false,
-        message: 'Mock-test attempt limits are not installed in the database yet. Apply all Supabase migrations, including 20261008_mock_test_attempt_limits.sql.',
+        message: 'Mock-test settings are not installed in the database yet. Apply all Supabase migrations, including 20261008_mock_test_attempt_limits.sql and 20261108_mock_test_configuration.sql.',
       })
     }
     res.status(400).json({ success: false, message: 'Failed to update test' })

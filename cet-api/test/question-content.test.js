@@ -99,6 +99,17 @@ test('preserves normalized KaTeX matrices through backend question sanitization'
   assert.doesNotMatch(clean, /--tw-|role="presentation"|box-sizing/)
 })
 
+test('does not re-wrap matrices inside a complete text-and-math LaTeX expression', () => {
+  const question = '<p>\\(\\text{If } \\begin{bmatrix}x+y &amp; 2x-z \\\\ 3y-z &amp; x-y \\\\ 2z &amp; x+z\\end{bmatrix} = \\begin{bmatrix}7 &amp; 1 \\\\ 12 &amp; -3 \\\\ 6 &amp; 5\\end{bmatrix}, \\text{ then } x+y+z \\text{ is:}\\)</p>'
+  const clean = sanitizeQuestionContent(question)
+
+  assert.equal((clean.match(/\\\(/g) || []).length, 1)
+  assert.equal((clean.match(/\\\)/g) || []).length, 1)
+  assert.match(clean, /\\text\{If \} \\begin\{bmatrix\}/)
+  assert.match(clean, /\\begin\{bmatrix\}7 &amp; 1/)
+  assert.match(clean, /\\text\{ then \} x\+y\+z \\text\{ is:\}/)
+})
+
 test('reconstructs disconnected matrix rows copied from Marks clipboard layout', () => {
   const raw = '3      −2\n\nIf A + I = (1      −1), then the inverse of the matrix (A − I) is:'
   const clean = sanitizeQuestionContent(raw)

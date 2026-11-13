@@ -1595,7 +1595,8 @@
   border-radius: 0 0 12px 12px;
 }
 .rr-count { font-size: 12px; color: #727785; font-family: 'Inter', sans-serif; }
-.rr-pagination { display: flex; align-items: center; gap: 4px; }
+.rr-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.rr-pagination .rr-bulk-btn { width: auto; }
 .rr-page-btn {
   width: 30px; height: 30px; border-radius: 6px; border: 1px solid #e1e3e4;
   background: #fff; font-size: 12px; font-weight: 600; font-family: 'Inter', sans-serif;
@@ -2825,4 +2826,3 @@
     grid-template-columns: 1fr;
   }
 }
-

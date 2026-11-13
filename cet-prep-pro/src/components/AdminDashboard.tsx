@@ -398,7 +398,7 @@ function RegisteredStudents({ onViewProfile }: { onViewProfile: (id: string) => 
       {!loading && filtered.length > 0 && (
         <div className="rr-table-footer">
           <p className="rr-count">Showing {(studentPage - 1) * studentPageSize + 1}–{(studentPage - 1) * studentPageSize + filtered.length} of {studentTotal.toLocaleString()} students</p>
-          <div>
+          <div className="rr-pagination">
             <button type="button" className="rr-bulk-btn" disabled={studentPage <= 1} onClick={() => setStudentPage(page => page - 1)}>Previous</button>
             <span> Page {studentPage} of {pageCount} </span>
             <button type="button" className="rr-bulk-btn" disabled={studentPage >= pageCount} onClick={() => setStudentPage(page => page + 1)}>Next</button>
