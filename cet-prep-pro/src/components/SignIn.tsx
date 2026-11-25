@@ -12,6 +12,7 @@ const isAdminMfaChallenge = (result: AuthUser | AdminMfaChallenge): result is Ad
 
 interface Props {
   onSuccess?: (user: AuthUser) => void
+  onHome?: () => void
   sessionExpired?: boolean
   sessionExpiredMessage?: string
   sessionCheckError?: string | null
@@ -21,6 +22,7 @@ interface Props {
 
 export default function SignIn({
   onSuccess,
+  onHome,
   sessionExpired = false,
   sessionExpiredMessage = 'Your session expired because you were inactive. Please sign in again.',
   sessionCheckError,
@@ -238,7 +240,7 @@ export default function SignIn({
           <button
             type="button"
             className="signin-nav-brand"
-            onClick={() => switchTab('login')}
+            onClick={() => onHome ? onHome() : switchTab('login')}
             aria-label="CET Nova home"
           >
             <div className="signin-nav-logo-wrap">
@@ -345,13 +347,13 @@ export default function SignIn({
           <div className={`signin-auth-card${mfaChallenge ? ' signin-auth-card--mfa' : ''}`}>
 
             {/* Card Centered Brand Logo */}
-            <div className="auth-card-logo-wrap">
+            <button type="button" className="auth-card-logo-wrap" onClick={onHome} aria-label="CET Nova home">
               <img
                 src="/logo.png"
                 alt="CET NOVA SINCE 2026"
                 className="auth-card-logo"
               />
-            </div>
+            </button>
 
             <h2 className="auth-card-title">
               {setupToken
@@ -495,23 +497,56 @@ export default function SignIn({
                     <label className="form-field-label signin-mfa-code-label" htmlFor="admin-mfa-code">
                       {useRecoveryCode ? 'Recovery code' : 'Authenticator code'}
                     </label>
-                    <div className="form-input-container signin-mfa-input-container">
-                      <input
-                        id="admin-mfa-code"
-                        type="text"
-                        className="form-text-input"
-                        placeholder={useRecoveryCode ? 'Enter a recovery code' : ''}
-                        autoComplete="one-time-code"
-                        inputMode={useRecoveryCode ? 'text' : 'numeric'}
-                        maxLength={useRecoveryCode ? 64 : 6}
-                        required
-                        value={mfaCode}
-                        onChange={event => setMfaCode(event.target.value)}
-                        disabled={submitState === 'loading'}
-                      />
-                    </div>
+                    {useRecoveryCode ? (
+                      <div className="form-input-container signin-mfa-input-container">
+                        <input
+                          id="admin-mfa-code"
+                          type="text"
+                          className="form-text-input"
+                          placeholder="Enter a recovery code"
+                          autoComplete="off"
+                          inputMode="text"
+                          maxLength={64}
+                          required
+                          value={mfaCode}
+                          onChange={event => setMfaCode(event.target.value)}
+                          disabled={submitState === 'loading'}
+                        />
+                      </div>
+                    ) : (
+                      <div className="signin-mfa-digit-entry">
+                        <div className="signin-mfa-digit-boxes" aria-hidden="true">
+                          {Array.from({ length: 6 }, (_, index) => (
+                            <span
+                              key={index}
+                              className={`signin-mfa-digit-box${Math.min(mfaCode.length, 5) === index ? ' is-current' : ''}`}
+                            >
+                              {mfaCode[index] || ''}
+                            </span>
+                          ))}
+                        </div>
+                        <input
+                          id="admin-mfa-code"
+                          className="signin-mfa-digit-input"
+                          type="text"
+                          autoComplete="one-time-code"
+                          inputMode="numeric"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          aria-label="Six-digit authenticator code"
+                          required
+                          value={mfaCode}
+                          onChange={event => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                          disabled={submitState === 'loading'}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <button type="submit" className="form-submit-btn signin-mfa-primary-btn" disabled={submitState === 'loading' || !mfaCode.trim()}>
+                  <button
+                    type="submit"
+                    className="form-submit-btn signin-mfa-primary-btn"
+                    disabled={submitState === 'loading' || (useRecoveryCode ? !mfaCode.trim() : mfaCode.length !== 6)}
+                  >
                     {submitState === 'loading' ? 'Verifying…' : mfaChallenge.setupRequired ? 'Verify and enable MFA' : 'Verify identity'}
                     {submitState !== 'loading' && <span className="material-symbols-outlined btn-arrow" aria-hidden="true">arrow_forward</span>}
                   </button>

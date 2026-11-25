@@ -362,6 +362,21 @@ export default function App() {
 
   const navigate = (target: Page | string) => {
     const resolvedTarget = (target === 'admin-dashboard' ? 'admin' : target) as Page
+    if (resolvedTarget === 'landing') {
+      if (page === 'landing') {
+        document.getElementById('home')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+      sessionRestoreGenerationRef.current += 1
+      setAuthLoading(false)
+      setNavigatingTo(null)
+      setSessionExpired(false)
+      setSessionCheckError(null)
+      window.history.pushState({ page: 'landing' }, '', pageToPath('landing'))
+      setPage('landing')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
     if (resolvedTarget === page) return
     if (resolvedTarget === 'signin') {
       setSessionExpiresAt(null)
@@ -426,6 +441,7 @@ export default function App() {
       sessionExpired={sessionExpired}
       sessionExpiredMessage={sessionExpiredMessage}
       onSuccess={handleSignInSuccess}
+      onHome={() => navigate('landing')}
       sessionCheckError={sessionCheckError}
       sessionChecking={authLoading}
       onRetrySession={() => void restoreSession(pathToPage(window.location.pathname))}

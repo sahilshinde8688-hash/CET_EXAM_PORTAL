@@ -33,6 +33,15 @@
   box-shadow: 0 8px 18px rgba(23, 44, 79, 0.08);
   border: 1px solid rgba(23, 23, 23, 0.18);
 }
+.an-topnav-logo {
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+}
+.an-topnav-logo:focus-visible {
+  outline: 3px solid rgba(210, 20, 54, 0.28);
+  outline-offset: 3px;
+}
 .an-topnav-right { display: flex; align-items: center; gap: 12px; }
 .an-search-wrap {
   display: flex; align-items: center; gap: 8px;

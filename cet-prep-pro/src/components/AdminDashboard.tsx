@@ -1642,7 +1642,10 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       {showTest ? (
         <TestInterface onClose={() => setShowTest(false)} />
       ) : view === 'superadmin' && isSuperAdmin ? (
-        <SuperAdminPanel onExitSuperAdmin={() => changeView('overview')} />
+        <SuperAdminPanel
+          onExitSuperAdmin={() => changeView('overview')}
+          onHome={() => onNavigate?.('landing')}
+        />
       ) : (
         <div className={`adb-root${viewProfileId ? ' adb-root--profile' : ''}`}>
           {/* Mobile Sidebar Backdrop */}
@@ -1657,10 +1660,18 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           {/* ── Sidebar ─────────────────────────── */}
           <aside className={`adb-sidebar${mobileMenuOpen ? ' adb-sidebar--mobile-open' : ''}`}>
             <div className="adb-brand">
-              <div className="adb-brand-content">
+              <a
+                className="adb-brand-content"
+                href="/"
+                aria-label="CET Nova home"
+                onClick={event => {
+                  event.preventDefault()
+                  onNavigate?.('landing')
+                }}
+              >
                 <img className="adb-brand-logo" src="/logo.png" alt="CET Admin" />
                 <span className="adb-brand-title">CET Admin</span>
-              </div>
+              </a>
               <button
                 type="button"
                 className="adb-sidebar-close-btn"
@@ -1717,7 +1728,14 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                 >
                   <span className="material-symbols-outlined">menu</span>
                 </button>
-                <div className="adb-topbar-brand"><img src="/logo.png" alt="" /></div>
+                <button
+                  type="button"
+                  className="adb-topbar-brand adb-topbar-home"
+                  onClick={() => onNavigate?.('landing')}
+                  aria-label="CET Nova home"
+                >
+                  <img src="/logo.png" alt="" />
+                </button>
                 <div className="adb-topbar-sep" />
                 <span className="adb-topbar-sub">{topbarTitle}</span>
               </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import Sidebar from './Sidebar'
+import Sidebar, { type Page } from './Sidebar'
 import TestInterface from './TestInterface'
 import UserAvatar from './UserAvatar'
 import AssignedMockTests from './AssignedMockTests'
@@ -7,7 +7,7 @@ import NotificationCenter from './NotificationCenter'
 import { session, testsAPI, mockTestsAPI, mockTestAssignmentsAPI, type AuthUser, type MockTestAssignment, type StudentNotification, type TestResult } from '../lib/api'
 
 interface DashboardProps {
-  onNavigate?: (page: 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard') => void
+  onNavigate?: (page: Page) => void
 }
 
 const navItems = [

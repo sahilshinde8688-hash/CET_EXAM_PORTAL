@@ -41,6 +41,8 @@
   gap: 12px;
   padding: 4px 8px;
   margin-bottom: 32px;
+  color: inherit;
+  text-decoration: none;
 }
 .db-sidebar-logo {
   width: 52px; height: 52px;

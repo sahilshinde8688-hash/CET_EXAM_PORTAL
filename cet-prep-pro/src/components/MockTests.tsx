@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import Sidebar from './Sidebar'
+import Sidebar, { type Page } from './Sidebar'
 import TestInterface from './TestInterface'
 import ExamInstructions from './ExamInstructions'
 import UserAvatar from './UserAvatar'
@@ -130,8 +130,6 @@ const colorMap: Record<string, string> = {
   'teal': 'teal',
   'orange': 'orange',
 }
-
-type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
 
 interface MockTestsProps {
   onNavigate?: (page: Page) => void

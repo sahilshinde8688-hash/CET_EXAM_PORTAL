@@ -439,6 +439,16 @@
   justify-content: center;
   align-items: center;
   margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.auth-card-logo-wrap:focus-visible {
+  outline: 3px solid rgba(210, 20, 54, 0.28);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 
 .auth-card-logo {
@@ -666,7 +676,55 @@
   padding: 0 16px;
   text-align: center;
   font-size: 20px;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.08em;
+}
+
+.signin-mfa-digit-entry {
+  position: relative;
+  width: min(100%, 360px);
+  margin: 0 auto;
+}
+
+.signin-mfa-digit-boxes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.signin-mfa-digit-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #171717;
+  font-size: 22px;
+  font-weight: 600;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.signin-mfa-digit-entry:focus-within .signin-mfa-digit-box.is-current {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16);
+}
+
+.signin-mfa-digit-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0.01;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px;
+  cursor: text;
 }
 
 .signin-auth-card--mfa .auth-card-logo-wrap {

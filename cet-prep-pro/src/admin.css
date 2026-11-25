@@ -37,6 +37,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .adb-sidebar-close-btn {
@@ -610,6 +612,17 @@
   font-weight: 700;
   color: #d21436;
   margin: 0;
+}
+.adb-topbar-home {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.adb-topbar-home:focus-visible {
+  outline: 3px solid rgba(210, 20, 54, 0.28);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 .adb-topbar-brand img { width: 26px; height: 26px; object-fit: contain; }
 

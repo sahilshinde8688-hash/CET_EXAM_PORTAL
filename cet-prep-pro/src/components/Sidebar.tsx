@@ -1,4 +1,4 @@
-export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
+export type Page = 'landing' | 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
 
 import { useEffect, useState } from 'react'
 import { Lottie } from 'lottie-react'
@@ -13,7 +13,7 @@ interface SidebarProps {
   onCloseMobile?: () => void
 }
 
-type AnimatedPage = Exclude<Page, 'signin' | 'admin-dashboard'>
+type AnimatedPage = Exclude<Page, 'landing' | 'signin' | 'admin-dashboard'>
 type NavItem = { icon: string; label: string; page: Page; animation?: string }
 type AnimatedNavItem = NavItem & { page: AnimatedPage; animation: string }
 
@@ -98,12 +98,20 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
     <>
       {/* ── Desktop Sidebar ──────────────────────────────── */}
       <aside className="db-sidebar">
-        <div className="db-sidebar-brand">
+        <a
+          className="db-sidebar-brand"
+          href="/"
+          aria-label="CET Nova home"
+          onClick={event => {
+            event.preventDefault()
+            handleNavClick('landing')
+          }}
+        >
           <div className="db-sidebar-logo">
             <img src="/logo.png" alt="CET NOVA" />
           </div>
           <span className="db-sidebar-title">CET NOVA</span>
-        </div>
+        </a>
 
         <nav className="db-sidebar-nav">
           {navItems.map(item => (
@@ -166,12 +174,21 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
             aria-label="Student Navigation Menu"
           >
             <div className="db-mobile-drawer-header">
-              <div className="db-sidebar-brand" style={{ marginBottom: 0, padding: 0 }}>
+              <a
+                className="db-sidebar-brand"
+                href="/"
+                aria-label="CET Nova home"
+                style={{ marginBottom: 0, padding: 0, textDecoration: 'none' }}
+                onClick={event => {
+                  event.preventDefault()
+                  handleNavClick('landing')
+                }}
+              >
                 <div className="db-sidebar-logo" style={{ width: 42, height: 42 }}>
                   <img src="/logo.png" alt="CET NOVA" style={{ width: 32, height: 32 }} />
                 </div>
                 <span className="db-sidebar-title" style={{ fontSize: 18 }}>CET NOVA</span>
-              </div>
+              </a>
               <button
                 type="button"
                 className="db-drawer-close-btn"

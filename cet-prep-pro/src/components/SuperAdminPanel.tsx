@@ -61,6 +61,7 @@ import '../superAdmin.css'
 
 interface SuperAdminPanelProps {
   onExitSuperAdmin?: () => void
+  onHome?: () => void
 }
 
 export type NavKey =
@@ -280,7 +281,7 @@ const INITIAL_LOGS: LogItem[] = [
   },
 ]
 
-export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelProps) {
+export default function SuperAdminPanel({ onExitSuperAdmin, onHome }: SuperAdminPanelProps) {
   // Navigation active tab
   const [activeNav, setActiveNav] = useState<NavKey>('security')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -664,7 +665,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
       <aside className={`sap-sidebar ${mobileNavOpen ? 'sap-sidebar--mobile-open' : ''}`}>
         <div>
           {/* Brand Logo & Name */}
-          <div className="sap-sidebar-brand">
+          <button type="button" className="sap-sidebar-brand" onClick={onHome} aria-label="CET Nova home">
             <div className="sap-brand-icon-box">
               <span className="material-symbols-outlined" style={{ fontSize: '24px' }}>school</span>
             </div>
@@ -672,7 +673,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
               <h2>CETNova</h2>
               <p>Super Admin</p>
             </div>
-          </div>
+          </button>
 
           {/* Nav Items */}
           <nav className="sap-nav-list">

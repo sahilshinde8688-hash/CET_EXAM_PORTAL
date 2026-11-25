@@ -104,7 +104,17 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
           >
             <span className="material-symbols-outlined">menu</span>
           </button>
-          <img src="/logo.png" alt="CET NOVA" />
+          <a
+            href="/"
+            className="an-topnav-logo"
+            aria-label="CET Nova home"
+            onClick={event => {
+              event.preventDefault()
+              onNavigate?.('landing')
+            }}
+          >
+            <img src="/logo.png" alt="" />
+          </a>
           <span className="an-brand-text">Analytics</span>
         </div>
         <div className="an-topnav-right">
