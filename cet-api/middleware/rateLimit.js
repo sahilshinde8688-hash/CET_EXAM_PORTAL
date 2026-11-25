@@ -54,11 +54,11 @@ const createLimiter = ({ windowMs, max, message, keyGenerator }) => {
 // ── Specific Rate Limiters ──────────────────────────────────────────
 
 /**
- * Login rate limiter: 5 attempts per 15 mins in prod, 50 in dev
+ * Login rate limiter: 5 attempts per 15 mins per IP and email
  */
 const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 5 : 50,
+  max: 5,
   message: 'Too many login attempts. Please try again after 15 minutes.',
   keyGenerator: (req, res) => {
     const email = req.body?.email ? String(req.body.email).toLowerCase().trim() : ''
@@ -83,6 +83,13 @@ const passwordResetLimiter = createLimiter({
   windowMs: 60 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 5 : 50,
   message: 'Too many password reset attempts. Please try again in an hour.',
+})
+
+const adminMfaLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many verification attempts. Please try again after 15 minutes.',
+  keyGenerator: (req, res) => `admin_mfa:${ipKeyGenerator(req, res)}`,
 })
 
 /**
@@ -134,6 +141,7 @@ module.exports = {
   loginLimiter,
   registerLimiter,
   passwordResetLimiter,
+  adminMfaLimiter,
   refreshLimiter,
   apiLimiter,
   testSubmitLimiter,

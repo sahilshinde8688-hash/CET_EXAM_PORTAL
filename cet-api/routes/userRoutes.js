@@ -7,6 +7,7 @@ const { protect, adminOnly } = require('../middleware/auth')
 const { apiLimiter, passwordResetLimiter } = require('../middleware/rateLimit')
 const { validateCsrfToken } = require('../middleware/csrf')
 const emailNotifications = require('../services/emailNotificationService')
+const { isStrongAdminPassword } = require('../utils/adminMfa')
 
 // Generate the next MHT-CET ID from the highest assigned number, not total
 // users, because IDs can remain after users are deleted.
@@ -405,7 +406,19 @@ router.post('/:id/temporary-password/reset', protect, adminOnly, validateCsrfTok
 router.post('/reset-password', protect, validateCsrfToken, passwordResetLimiter, async (req, res) => {
   try {
     const { newPassword } = req.body
-    if (!newPassword || newPassword.length < 6) {
+    if (req.user.role === 'admin' && !req.user.mustResetPassword) {
+      return res.status(403).json({
+        success: false,
+        message: 'Use Administrator Security settings to change your password.',
+      })
+    }
+    if (req.user.role === 'admin' && !isStrongAdminPassword(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Use at least 12 characters with uppercase, lowercase, a number, and a symbol (maximum 72 UTF-8 bytes).',
+      })
+    }
+    if (typeof newPassword !== 'string' || !newPassword || newPassword.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
     }
 
@@ -413,7 +426,7 @@ router.post('/reset-password', protect, validateCsrfToken, passwordResetLimiter,
     const user = await db.findUserById(userId)
     if (!user) return res.status(404).json({ success: false, message: 'User not found' })
 
-    const hashedPassword = await bcrypt.hash(String(newPassword), 10)
+    const hashedPassword = await bcrypt.hash(String(newPassword), req.user.role === 'admin' ? 12 : 10)
     const updatedUser = await db.updateUser(userId, {
       password: hashedPassword,
       mhcetPassword: null,

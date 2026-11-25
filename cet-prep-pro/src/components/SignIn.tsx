@@ -1,11 +1,14 @@
 import { lazy, Suspense, useState } from 'react'
-import { authAPI, usersAPI, session, type AuthUser } from '../lib/api'
+import { authAPI, usersAPI, session, ApiResponseError, type AdminMfaChallenge, type AuthUser } from '../lib/api'
 import '../signin.css'
 
 const HeroLottie = lazy(() => import('lottie-react').then(({ Lottie }) => ({ default: Lottie })))
 
 type Tab = 'login' | 'register'
 type SubmitState = 'idle' | 'loading' | 'success' | 'error' | 'pending'
+
+const isAdminMfaChallenge = (result: AuthUser | AdminMfaChallenge): result is AdminMfaChallenge =>
+  'requiresMfa' in result && result.requiresMfa === true
 
 interface Props {
   onSuccess?: (user: AuthUser) => void
@@ -34,6 +37,12 @@ export default function SignIn({
   const [showForgotModal, setShowForgotModal] = useState(false)
   const [setupToken, setSetupToken] = useState(() => new URLSearchParams(window.location.search).get('setup_token') || '')
   const [setupComplete, setSetupComplete] = useState(false)
+  const [mfaChallenge, setMfaChallenge] = useState<AdminMfaChallenge | null>(null)
+  const [mfaVerified, setMfaVerified] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false)
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
+  const [authenticatedAdmin, setAuthenticatedAdmin] = useState<AuthUser | null>(null)
 
   // Registration state
   const [name, setName]                       = useState('')
@@ -75,9 +84,46 @@ export default function SignIn({
         return
       }
 
+      if (mfaChallenge) {
+        const verified = await authAPI.verifyAdminMfa(mfaChallenge.challengeToken, mfaCode.trim())
+        const { backupCodes, usedRecoveryCode, ...authenticatedUser } = verified
+        session.save(authenticatedUser)
+        setPassword('')
+        setMfaCode('')
+        setUseRecoveryCode(false)
+        if (backupCodes?.length) {
+          setMfaChallenge(null)
+          setAuthenticatedAdmin(authenticatedUser)
+          setRecoveryCodes(backupCodes)
+          setSubmitState('idle')
+          return
+        }
+        if (usedRecoveryCode) setErrorMsg('A recovery code was used. Generate a replacement set from Administrator Settings.')
+        if (authenticatedUser.mustResetPassword) {
+          setMfaChallenge(null)
+          setMustResetPassword(true)
+          setSubmitState('idle')
+          return
+        }
+        setMfaVerified(true)
+        setSubmitState('success')
+        setTimeout(() => onSuccess?.(authenticatedUser), 700)
+        return
+      }
+
       if (mustResetPassword) {
-        if (!resetPassword || resetPassword.length < 6) {
-          setErrorMsg('Password must be at least 6 characters')
+        const existing = session.get<AuthUser>()
+        const isAdmin = existing?.role === 'admin'
+        const adminPasswordIsStrong = resetPassword.length >= 12
+          && /[a-z]/.test(resetPassword)
+          && /[A-Z]/.test(resetPassword)
+          && /\d/.test(resetPassword)
+          && /[^A-Za-z0-9]/.test(resetPassword)
+          && new TextEncoder().encode(resetPassword).length <= 72
+        if (!resetPassword || (isAdmin ? !adminPasswordIsStrong : resetPassword.length < 6)) {
+          setErrorMsg(isAdmin
+            ? 'Use at least 12 characters with uppercase, lowercase, a number, and a symbol.'
+            : 'Password must be at least 6 characters')
           setSubmitState('error')
           return
         }
@@ -87,7 +133,6 @@ export default function SignIn({
           return
         }
 
-        const existing = session.get()
         if (!existing) {
           setErrorMsg('Session expired. Please login again.')
           setSubmitState('error')
@@ -104,6 +149,14 @@ export default function SignIn({
 
       if (activeTab === 'login') {
         const user = await authAPI.login(email.trim().toLowerCase(), password, remember)
+        if (isAdminMfaChallenge(user)) {
+          setMfaChallenge(user)
+          setMfaVerified(false)
+          setMfaCode('')
+          setPassword('')
+          setSubmitState('idle')
+          return
+        }
         session.save(user)
 
         if (user.mustResetPassword) {
@@ -119,7 +172,9 @@ export default function SignIn({
         setSubmitState('pending')
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong'
+      const msg = err instanceof ApiResponseError && err.code === 'ACCOUNT_LOCKED'
+        ? 'Your account has been locked. Please contact the Super Admin.'
+        : err instanceof Error ? err.message : 'Something went wrong'
       setErrorMsg(msg)
       setSubmitState('error')
       setTimeout(() => setSubmitState('idle'), 4000)
@@ -134,6 +189,26 @@ export default function SignIn({
     setMustResetPassword(false)
     setResetPassword('')
     setResetConfirm('')
+    setMfaChallenge(null)
+    setMfaVerified(false)
+    setMfaCode('')
+    setRecoveryCodes(null)
+    setAuthenticatedAdmin(null)
+    setUseRecoveryCode(false)
+  }
+
+  const finishRecoveryCodeReview = () => {
+    const user = authenticatedAdmin
+    setRecoveryCodes(null)
+    setAuthenticatedAdmin(null)
+    if (!user) return
+    if (user.mustResetPassword) {
+      setMustResetPassword(true)
+      setSubmitState('idle')
+      return
+    }
+    setSubmitState('success')
+    setTimeout(() => onSuccess?.(user), 700)
   }
 
   return (
@@ -146,12 +221,12 @@ export default function SignIn({
         <svg className="signin-bg-wave-svg" viewBox="0 0 1440 320" fill="none" preserveAspectRatio="none">
           <path
             d="M0,192L48,197.3C96,203,192,213,288,192C384,171,480,117,576,122.7C672,128,768,192,864,208C960,224,1056,192,1152,176C1248,160,1344,160,1392,160L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
-            fill="#EAF2FC"
+            fill="#ffffff"
             fillOpacity="0.7"
           />
           <path
             d="M0,256L60,240C120,224,240,192,360,197.3C480,203,600,245,720,256C840,267,960,245,1080,224C1200,203,1320,181,1380,170.7L1440,160L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"
-            fill="#F0F6FD"
+            fill="#ffffff"
             fillOpacity="0.85"
           />
         </svg>
@@ -164,35 +239,13 @@ export default function SignIn({
             type="button"
             className="signin-nav-brand"
             onClick={() => switchTab('login')}
-            aria-label="CETNova home"
+            aria-label="CET Nova home"
           >
             <div className="signin-nav-logo-wrap">
               <img className="signin-brand-logo" src="/logo.png" alt="" />
             </div>
-            <span className="signin-brand-subtag">CET EXAM PORTAL</span>
           </button>
 
-          {!setupToken && <div className="signin-nav-auth" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              type="button"
-              className="btn-phone-qr"
-              onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
-              title="Open CET NOVA on your mobile phone"
-            >
-              <span className="material-symbols-outlined">qr_code_2</span>
-              <span>Open on Phone</span>
-            </button>
-            <span className="signin-nav-prompt-text">
-              {activeTab === 'login' ? "Don't have an account?" : "Already enrolled?"}
-            </span>
-            <button
-              type="button"
-              className="signin-nav-signup-btn"
-              onClick={() => switchTab(activeTab === 'login' ? 'register' : 'login')}
-            >
-              {activeTab === 'login' ? 'Sign Up' : 'Sign In'}
-            </button>
-          </div>}
         </div>
       </header>
 
@@ -213,7 +266,7 @@ export default function SignIn({
             <span className="hero-purpose-text">
               purpose.
               <svg className="hero-swoosh" viewBox="0 0 200 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 11C45 3 145 3 196 9C145 15 55 14 4 11Z" fill="#D99A16"/>
+                <path d="M4 11C45 3 145 3 196 9C145 15 55 14 4 11Z" fill="#d21436"/>
               </svg>
             </span>
           </h1>
@@ -263,12 +316,12 @@ export default function SignIn({
                   <path d="M420 220C450 320 370 430 260 450C150 470 80 380 55 280C30 180 100 100 200 70C300 40 390 120 420 220Z" fill="url(#hero-wave-grad-2)" opacity="0.65" />
                   <defs>
                     <linearGradient id="hero-wave-grad-1" x1="40" y1="70" x2="480" y2="490" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#DBEAFE" stopOpacity="0.85" />
-                      <stop stopColor="#EFF6FF" stopOpacity="0.45" />
+                      <stop stopColor="#ffffff" stopOpacity="0.85" />
+                      <stop stopColor="#ffffff" stopOpacity="0.45" />
                     </linearGradient>
                     <linearGradient id="hero-wave-grad-2" x1="60" y1="80" x2="440" y2="460" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#BFDBFE" stopOpacity="0.6" />
-                      <stop stopColor="#E0F2FE" stopOpacity="0.3" />
+                      <stop stopColor="#e5e5e5" stopOpacity="0.6" />
+                      <stop stopColor="#ffffff" stopOpacity="0.3" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -289,7 +342,7 @@ export default function SignIn({
 
         {/* ── RIGHT LOGIN / AUTH CARD ── */}
         <section className="signin-right-console">
-          <div className="signin-auth-card">
+          <div className={`signin-auth-card${mfaChallenge ? ' signin-auth-card--mfa' : ''}`}>
 
             {/* Card Centered Brand Logo */}
             <div className="auth-card-logo-wrap">
@@ -303,6 +356,10 @@ export default function SignIn({
             <h2 className="auth-card-title">
               {setupToken
                 ? 'Set Up Your Account'
+                : recoveryCodes
+                ? 'Save Your Recovery Codes'
+                : mfaChallenge
+                ? mfaChallenge.setupRequired ? 'Set Up Two-Factor Authentication' : 'Welcome back'
                 : mustResetPassword
                 ? 'Set New Password'
                 : activeTab === 'login'
@@ -312,6 +369,12 @@ export default function SignIn({
             <p className="auth-card-subtitle">
               {setupToken
                 ? 'Choose a secure password to activate your CETNova student account.'
+                : recoveryCodes
+                ? 'These one-time recovery codes are shown only once. Store them somewhere safe before continuing.'
+                : mfaChallenge
+                ? mfaChallenge.setupRequired
+                  ? 'Scan this QR code with Google Authenticator or Microsoft Authenticator, then enter the current six-digit code.'
+                  : 'Sign in to continue your lab work.'
                 : mustResetPassword
                 ? 'Choose a new password to secure your account.'
                 : activeTab === 'login'
@@ -398,8 +461,109 @@ export default function SignIn({
               </form>
             )}
 
+            {mfaVerified && mfaChallenge && (
+              <div className="signin-mfa-success" role="status" aria-live="polite">
+                <div className="signin-mfa-success-check" aria-hidden="true">
+                  <svg viewBox="0 0 52 52">
+                    <circle className="signin-mfa-success-circle" cx="26" cy="26" r="24" />
+                    <path className="signin-mfa-success-tick" d="M16 27l7 7 13-15" />
+                  </svg>
+                </div>
+                <strong>Authenticator verified</strong>
+                <p>Signing you in…</p>
+              </div>
+            )}
+
+            {mfaChallenge && !mfaVerified && !setupToken && !recoveryCodes && (
+              <div className="signin-form-fields">
+                {mfaChallenge.setupRequired && (
+                  <div className="signin-mfa-enrollment">
+                    {mfaChallenge.qrCodeDataUrl && (
+                      <img
+                        src={mfaChallenge.qrCodeDataUrl}
+                        alt="Authenticator setup QR code"
+                        width={256}
+                        height={256}
+                      />
+                    )}
+                    <p>Or enter this setup key manually in your authenticator app:</p>
+                    <code>{mfaChallenge.manualSecret}</code>
+                  </div>
+                )}
+                <form className="signin-form-fields" onSubmit={handleSubmit}>
+                  <div className="form-field-group">
+                    <label className="form-field-label signin-mfa-code-label" htmlFor="admin-mfa-code">
+                      {useRecoveryCode ? 'Recovery code' : 'Authenticator code'}
+                    </label>
+                    <div className="form-input-container signin-mfa-input-container">
+                      <input
+                        id="admin-mfa-code"
+                        type="text"
+                        className="form-text-input"
+                        placeholder={useRecoveryCode ? 'Enter a recovery code' : ''}
+                        autoComplete="one-time-code"
+                        inputMode={useRecoveryCode ? 'text' : 'numeric'}
+                        maxLength={useRecoveryCode ? 64 : 6}
+                        required
+                        value={mfaCode}
+                        onChange={event => setMfaCode(event.target.value)}
+                        disabled={submitState === 'loading'}
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" className="form-submit-btn signin-mfa-primary-btn" disabled={submitState === 'loading' || !mfaCode.trim()}>
+                    {submitState === 'loading' ? 'Verifying…' : mfaChallenge.setupRequired ? 'Verify and enable MFA' : 'Verify identity'}
+                    {submitState !== 'loading' && <span className="material-symbols-outlined btn-arrow" aria-hidden="true">arrow_forward</span>}
+                  </button>
+                  {!mfaChallenge.setupRequired && (
+                    <button
+                      type="button"
+                      className="signin-mfa-recovery-btn"
+                      onClick={() => {
+                        setUseRecoveryCode(value => !value)
+                        setMfaCode('')
+                      }}
+                    >
+                      {useRecoveryCode ? 'Use authenticator code' : 'Use a recovery code'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="signin-mfa-back-btn"
+                    onClick={() => {
+                      setMfaChallenge(null)
+                      setMfaVerified(false)
+                      setMfaCode('')
+                      setUseRecoveryCode(false)
+                      setSubmitState('idle')
+                    }}
+                  >
+                    Back to sign in
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {mfaChallenge && !mfaVerified && !mfaChallenge.setupRequired && (
+              <p className="signin-mfa-protection-note">
+                Protected account access. Your lab sessions stay isolated.
+              </p>
+            )}
+
+            {recoveryCodes && (
+              <div className="signin-form-fields signin-mfa-recovery" role="status">
+                <p>Each code works once. Keep these out of screenshots and shared documents.</p>
+                <div>
+                  {recoveryCodes.map(code => <code key={code}>{code}</code>)}
+                </div>
+                <button type="button" className="form-submit-btn" onClick={finishRecoveryCodeReview}>
+                  I have saved these codes
+                </button>
+              </div>
+            )}
+
             {/* ── 1. SIGN IN FORM ── */}
-            {activeTab === 'login' && !mustResetPassword && !setupToken && (
+            {activeTab === 'login' && !mustResetPassword && !setupToken && !mfaChallenge && !recoveryCodes && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
                 {/* Email Field */}
                 <div className="form-field-group">
@@ -523,7 +687,8 @@ export default function SignIn({
                       id="reset-pwd"
                       type={showPassword ? 'text' : 'password'}
                       className="form-text-input"
-                      placeholder="Minimum 6 characters"
+                      placeholder={session.get<AuthUser>()?.role === 'admin' ? '12+ characters, mixed case, number and symbol' : 'Minimum 6 characters'}
+                      minLength={session.get<AuthUser>()?.role === 'admin' ? 12 : 6}
                       required
                       value={resetPassword}
                       onChange={e => setResetPassword(e.target.value)}
@@ -582,7 +747,7 @@ export default function SignIn({
             )}
 
             {/* ── 3. REGISTRATION FORM ── */}
-            {activeTab === 'register' && submitState !== 'pending' && !mustResetPassword && !setupToken && (
+            {activeTab === 'register' && submitState !== 'pending' && !mustResetPassword && !setupToken && !mfaChallenge && !recoveryCodes && (
               <form className="signin-form-fields" onSubmit={handleSubmit}>
                 {/* Full Student Name */}
                 <div className="form-field-group">
@@ -708,7 +873,7 @@ export default function SignIn({
                   Your credentials will be dispatched to:
                 </p>
                 <div className="signin-pending-email-badge">
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#1677FF' }}>outgoing_mail</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#d21436' }}>outgoing_mail</span>
                   <span>{regEmail}</span>
                 </div>
                 <button

@@ -13,12 +13,12 @@
   font-family: 'Public Sans', sans-serif;
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: #171717;
   margin: 0;
 }
 .qb-sub {
   font-size: 13px;
-  color: #64748b;
+  color: #171717;
   margin: 4px 0 0;
 }
 .qb-filters {
@@ -29,11 +29,11 @@
 .qb-input, .qb-select, .qb-textarea {
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e5e5e5;
   font-size: 13px;
   font-family: 'Inter', sans-serif;
   background: #fff;
-  color: #0f172a;
+  color: #171717;
   outline: none;
   min-width: 140px;
 }
@@ -44,26 +44,26 @@
 .qb-btn {
   padding: 10px 18px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e5e5e5;
   background: #fff;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  color: #0f172a;
+  color: #171717;
 }
 .qb-btn--primary {
-  background: #2563eb;
+  background: #d21436;
   color: #fff;
-  border-color: #2563eb;
+  border-color: #d21436;
 }
 .qb-btn--danger {
-  background: #fee2e2;
+  background: #f8f8f8;
   color: #dc2626;
-  border-color: #fecaca;
+  border-color: #f8f8f8;
 }
 .qb-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e5e5e5;
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.03);
@@ -85,7 +85,7 @@
   display: block;
   font-size: 12px;
   font-weight: 700;
-  color: #475569;
+  color: #171717;
   margin-bottom: 6px;
 }
 .qb-actions {
@@ -95,7 +95,7 @@
 }
 .qb-table-wrap {
   background: #fff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e5e5e5;
   border-radius: 12px;
   overflow: auto;
 }
@@ -108,13 +108,13 @@
   padding: 12px 14px;
   text-align: left;
   font-size: 13px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #ffffff;
 }
 .qb-table th {
   font-size: 11px;
   text-transform: uppercase;
-  color: #64748b;
-  background: #f8fafc;
+  color: #171717;
+  background: #ffffff;
 }
 .qb-text {
   max-width: 260px;
@@ -129,9 +129,9 @@
   font-weight: 800;
   text-transform: uppercase;
 }
-.qb-badge--easy { background: #dcfce7; color: #15803d; }
-.qb-badge--medium { background: #fef9c3; color: #a16207; }
-.qb-badge--hard { background: #fee2e2; color: #dc2626; }
+.qb-badge--easy { background: #ffffff; color: #16a085; }
+.qb-badge--medium { background: #f8f8f8; color: #d21436; }
+.qb-badge--hard { background: #f8f8f8; color: #dc2626; }
 .qb-actions-cell {
   display: flex;
   gap: 8px;
@@ -140,7 +140,7 @@
 .qb-loading {
   padding: 40px;
   text-align: center;
-  color: #64748b;
+  color: #171717;
 }
 
 .qb-image-upload-loader {
@@ -148,10 +148,10 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #e5e5e5;
   border-radius: 12px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #ffffff;
+  color: #171717;
   margin-bottom: 12px;
 }
 
@@ -159,8 +159,8 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: 3px solid rgba(37, 99, 235, 0.25);
-  border-top-color: #2563eb;
+  border: 3px solid rgba(210, 20, 54, 0.25);
+  border-top-color: #d21436;
   animation: qb-spin 0.8s linear infinite;
 }
 
@@ -176,8 +176,8 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
   border-radius: 10px;
   margin-top: 12px;
   align-items: center;
@@ -192,7 +192,7 @@
 .qb-toolbar-divider {
   width: 1px;
   height: 24px;
-  background: #cbd5e1;
+  background: #e5e5e5;
   margin: 0 4px;
 }
 
@@ -206,15 +206,15 @@
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #475569;
+  color: #171717;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .qb-toolbar-btn:hover {
   background: #ffffff;
-  border-color: #e2e8f0;
-  color: #2563eb;
+  border-color: #e5e5e5;
+  color: #d21436;
   transform: translateY(-1px);
 }
 
@@ -271,7 +271,7 @@
 
 .qb-toolbar-btn:active {
   transform: translateY(0);
-  background: #f1f5f9;
+  background: #ffffff;
 }
 
 /* KaTeX & Math responsive overflow protection */

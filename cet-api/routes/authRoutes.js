@@ -16,10 +16,17 @@ const {
 } = require('../utils/authHelpers')
 const { validateCsrfToken } = require('../middleware/csrf')
 const { sensitiveHeaders } = require('../middleware/securityHeaders')
-const { loginLimiter, registerLimiter, refreshLimiter, passwordResetLimiter } = require('../middleware/rateLimit')
+const { loginLimiter, registerLimiter, refreshLimiter, passwordResetLimiter, adminMfaLimiter } = require('../middleware/rateLimit')
 const { protect, protectWithoutActivity } = require('../middleware/auth')
 const { getSessionExpiresAt, sendSessionExpired } = require('../config/auth')
 const emailNotifications = require('../services/emailNotificationService')
+const { hasAdminPrivileges } = require('../utils/adminRoles')
+const {
+  createAdminMfaChallenge,
+  hashAdminIdentifier,
+  verifyAdminMfaChallenge,
+} = require('../services/adminMfaService')
+const { isStrongAdminPassword } = require('../utils/adminMfa')
 
 const getUserPayload = (user) => ({
   _id: user.id || user._id,
@@ -42,24 +49,41 @@ const getUserPayload = (user) => ({
 const passwordMatches = async (inputPassword, user) => {
   if (!inputPassword || !user) return false
 
-  const supplied = String(inputPassword).trim()
+  const isAdmin = user.role === 'admin'
+  const supplied = isAdmin ? String(inputPassword) : String(inputPassword).trim()
 
   if (user.password) {
-    try {
-      if (await bcrypt.compare(supplied, user.password)) return true
-    } catch (err) {
-      // fall through to legacy plain-text comparison below
+    if (/^\$2[aby]\$/.test(String(user.password))) {
+      try {
+        const matches = await bcrypt.compare(supplied, user.password)
+        if (matches && isAdmin && !isStrongAdminPassword(supplied)) {
+          await db.updateUser(user.id, { mustResetPassword: true })
+          user.mustResetPassword = true
+        }
+        return matches
+      } catch {
+        return false
+      }
     }
 
-    if (String(user.password).trim() === supplied) return true
+    if (isAdmin && String(user.password) === supplied) {
+      const needsReset = user.mustResetPassword || !isStrongAdminPassword(supplied)
+      const passwordHash = await bcrypt.hash(supplied, 12)
+      await db.updateUser(user.id, { password: passwordHash, mustResetPassword: needsReset })
+      user.password = passwordHash
+      user.mustResetPassword = needsReset
+      return true
+    }
+
+    if (!isAdmin && String(user.password).trim() === supplied) return true
   }
 
-  if (user.mhcetPassword && String(user.mhcetPassword).trim() === supplied) return true
+  if (!isAdmin && user.mhcetPassword && String(user.mhcetPassword).trim() === supplied) return true
 
   return false
 }
 
-const createAuthSession = async (user, req, res, rememberMe = false) => {
+const createAuthSession = async (user, req, res, rememberMe = false, mfaVerified = false) => {
   const sessionId = createSessionId()
   const deviceInfo = getDeviceInfo(req)
   const userId = user.id || user._id
@@ -81,6 +105,7 @@ const createAuthSession = async (user, req, res, rememberMe = false) => {
     expiresAt: sessionExpiresAt,
     lastActivity: lastActivity.toISOString(),
     isCurrent: true,
+    mfaVerified,
   })
   if (!session?.session_id) throw new Error('Unable to persist the authentication session.')
 
@@ -173,6 +198,13 @@ const refreshUserSession = async (req, res, recordRefreshHistory = false) => {
     const user = await db.findUserById(storedToken.user_id)
     if (!user || user.status === 'rejected' || (user.role === 'student' && user.status === 'pending')) {
       clearSessionCookies(res)
+      return sendSessionExpired(res)
+    }
+    if (hasAdminPrivileges(user) && session.mfa_verified !== true) {
+      const revokedAt = new Date().toISOString()
+      await db.updateSession(storedToken.session_id, { revoked_at: revokedAt, expires_at: revokedAt, is_current: false })
+      await db.updateRefreshToken(storedToken.id, { revoked_at: revokedAt })
+      clearAuthCookies(res)
       return sendSessionExpired(res)
     }
 
@@ -333,14 +365,21 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       user = await db.findUserByEmail(input.toLowerCase())
     }
 
+    if (user?.role === 'admin') {
+      user = await db.findAdminMfaUserById(user.id)
+    }
+
     if (!user) {
       await db.createLoginHistory({
         userId: null,
         event: 'login_failed',
         ipAddress: getDeviceInfo(req).ipAddress,
         userAgent: req.headers['user-agent'],
-        metadata: { email: input },
       })
+      return res.status(401).json({ success: false, message: 'Invalid credentials.' })
+    }
+
+    if (user.role === 'admin' && !['approved', null, undefined].includes(user.status)) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' })
     }
 
@@ -351,22 +390,60 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       })
     }
 
-    if (user.status === 'rejected') {
+    if (user.status === 'rejected' && user.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Your account has been deactivated.' })
     }
 
-    // Verify password hash with bcrypt, while supporting legacy plain-text passwords in the database
+    const isAdmin = user.role === 'admin'
+    if (isAdmin && user.isLocked) {
+      await db.createLoginHistory({
+        userId: user.id,
+        event: 'login_locked',
+        ipAddress: getDeviceInfo(req).ipAddress,
+        userAgent: req.headers['user-agent'],
+      })
+      return res.status(403).json({
+        success: false,
+        code: 'ACCOUNT_LOCKED',
+        message: 'Your account has been locked. Please contact the Super Admin.',
+        lockedReason: user.lockedReason || null,
+      })
+    }
+
+    const identifierHash = isAdmin ? hashAdminIdentifier(user.email) : null
+    if (identifierHash) {
+      const loginLock = await db.getAdminAuthLock(identifierHash)
+      if (loginLock?.is_locked) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials.' })
+      }
+    }
+
     const isMatch = await passwordMatches(password, user)
 
     if (!isMatch) {
+      if (identifierHash) await db.recordAdminAuthFailure(identifierHash)
       await db.createLoginHistory({
         userId: user.id,
         event: 'login_failed',
         ipAddress: getDeviceInfo(req).ipAddress,
         userAgent: req.headers['user-agent'],
-        metadata: { email: input },
       })
       return res.status(401).json({ success: false, message: 'Invalid credentials.' })
+    }
+
+    if (isAdmin) {
+      if (!isStrongAdminPassword(password) && !user.mustResetPassword) {
+        await db.updateUser(user.id, { mustResetPassword: true })
+        user.mustResetPassword = true
+      }
+      if (user.initialPasswordAvailable) {
+        await db.consumeInitialTemporaryPassword(user.id)
+        user.initialPasswordAvailable = false
+      }
+
+      const challenge = await createAdminMfaChallenge(user, Boolean(rememberMe))
+      res.setHeader('Cache-Control', 'no-store')
+      return res.status(200).json({ requiresMfa: true, ...challenge })
     }
 
     if (user.initialPasswordAvailable) {
@@ -384,6 +461,49 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
   } catch (err) {
     console.error('Login route error:', err.message || err)
     return res.status(503).json({ success: false, message: 'Authentication service is temporarily unavailable. Please try again later.' })
+  }
+})
+
+router.post('/admin-mfa/verify', validateCsrfToken, sensitiveHeaders, adminMfaLimiter, async (req, res) => {
+  try {
+    const result = await verifyAdminMfaChallenge(req.body?.challengeToken, req.body?.code)
+    if (!result) {
+      res.setHeader('Cache-Control', 'no-store')
+      return res.status(401).json({ success: false, message: 'Invalid or expired verification request.' })
+    }
+    if (!result.valid) {
+      if (!result.locked) {
+        const identifierHash = hashAdminIdentifier(result.user.email)
+        await db.recordAdminAuthFailure(identifierHash)
+        await db.createLoginHistory({
+          userId: result.user.id,
+          event: 'mfa_failed',
+          ipAddress: getDeviceInfo(req).ipAddress,
+          userAgent: req.headers['user-agent'],
+        })
+      }
+      res.setHeader('Cache-Control', 'no-store')
+      return res.status(result.locked ? 403 : 401).json({
+        success: false,
+        code: result.locked ? 'ACCOUNT_LOCKED' : null,
+        message: result.locked
+          ? 'Your account has been locked. Please contact the Super Admin.'
+          : 'Invalid or expired verification request.',
+      })
+    }
+
+    await db.clearAdminAuthFailures(hashAdminIdentifier(result.user.email))
+    const payload = await createAuthSession(result.user, req, res, result.rememberMe, true)
+    if (result.user.mustResetPassword) payload.mustResetPassword = true
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(200).json({
+      ...payload,
+      ...(result.backupCodes ? { backupCodes: result.backupCodes } : {}),
+      ...(result.usedRecoveryCode ? { usedRecoveryCode: true } : {}),
+    })
+  } catch (err) {
+    console.error('Administrator MFA verification failed:', err.message || err)
+    return res.status(503).json({ success: false, message: 'Authentication service is temporarily unavailable.' })
   }
 })
 

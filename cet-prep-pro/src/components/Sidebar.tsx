@@ -130,7 +130,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
             onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
             title="Scan QR to open portal on your mobile phone or scan codes"
           >
-            <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
+            <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
             <span>Phone QR</span>
           </button>
           <button className="db-start-btn" onClick={() => onStartTest?.()}>
@@ -220,7 +220,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
                   window.dispatchEvent(new CustomEvent('cet:open-qr'))
                 }}
               >
-                <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
+                <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
                 <span>Phone QR / Scanner</span>
               </button>
               <button

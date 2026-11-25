@@ -143,6 +143,7 @@ const fetch: typeof globalThis.fetch = async (input, init) => {
   const requestPath = requestUrl.pathname
   const bypassRefresh = requestUrl.origin !== apiOrigin || [
     `${apiPath}/auth/login`,
+    `${apiPath}/auth/admin-mfa/verify`,
     `${apiPath}/auth/register`,
     `${apiPath}/auth/csrf`,
     `${apiPath}/auth/refresh`,
@@ -309,6 +310,20 @@ export interface AuthenticatedSession {
   user: AuthUser
 }
 
+export interface AdminMfaChallenge {
+  requiresMfa: true
+  challengeToken: string
+  expiresAt: string
+  setupRequired: boolean
+  qrCodeDataUrl?: string
+  manualSecret?: string
+}
+
+export interface AdminMfaAuthResult extends AuthUser {
+  backupCodes?: string[]
+  usedRecoveryCode?: boolean
+}
+
 /* ── Auth ── */
 export async function signin(email: string, password: string) {
   const csrfToken = await ensureCsrfToken()
@@ -349,7 +364,7 @@ export async function resetPassword(payload: { token: string; newPassword: strin
 }
 
 export const authAPI = {
-  login: async (email: string, password: string, rememberMe = false) => {
+  login: async (email: string, password: string, rememberMe = false): Promise<AuthUser | AdminMfaChallenge> => {
     const cleanId = email.trim().toLowerCase()
 
     let backendError: Error | null = null
@@ -392,14 +407,16 @@ export const authAPI = {
             if (retryCsrf) setCsrfToken(retryCsrf)
             if (retryRes.ok) {
               const retryData = await retryRes.json()
-              if (retryData && (retryData._id || retryData.id || retryData.email || retryData.role)) return retryData
+              if (retryData?.requiresMfa) return retryData as AdminMfaChallenge
+              if (retryData?._id || retryData?.id || retryData?.email || retryData?.role) return retryData as AuthUser
             }
           }
         }
         backendError = new Error(body.message || `Login failed with status ${res.status}.`)
       } else if (res.ok) {
         const data = await res.json()
-        if (data && (data._id || data.id || data.email || data.role)) return data
+        if (data?.requiresMfa) return data as AdminMfaChallenge
+        if (data?._id || data?.id || data?.email || data?.role) return data as AuthUser
       } else {
         const body = await res.json().catch(() => ({}))
         backendError = new Error(body.message || `Login failed with status ${res.status}.`)
@@ -413,6 +430,18 @@ export const authAPI = {
     }
 
     throw backendError || new Error('Unable to reach the login server.')
+  },
+  verifyAdminMfa: async (challengeToken: string, code: string): Promise<AdminMfaAuthResult> => {
+    const csrfToken = await ensureCsrfToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+    const res = await fetch(`${BASE}/auth/admin-mfa/verify`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: JSON.stringify({ challengeToken, code }),
+    })
+    return await handle(res).then(response => response.json()) as AdminMfaAuthResult
   },
   setupPassword: async (token: string, newPassword: string) => {
     const csrfToken = await ensureCsrfToken()
@@ -1233,6 +1262,58 @@ export const testsAPI = {
 }
 
 export const adminSettingsAPI = {
+  async getSecurity() {
+    const res = await fetch(`${BASE}/admin/security`, { credentials: 'include', cache: 'no-store' })
+    return await handle(res).then(response => response.json()) as {
+      mfaEnabled: boolean
+      activeSessions: Array<{
+        deviceName: string
+        browser: string
+        operatingSystem: string
+        ipAddress: string
+        lastActivity: string
+        expiresAt: string
+        isCurrent: boolean
+      }>
+      loginActivity: Array<{
+        event: string
+        ip_address: string
+        user_agent: string
+        browser: string
+        operating_system: string
+        device_name: string
+        created_at: string
+      }>
+      failedLoginAttempts: { count: number; lockedUntil: string | null; lastAttemptAt: string | null }
+    }
+  },
+  async regenerateRecoveryCodes(payload: { currentPassword: string; code: string }) {
+    const res = await fetch(`${BASE}/admin/security/recovery-codes`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; recoveryCodes: string[] }
+  },
+  async changeAdminPassword(payload: { currentPassword: string; code: string; newPassword: string }) {
+    const res = await fetch(`${BASE}/admin/security/password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; revokedSessions: number }
+  },
+  async revokeOtherAdminSessions(payload: { currentPassword: string; code: string }) {
+    const res = await fetch(`${BASE}/admin/security/sessions/revoke-others`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    return await handle(res).then(response => response.json()) as { success: boolean; revokedSessions: number }
+  },
   async getEmailNotifications() {
     const res = await fetch(`${BASE}/email/admin`, { credentials: 'include', cache: 'no-store' })
     return await handle(res).then(response => response.json()) as {

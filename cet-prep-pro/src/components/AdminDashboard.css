@@ -2,11 +2,11 @@
   min-height: 100vh;
   overflow-x: hidden;
   background-color: #ffffff;
-  color: #191c1d;
+  color: #171717;
 }
 
 .admin-dashboard__sidebar {
-  background: #f5f5f5;
+  background: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
@@ -16,7 +16,7 @@
 
 .admin-dashboard__sidebar a:hover {
   transform: translateX(2px);
-  background-color: #e8e8e8;
+  background-color: #ffffff;
 }
 
 .admin-dashboard__sidebar__avatar {
@@ -24,7 +24,7 @@
   height: 2.5rem;
   border-radius: 9999px;
   overflow: hidden;
-  background: #1a73e8;
+  background: #d21436;
 }
 
 .admin-dashboard__sidebar__avatar img {
@@ -35,7 +35,7 @@
 
 .glass-card {
   background: #ffffff;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e5e5e5;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
 }
@@ -46,19 +46,19 @@
 
 .glass-header {
   background: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e5e5e5;
 }
 
 /* Button Styles */
 button[class*="bg-primary"] {
-  background: #1a73e8;
-  box-shadow: 0 2px 4px rgba(26, 115, 232, 0.2);
+  background: #d21436;
+  box-shadow: 0 2px 4px rgba(210, 20, 54, 0.2);
   transition: all 0.2s ease;
 }
 
 button[class*="bg-primary"]:hover {
-  background: #1967d2;
-  box-shadow: 0 4px 8px rgba(26, 115, 232, 0.3);
+  background: #d21436;
+  box-shadow: 0 4px 8px rgba(210, 20, 54, 0.3);
 }
 
 button[class*="bg-primary"]:active {
@@ -80,20 +80,20 @@ button[class*="bg-primary"]:active {
 }
 
 .activity-item:hover {
-  background: #f9f9f9;
+  background: #ffffff;
 }
 
 /* Quick Action Buttons */
 .quick-action-btn {
   transition: all 0.2s ease;
   background: #ffffff;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #e5e5e5;
 }
 
 .quick-action-btn:hover {
   background: #ffffff;
-  border-color: #1a73e8;
-  box-shadow: 0 2px 6px rgba(26, 115, 232, 0.1);
+  border-color: #d21436;
+  box-shadow: 0 2px 6px rgba(210, 20, 54, 0.1);
 }
 
 /* Activity Section */
@@ -111,10 +111,10 @@ button[class*="bg-primary"]:active {
 }
 
 .activity-section::-webkit-scrollbar-thumb {
-  background: #d0d0d0;
+  background: #e5e5e5;
   border-radius: 3px;
 }
 
 .activity-section::-webkit-scrollbar-thumb:hover {
-  background: #b0b0b0;
+  background: #172c4f;
 }

@@ -119,7 +119,7 @@ const mapAdminRecord = (record: AdminRecord): AdminItem => {
     email: record.email,
     role: adminRole === 'ADMIN'
       ? 'Basic Admin'
-      : adminRole.replaceAll('_', ' ').replace(/\b\w/g, character => character.toUpperCase()),
+      : adminRole.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase()),
     roleColor: normalizedRole.includes('question') ? 'question-admin'
       : normalizedRole.includes('analyst') ? 'analytics-admin'
         : normalizedRole.includes('support') ? 'support-admin'
@@ -862,9 +862,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                 <div className="sap-page-banner-right">
                   <div className="sap-date-pill">
-                    <Calendar size={15} color="#2563eb" />
+                    <Calendar size={15} color="#d21436" />
                     <span>Wed, 02 Oct 2026</span>
-                    <strong style={{ color: '#0f172a' }}>03:45 PM</strong>
+                    <strong style={{ color: '#171717' }}>03:45 PM</strong>
                   </div>
                   <button className="sap-btn-primary-action" onClick={() => setShowAlertsModal(true)}>
                     <Settings size={15} />
@@ -929,9 +929,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-stat-content">
                     <span className="sap-stat-title">Security Status</span>
                     <div className="sap-stat-row-val">
-                      <span className="sap-stat-number" style={{ color: '#0f172a' }}>Good</span>
+                      <span className="sap-stat-number" style={{ color: '#171717' }}>Good</span>
                     </div>
-                    <span className="sap-stat-subtext" style={{ color: '#10b981', fontWeight: 600 }}>No critical threats</span>
+                    <span className="sap-stat-subtext" style={{ color: '#16a085', fontWeight: 600 }}>No critical threats</span>
                   </div>
                 </div>
               </div>
@@ -976,21 +976,21 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                         const y = 150 - idx * 32
                         return (
                           <g key={val}>
-                            <line x1="45" y1={y} x2="635" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                            <text x="35" y={y + 4} fill="#94a3b8" fontSize="10" textAnchor="end">{val}</text>
+                            <line x1="45" y1={y} x2="635" y2={y} stroke="#ffffff" strokeWidth="1" />
+                            <text x="35" y={y + 4} fill="#171717" fontSize="10" textAnchor="end">{val}</text>
                           </g>
                         )
                       })}
                       {/* Timestamps */}
                       {['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'].map((time, idx) => (
-                        <text key={time} x={65 + idx * 78} y="170" fill="#94a3b8" fontSize="10" textAnchor="middle">{time}</text>
+                        <text key={time} x={65 + idx * 78} y="170" fill="#171717" fontSize="10" textAnchor="middle">{time}</text>
                       ))}
 
                       {/* Area Fill Gradients */}
                       <defs>
                         <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                          <stop offset="0%" stopColor="#dc2626" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#dc2626" stopOpacity="0.0" />
                         </linearGradient>
                       </defs>
 
@@ -998,47 +998,47 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       <path
                         d="M 65 110 C 95 100, 120 130, 150 120 C 180 110, 200 85, 230 90 C 260 95, 290 125, 320 115 C 350 105, 380 90, 410 45 C 440 65, 470 70, 500 80 C 530 90, 560 65, 590 85 L 610 95"
                         fill="none"
-                        stroke="#ef4444"
+                        stroke="#dc2626"
                         strokeWidth="2.5"
                       />
                       {/* Line 2: Suspicious Activity (Orange Curve) */}
                       <path
                         d="M 65 125 C 95 120, 120 135, 150 130 C 180 125, 200 110, 230 115 C 260 120, 290 140, 320 135 C 350 130, 380 120, 410 95 C 440 105, 470 110, 500 115 C 530 120, 560 105, 590 120 L 610 125"
                         fill="none"
-                        stroke="#f59e0b"
+                        stroke="#d21436"
                         strokeWidth="2.5"
                       />
                       {/* Line 3: API Abuse (Blue Curve) */}
                       <path
                         d="M 65 140 C 95 138, 120 142, 150 140 C 180 138, 200 130, 230 132 C 260 135, 290 145, 320 142 C 350 140, 380 130, 410 115 C 440 125, 470 128, 500 132 C 530 135, 560 125, 590 135 L 610 138"
                         fill="none"
-                        stroke="#2563eb"
+                        stroke="#d21436"
                         strokeWidth="2.5"
                       />
                       {/* Line 4: Other Events (Purple Curve) */}
                       <path
                         d="M 65 145 C 95 144, 120 146, 150 145 C 180 143, 200 140, 230 141 C 260 143, 290 148, 320 146 C 350 145, 380 140, 410 135 C 440 138, 470 140, 500 142 C 530 144, 560 140, 590 144 L 610 146"
                         fill="none"
-                        stroke="#8b5cf6"
+                        stroke="#d21436"
                         strokeWidth="2"
                       />
                     </svg>
 
                     <div className="sap-chart-legend-row">
                       <div className="sap-chart-legend-item">
-                        <span className="sap-chart-legend-dot" style={{ background: '#ef4444' }} />
+                        <span className="sap-chart-legend-dot" style={{ background: '#dc2626' }} />
                         <span>Failed Logins</span>
                       </div>
                       <div className="sap-chart-legend-item">
-                        <span className="sap-chart-legend-dot" style={{ background: '#f59e0b' }} />
+                        <span className="sap-chart-legend-dot" style={{ background: '#d21436' }} />
                         <span>Suspicious Activity</span>
                       </div>
                       <div className="sap-chart-legend-item">
-                        <span className="sap-chart-legend-dot" style={{ background: '#2563eb' }} />
+                        <span className="sap-chart-legend-dot" style={{ background: '#d21436' }} />
                         <span>API Abuse</span>
                       </div>
                       <div className="sap-chart-legend-item">
-                        <span className="sap-chart-legend-dot" style={{ background: '#8b5cf6' }} />
+                        <span className="sap-chart-legend-dot" style={{ background: '#d21436' }} />
                         <span>Other Events</span>
                       </div>
                     </div>
@@ -1049,7 +1049,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined" style={{ color: '#ef4444', fontSize: '20px' }}>notifications_active</span>
+                      <span className="material-symbols-outlined" style={{ color: '#dc2626', fontSize: '20px' }}>notifications_active</span>
                       <h3>Security Alerts</h3>
                     </div>
                     <button className="sap-card-link-btn" onClick={() => setShowAlertsModal(true)}>
@@ -1077,7 +1077,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                           <span className="sap-alert-sub">Unusual request pattern</span>
                         </div>
                       </div>
-                      <span className="sap-alert-time" style={{ color: '#f97316' }}>1 hour ago</span>
+                      <span className="sap-alert-time" style={{ color: '#d21436' }}>1 hour ago</span>
                     </div>
 
                     <div className="sap-alert-item">
@@ -1088,7 +1088,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                           <span className="sap-alert-sub">amit@cetnova.com</span>
                         </div>
                       </div>
-                      <span className="sap-alert-time" style={{ color: '#f97316' }}>2 hours ago</span>
+                      <span className="sap-alert-time" style={{ color: '#d21436' }}>2 hours ago</span>
                     </div>
 
                     <div className="sap-alert-item">
@@ -1099,7 +1099,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                           <span className="sap-alert-sub">Possible scanning activity</span>
                         </div>
                       </div>
-                      <span className="sap-alert-time" style={{ color: '#ca8a04' }}>3 hours ago</span>
+                      <span className="sap-alert-time" style={{ color: '#d21436' }}>3 hours ago</span>
                     </div>
 
                     <div className="sap-alert-item">
@@ -1110,7 +1110,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                           <span className="sap-alert-sub">priya@cetnova.com</span>
                         </div>
                       </div>
-                      <span className="sap-alert-time" style={{ color: '#0284c7' }}>5 hours ago</span>
+                      <span className="sap-alert-time" style={{ color: '#d21436' }}>5 hours ago</span>
                     </div>
                   </div>
                 </div>
@@ -1122,7 +1122,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined" style={{ color: '#2563eb', fontSize: '18px' }}>key</span>
+                      <span className="material-symbols-outlined" style={{ color: '#d21436', fontSize: '18px' }}>key</span>
                       <h3>Login Attempts</h3>
                     </div>
                     <button className="sap-card-link-btn">View All</button>
@@ -1142,18 +1142,18 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                         <tr key={idx}>
                           <td style={{ fontWeight: 500 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#94a3b8' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#171717' }}>
                                 {row.user.includes('@') ? 'mail' : 'laptop'}
                               </span>
                               <span>{row.user}</span>
                             </div>
                           </td>
-                          <td style={{ color: '#64748b' }}>{row.type}</td>
+                          <td style={{ color: '#171717' }}>{row.type}</td>
                           <td>
                             <span className={`sap-status-pill ${row.status.toLowerCase()}`}>{row.status}</span>
                           </td>
-                          <td style={{ color: '#94a3b8' }}>{row.time}</td>
-                          <td style={{ color: '#475569' }}>{row.location}</td>
+                          <td style={{ color: '#171717' }}>{row.time}</td>
+                          <td style={{ color: '#171717' }}>{row.location}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1181,9 +1181,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <tbody>
                       {blockedIPs.map(b => (
                         <tr key={b.ip}>
-                          <td style={{ fontWeight: 600, color: '#1e293b' }}>{b.ip}</td>
+                          <td style={{ fontWeight: 600, color: '#171717' }}>{b.ip}</td>
                           <td style={{ fontWeight: 600 }}>{b.count}</td>
-                          <td style={{ color: '#94a3b8' }}>{b.lastAttempt}</td>
+                          <td style={{ color: '#171717' }}>{b.lastAttempt}</td>
                           <td>
                             <button className="sap-btn-table-action" onClick={() => handleUnblockIP(b.ip)}>
                               Unblock
@@ -1199,7 +1199,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined" style={{ color: '#8b5cf6', fontSize: '18px' }}>shield_lock</span>
+                      <span className="material-symbols-outlined" style={{ color: '#d21436', fontSize: '18px' }}>shield_lock</span>
                       <h3>Security Controls</h3>
                     </div>
                   </div>
@@ -1300,7 +1300,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined" style={{ color: '#8b5cf6', fontSize: '18px' }}>schedule</span>
+                      <span className="material-symbols-outlined" style={{ color: '#d21436', fontSize: '18px' }}>schedule</span>
                       <h3>Recent Security Activity</h3>
                     </div>
                     <button className="sap-card-link-btn">View All</button>
@@ -1325,11 +1325,11 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                         { id: 5, event: 'Suspicious Request', details: 'Unusual API request pattern', user: '185.199.110.23', time: '5 hours ago', status: 'Investigating' },
                       ].map(row => (
                         <tr key={row.id}>
-                          <td style={{ color: '#94a3b8' }}>{row.id}</td>
-                          <td style={{ fontWeight: 600, color: '#0f172a' }}>{row.event}</td>
-                          <td style={{ color: '#64748b' }}>{row.details}</td>
-                          <td style={{ color: '#475569' }}>{row.user}</td>
-                          <td style={{ color: '#94a3b8' }}>{row.time}</td>
+                          <td style={{ color: '#171717' }}>{row.id}</td>
+                          <td style={{ fontWeight: 600, color: '#171717' }}>{row.event}</td>
+                          <td style={{ color: '#171717' }}>{row.details}</td>
+                          <td style={{ color: '#171717' }}>{row.user}</td>
+                          <td style={{ color: '#171717' }}>{row.time}</td>
                           <td>
                             <span className={`sap-status-pill ${row.status.toLowerCase()}`}>{row.status}</span>
                           </td>
@@ -1343,7 +1343,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined" style={{ color: '#8b5cf6', fontSize: '18px' }}>location_on</span>
+                      <span className="material-symbols-outlined" style={{ color: '#d21436', fontSize: '18px' }}>location_on</span>
                       <h3>Login Locations</h3>
                     </div>
                     <select className="sap-select-sm">
@@ -1356,55 +1356,55 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-locations-wrap">
                     {/* SVG Graphic Map with pulsating circles */}
                     <svg viewBox="0 0 320 180" className="sap-world-map-svg">
-                      <rect width="320" height="180" fill="#f8fafc" rx="8" />
+                      <rect width="320" height="180" fill="#ffffff" rx="8" />
                       {/* Simplified continents vector paths */}
                       <path
                         d="M 50 45 Q 70 30, 95 40 Q 110 50, 90 75 Q 70 85, 55 65 Z"
-                        fill="#e2e8f0"
+                        fill="#e5e5e5"
                       />
                       <path
                         d="M 75 95 Q 90 90, 105 105 Q 95 140, 80 130 Z"
-                        fill="#e2e8f0"
+                        fill="#e5e5e5"
                       />
                       <path
                         d="M 140 40 Q 170 35, 185 50 Q 180 70, 150 70 Q 135 55, 140 40 Z"
-                        fill="#e2e8f0"
+                        fill="#e5e5e5"
                       />
                       <path
                         d="M 145 75 Q 175 75, 175 110 Q 155 130, 140 100 Z"
-                        fill="#e2e8f0"
+                        fill="#e5e5e5"
                       />
                       <path
                         d="M 195 40 Q 250 30, 270 55 Q 260 85, 220 80 Q 200 65, 195 40 Z"
-                        fill="#e2e8f0"
+                        fill="#e5e5e5"
                       />
                       <path
                         d="M 230 110 Q 260 110, 255 135 Q 235 140, 225 125 Z"
-                        fill="#e2e8f0"
+                        fill="#e5e5e5"
                       />
 
                       {/* Location Glow Rings & Pins */}
                       {/* India / Mumbai (Large Pulse) */}
-                      <circle cx="215" cy="82" r="14" fill="#ef4444" opacity="0.25" />
-                      <circle cx="215" cy="82" r="8" fill="#ef4444" opacity="0.5" />
+                      <circle cx="215" cy="82" r="14" fill="#dc2626" opacity="0.25" />
+                      <circle cx="215" cy="82" r="8" fill="#dc2626" opacity="0.5" />
                       <circle cx="215" cy="82" r="4" fill="#dc2626" />
 
                       {/* Europe / Germany / UK */}
-                      <circle cx="160" cy="52" r="9" fill="#3b82f6" opacity="0.25" />
-                      <circle cx="160" cy="52" r="3.5" fill="#2563eb" />
+                      <circle cx="160" cy="52" r="9" fill="#d21436" opacity="0.25" />
+                      <circle cx="160" cy="52" r="3.5" fill="#d21436" />
 
                       {/* US East */}
-                      <circle cx="95" cy="62" r="9" fill="#f59e0b" opacity="0.25" />
-                      <circle cx="95" cy="62" r="3.5" fill="#d97706" />
+                      <circle cx="95" cy="62" r="9" fill="#d21436" opacity="0.25" />
+                      <circle cx="95" cy="62" r="3.5" fill="#d21436" />
 
                       {/* Singapore */}
-                      <circle cx="238" cy="98" r="8" fill="#ef4444" opacity="0.25" />
+                      <circle cx="238" cy="98" r="8" fill="#dc2626" opacity="0.25" />
                       <circle cx="238" cy="98" r="3.5" fill="#dc2626" />
                     </svg>
 
                     {/* Top Locations list */}
                     <div className="sap-locations-list">
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Top Locations</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#171717', marginBottom: '4px' }}>Top Locations</span>
                       <div className="sap-loc-item">
                         <div className="sap-loc-flag-name">
                           <span>🇮🇳</span>
@@ -1626,7 +1626,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                             onClick={() => setSelectedAdminId(adm.id)}
                           >
                             <td onClick={e => e.stopPropagation()}><input type="checkbox" /></td>
-                            <td style={{ color: '#94a3b8' }}>{index + 1}</td>
+                            <td style={{ color: '#171717' }}>{index + 1}</td>
                             <td>
                               <div className="sap-user-cell">
                                 <div className="sap-user-avatar-sm">
@@ -1649,7 +1649,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                                 {adm.status}
                               </span>
                             </td>
-                            <td style={{ color: '#64748b' }}>
+                            <td style={{ color: '#171717' }}>
                               {adm.joined ? new Date(adm.joined).toLocaleDateString() : '—'}
                             </td>
                             <td onClick={e => e.stopPropagation()}>
@@ -1783,9 +1783,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                 <div className="sap-page-banner-right">
                   <div className="sap-date-pill">
-                    <Calendar size={15} color="#2563eb" />
+                    <Calendar size={15} color="#d21436" />
                     <span>Wed, 02 Oct 2026</span>
-                    <strong style={{ color: '#0f172a' }}>03:45 PM</strong>
+                    <strong style={{ color: '#171717' }}>03:45 PM</strong>
                   </div>
                   <button className="sap-btn-primary-action" onClick={() => showToast('Exporting full API telemetry report...')}>
                     <Download size={15} />
@@ -1815,7 +1815,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div className="sap-stat-row-val">
                       <span className="sap-stat-number">118,230</span>
                     </div>
-                    <span className="sap-stat-subtext" style={{ color: '#16a34a', fontWeight: 600 }}>94.2%</span>
+                    <span className="sap-stat-subtext" style={{ color: '#16a085', fontWeight: 600 }}>94.2%</span>
                   </div>
                 </div>
 
@@ -1837,7 +1837,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div className="sap-stat-row-val">
                       <span className="sap-stat-number">1,640</span>
                     </div>
-                    <span className="sap-stat-subtext" style={{ color: '#ea580c', fontWeight: 600 }}>1.3%</span>
+                    <span className="sap-stat-subtext" style={{ color: '#d21436', fontWeight: 600 }}>1.3%</span>
                   </div>
                 </div>
 
@@ -1888,50 +1888,50 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       const y = 145 - i * 36
                       return (
                         <g key={v}>
-                          <line x1="45" y1={y} x2="525" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                          <text x="35" y={y + 4} fill="#94a3b8" fontSize="9.5" textAnchor="end">{v >= 1000 ? `${v / 1000}K` : v}</text>
+                          <line x1="45" y1={y} x2="525" y2={y} stroke="#ffffff" strokeWidth="1" />
+                          <text x="35" y={y + 4} fill="#171717" fontSize="9.5" textAnchor="end">{v >= 1000 ? `${v / 1000}K` : v}</text>
                         </g>
                       )
                     })}
                     {['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'].map((time, idx) => (
-                      <text key={time} x={65 + idx * 62} y="165" fill="#94a3b8" fontSize="9.5" textAnchor="middle">{time}</text>
+                      <text key={time} x={65 + idx * 62} y="165" fill="#171717" fontSize="9.5" textAnchor="middle">{time}</text>
                     ))}
 
                     {/* Total Requests (Blue) */}
                     <path
                       d="M 65 95 C 105 70, 140 120, 180 85 C 220 100, 260 65, 300 95 C 340 70, 380 40, 420 85 C 460 60, 500 75, 520 90"
                       fill="none"
-                      stroke="#2563eb"
+                      stroke="#d21436"
                       strokeWidth="2.5"
                     />
                     {/* Successful (Green) */}
                     <path
                       d="M 65 110 C 105 90, 140 130, 180 100 C 220 115, 260 80, 300 110 C 340 90, 380 55, 420 100 C 460 75, 500 90, 520 105"
                       fill="none"
-                      stroke="#10b981"
+                      stroke="#16a085"
                       strokeWidth="2.5"
                     />
                     {/* 4xx Errors (Orange) */}
                     <path
                       d="M 65 140 C 105 138, 140 142, 180 139 C 220 141, 260 137, 300 140 C 340 138, 380 135, 420 139 C 460 137, 500 138, 520 140"
                       fill="none"
-                      stroke="#f59e0b"
+                      stroke="#d21436"
                       strokeWidth="2"
                     />
                     {/* 5xx Errors (Red) */}
                     <path
                       d="M 65 145 C 105 144, 140 146, 180 144 C 220 145, 260 143, 300 145 C 340 144, 380 142, 420 144 C 460 143, 500 144, 520 145"
                       fill="none"
-                      stroke="#ef4444"
+                      stroke="#dc2626"
                       strokeWidth="2"
                     />
                   </svg>
 
                   <div className="sap-chart-legend-row">
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#2563eb' }} /><span>Total Requests</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#10b981' }} /><span>Successful</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#f59e0b' }} /><span>4xx Errors</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#ef4444' }} /><span>5xx Errors</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Total Requests</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#16a085' }} /><span>Successful</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>4xx Errors</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#dc2626' }} /><span>5xx Errors</span></div>
                   </div>
                 </div>
 
@@ -1939,7 +1939,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined card-icon" style={{ color: '#8b5cf6' }}>timer</span>
+                      <span className="material-symbols-outlined card-icon" style={{ color: '#d21436' }}>timer</span>
                       <div>
                         <h3>Response Time</h3>
                         <p>Average response time (ms) over time.</p>
@@ -1963,32 +1963,32 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       const y = 145 - idx * 28
                       return (
                         <g key={ms}>
-                          <line x1="35" y1={y} x2="365" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                          <text x="28" y={y + 3} fill="#94a3b8" fontSize="9" textAnchor="end">{ms}</text>
+                          <line x1="35" y1={y} x2="365" y2={y} stroke="#ffffff" strokeWidth="1" />
+                          <text x="28" y={y + 3} fill="#171717" fontSize="9" textAnchor="end">{ms}</text>
                         </g>
                       )
                     })}
                     {['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'].map((time, idx) => (
-                      <text key={time} x={45 + idx * 45} y="165" fill="#94a3b8" fontSize="8.5" textAnchor="middle">{time}</text>
+                      <text key={time} x={45 + idx * 45} y="165" fill="#171717" fontSize="8.5" textAnchor="middle">{time}</text>
                     ))}
 
                     {/* Purple Response Time curve with points */}
                     <path
                       d="M 45 130 L 80 115 L 115 125 L 150 100 L 185 120 L 220 95 L 255 60 L 290 90 L 325 75 L 360 85"
                       fill="none"
-                      stroke="#8b5cf6"
+                      stroke="#d21436"
                       strokeWidth="2.5"
                     />
                     {[
                       [45, 130], [80, 115], [115, 125], [150, 100], [185, 120],
                       [220, 95], [255, 60], [290, 90], [325, 75], [360, 85]
                     ].map(([cx, cy], i) => (
-                      <circle key={i} cx={cx} cy={cy} r="3" fill="#ffffff" stroke="#8b5cf6" strokeWidth="2" />
+                      <circle key={i} cx={cx} cy={cy} r="3" fill="#ffffff" stroke="#d21436" strokeWidth="2" />
                     ))}
                   </svg>
 
                   <div className="sap-chart-legend-row">
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#8b5cf6' }} /><span>Response Time (ms)</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Response Time (ms)</span></div>
                   </div>
                 </div>
               </div>
@@ -2027,8 +2027,8 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                         { id: 5, ep: '/api/users', m: 'GET', req: '8,912', pct: '98.9%', time: '160 ms', val: 98.9 },
                       ].map(row => (
                         <tr key={row.id}>
-                          <td style={{ color: '#94a3b8' }}>{row.id}</td>
-                          <td style={{ fontWeight: 600, color: '#1e293b' }}>{row.ep}</td>
+                          <td style={{ color: '#171717' }}>{row.id}</td>
+                          <td style={{ fontWeight: 600, color: '#171717' }}>{row.ep}</td>
                           <td><span className={`sap-method-badge ${row.m.toLowerCase()}`}>{row.m}</span></td>
                           <td>{row.req}</td>
                           <td>
@@ -2039,7 +2039,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                               </div>
                             </div>
                           </td>
-                          <td style={{ color: '#64748b' }}>{row.time}</td>
+                          <td style={{ color: '#171717' }}>{row.time}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2066,24 +2066,24 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     </thead>
                     <tbody>
                       {[
-                        { id: 1, initials: 'AS', name: 'Amit Sharma', role: 'Admin', calls: '12,482', color: '#fee2e2', tc: '#dc2626' },
-                        { id: 2, initials: 'PK', name: 'Priya Kulkarni', role: 'Content Admin', calls: '9,321', color: '#e0f2fe', tc: '#0284c7' },
-                        { id: 3, initials: 'RV', name: 'Rahul Verma', role: 'Question Admin', calls: '8,741', color: '#f3e8ff', tc: '#9333ea' },
-                        { id: 4, initials: 'ST', name: 'Sneha Tiwari', role: 'Test Admin', calls: '7,654', color: '#dcfce7', tc: '#15803d' },
-                        { id: 5, initials: 'MJ', name: 'Mayur Joshi', role: 'Analytics Admin', calls: '6,890', color: '#fef9c3', tc: '#a16207' },
+                        { id: 1, initials: 'AS', name: 'Amit Sharma', role: 'Admin', calls: '12,482', color: '#f8f8f8', tc: '#dc2626' },
+                        { id: 2, initials: 'PK', name: 'Priya Kulkarni', role: 'Content Admin', calls: '9,321', color: '#ffffff', tc: '#d21436' },
+                        { id: 3, initials: 'RV', name: 'Rahul Verma', role: 'Question Admin', calls: '8,741', color: '#f8f8f8', tc: '#d21436' },
+                        { id: 4, initials: 'ST', name: 'Sneha Tiwari', role: 'Test Admin', calls: '7,654', color: '#ffffff', tc: '#16a085' },
+                        { id: 5, initials: 'MJ', name: 'Mayur Joshi', role: 'Analytics Admin', calls: '6,890', color: '#f8f8f8', tc: '#d21436' },
                       ].map(u => (
                         <tr key={u.id}>
-                          <td style={{ color: '#94a3b8' }}>{u.id}</td>
+                          <td style={{ color: '#171717' }}>{u.id}</td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span style={{
-                                width: '22px', height: '22px', borderRadius: '50%', background: '#e0e7ff',
-                                color: '#4338ca', fontSize: '0.68rem', fontWeight: 700, display: 'inline-flex',
+                                width: '22px', height: '22px', borderRadius: '50%', background: '#f8f8f8',
+                                color: '#d21436', fontSize: '0.68rem', fontWeight: 700, display: 'inline-flex',
                                 alignItems: 'center', justifyContent: 'center'
                               }}>
                                 {u.initials}
                               </span>
-                              <span style={{ fontWeight: 600, color: '#1e293b' }}>{u.name}</span>
+                              <span style={{ fontWeight: 600, color: '#171717' }}>{u.name}</span>
                             </div>
                           </td>
                           <td>
@@ -2109,12 +2109,12 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                   <div className="sap-donut-container">
                     <svg viewBox="0 0 160 160" style={{ width: '130px', height: '130px' }}>
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#2563eb" strokeWidth="20" strokeDasharray="163 339" strokeDashoffset="0" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#10b981" strokeWidth="20" strokeDasharray="83 339" strokeDashoffset="-163" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#f59e0b" strokeWidth="20" strokeDasharray="42 339" strokeDashoffset="-246" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#f97316" strokeWidth="20" strokeDasharray="27 339" strokeDashoffset="-288" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#ef4444" strokeWidth="20" strokeDasharray="16 339" strokeDashoffset="-315" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#8b5cf6" strokeWidth="20" strokeDasharray="8 339" strokeDashoffset="-331" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="20" strokeDasharray="163 339" strokeDashoffset="0" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#16a085" strokeWidth="20" strokeDasharray="83 339" strokeDashoffset="-163" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="20" strokeDasharray="42 339" strokeDashoffset="-246" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="20" strokeDasharray="27 339" strokeDashoffset="-288" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#dc2626" strokeWidth="20" strokeDasharray="16 339" strokeDashoffset="-315" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="20" strokeDasharray="8 339" strokeDashoffset="-331" />
                     </svg>
 
                     <div className="sap-donut-center-text">
@@ -2124,27 +2124,27 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                     <div className="sap-donut-legend-grid">
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#2563eb' }} /><span>Students</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Students</span></div>
                         <span className="sap-donut-legend-pct">48.2%</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#10b981' }} /><span>Admin</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#16a085' }} /><span>Admin</span></div>
                         <span className="sap-donut-legend-pct">24.6%</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#f59e0b' }} /><span>Content Admin</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Content Admin</span></div>
                         <span className="sap-donut-legend-pct">12.4%</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#f97316' }} /><span>Test Admin</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Test Admin</span></div>
                         <span className="sap-donut-legend-pct">8.1%</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#ef4444' }} /><span>Question Admin</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#dc2626' }} /><span>Question Admin</span></div>
                         <span className="sap-donut-legend-pct">4.7%</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#8b5cf6' }} /><span>Others</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Others</span></div>
                         <span className="sap-donut-legend-pct">2.0%</span>
                       </div>
                     </div>
@@ -2185,14 +2185,14 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                         { id: 5, time: '10:45:10', user: 'Mayur Joshi', m: 'GET', ep: '/api/analytics', status: 200, rt: '180 ms', ip: '170.64.12.45' },
                       ].map(r => (
                         <tr key={r.id}>
-                          <td style={{ color: '#94a3b8' }}>{r.id}</td>
-                          <td style={{ color: '#64748b' }}>{r.time}</td>
+                          <td style={{ color: '#171717' }}>{r.id}</td>
+                          <td style={{ color: '#171717' }}>{r.time}</td>
                           <td style={{ fontWeight: 600 }}>{r.user}</td>
                           <td><span className={`sap-method-badge ${r.m.toLowerCase()}`}>{r.m}</span></td>
-                          <td style={{ color: '#1e293b' }}>{r.ep}</td>
+                          <td style={{ color: '#171717' }}>{r.ep}</td>
                           <td><span className="sap-status-pill success">{r.status}</span></td>
-                          <td style={{ color: '#64748b' }}>{r.rt}</td>
-                          <td style={{ color: '#475569' }}>{r.ip}</td>
+                          <td style={{ color: '#171717' }}>{r.rt}</td>
+                          <td style={{ color: '#171717' }}>{r.ip}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2203,7 +2203,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <div className="sap-card">
                   <div className="sap-card-header">
                     <div className="sap-card-title-group">
-                      <span className="material-symbols-outlined card-icon" style={{ color: '#ef4444' }}>error</span>
+                      <span className="material-symbols-outlined card-icon" style={{ color: '#dc2626' }}>error</span>
                       <h3>Error Logs (API)</h3>
                     </div>
                     <button className="sap-card-link-btn">View All</button>
@@ -2228,12 +2228,12 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                         { id: 5, time: '10:35:29', ep: '/api/analytics', status: 500, msg: 'Database connection failed', ip: '170.64.12.45' },
                       ].map(err => (
                         <tr key={err.id}>
-                          <td style={{ color: '#94a3b8' }}>{err.id}</td>
-                          <td style={{ color: '#64748b' }}>{err.time}</td>
-                          <td style={{ color: '#1e293b', fontWeight: 600 }}>{err.ep}</td>
+                          <td style={{ color: '#171717' }}>{err.id}</td>
+                          <td style={{ color: '#171717' }}>{err.time}</td>
+                          <td style={{ color: '#171717', fontWeight: 600 }}>{err.ep}</td>
                           <td><span className="sap-status-pill failed">{err.status}</span></td>
                           <td style={{ color: '#dc2626' }}>{err.msg}</td>
-                          <td style={{ color: '#475569' }}>{err.ip}</td>
+                          <td style={{ color: '#171717' }}>{err.ip}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2262,9 +2262,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                 <div className="sap-page-banner-right">
                   <div className="sap-date-pill">
-                    <Calendar size={15} color="#2563eb" />
+                    <Calendar size={15} color="#d21436" />
                     <span>Wed, 02 Oct 2026</span>
-                    <strong style={{ color: '#0f172a' }}>03:45 PM</strong>
+                    <strong style={{ color: '#171717' }}>03:45 PM</strong>
                   </div>
                   <button className="sap-btn-primary-action" onClick={() => showToast('Backup configuration panel opened')}>
                     <Settings size={15} />
@@ -2294,7 +2294,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div className="sap-stat-row-val">
                       <span className="sap-stat-number">22</span>
                     </div>
-                    <span className="sap-stat-subtext" style={{ color: '#16a34a', fontWeight: 600 }}>91.7%</span>
+                    <span className="sap-stat-subtext" style={{ color: '#16a085', fontWeight: 600 }}>91.7%</span>
                   </div>
                 </div>
 
@@ -2325,7 +2325,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-stat-icon orange"><Calendar size={20} /></div>
                   <div className="sap-stat-content">
                     <span className="sap-stat-title">Last Backup</span>
-                    <div className="sap-stat-row-val" style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0f172a' }}>
+                    <div className="sap-stat-row-val" style={{ fontSize: '0.86rem', fontWeight: 700, color: '#171717' }}>
                       2 Oct 2026, 01:30 AM
                     </div>
                     <span className="sap-status-pill success" style={{ alignSelf: 'flex-start', marginTop: '3px' }}>Successful</span>
@@ -2356,8 +2356,8 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       const y = 145 - i * 24
                       return (
                         <g key={gb}>
-                          <line x1="45" y1={y} x2="520" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                          <text x="35" y={y + 3} fill="#94a3b8" fontSize="9.5" textAnchor="end">{gb} GB</text>
+                          <line x1="45" y1={y} x2="520" y2={y} stroke="#ffffff" strokeWidth="1" />
+                          <text x="35" y={y + 3} fill="#171717" fontSize="9.5" textAnchor="end">{gb} GB</text>
                         </g>
                       )
                     })}
@@ -2380,22 +2380,22 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       return (
                         <g key={bar.date}>
                           {/* Segment 1: Database (Blue) */}
-                          <rect x={x} y={y1} width="28" height={bar.h1} fill="#3b82f6" rx="2" />
+                          <rect x={x} y={y1} width="28" height={bar.h1} fill="#d21436" rx="2" />
                           {/* Segment 2: Application Files (Purple) */}
-                          <rect x={x} y={y2} width="28" height={bar.h2} fill="#8b5cf6" />
+                          <rect x={x} y={y2} width="28" height={bar.h2} fill="#d21436" />
                           {/* Segment 3: Uploads & Assets (Teal) */}
-                          <rect x={x} y={y3} width="28" height={bar.h3} fill="#10b981" rx="2" />
+                          <rect x={x} y={y3} width="28" height={bar.h3} fill="#16a085" rx="2" />
                           {/* Date label */}
-                          <text x={x + 14} y="162" fill="#94a3b8" fontSize="9.5" textAnchor="middle">{bar.date}</text>
+                          <text x={x + 14} y="162" fill="#171717" fontSize="9.5" textAnchor="middle">{bar.date}</text>
                         </g>
                       )
                     })}
                   </svg>
 
                   <div className="sap-chart-legend-row">
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#3b82f6' }} /><span>Database</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#8b5cf6' }} /><span>Application Files</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#10b981' }} /><span>Uploads &amp; Assets</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Database</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Application Files</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#16a085' }} /><span>Uploads &amp; Assets</span></div>
                   </div>
                 </div>
 
@@ -2487,17 +2487,17 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       </thead>
                       <tbody>
                         {[
-                          { id: 1, name: 'full-backup-2026-10-02.zip', type: 'Full', size: '1.2 GB', status: 'Success', date: '02 Oct 2026, 01:30 AM', color: '#e0f2fe', tc: '#0284c7' },
-                          { id: 2, name: 'db-backup-2026-10-01.sql', type: 'Database', size: '320 MB', status: 'Success', date: '01 Oct 2026, 01:30 AM', color: '#f3e8ff', tc: '#9333ea' },
-                          { id: 3, name: 'files-backup-2026-09-30.zip', type: 'Files', size: '890 MB', status: 'Success', date: '30 Sep 2026, 01:30 AM', color: '#dcfce7', tc: '#15803d' },
-                          { id: 4, name: 'full-backup-2026-09-29.zip', type: 'Full', size: '1.1 GB', status: 'Failed', date: '29 Sep 2026, 01:30 AM', color: '#e0f2fe', tc: '#0284c7' },
-                          { id: 5, name: 'db-backup-2026-09-28.sql', type: 'Database', size: '310 MB', status: 'Success', date: '28 Sep 2026, 01:30 AM', color: '#f3e8ff', tc: '#9333ea' },
+                          { id: 1, name: 'full-backup-2026-10-02.zip', type: 'Full', size: '1.2 GB', status: 'Success', date: '02 Oct 2026, 01:30 AM', color: '#ffffff', tc: '#d21436' },
+                          { id: 2, name: 'db-backup-2026-10-01.sql', type: 'Database', size: '320 MB', status: 'Success', date: '01 Oct 2026, 01:30 AM', color: '#f8f8f8', tc: '#d21436' },
+                          { id: 3, name: 'files-backup-2026-09-30.zip', type: 'Files', size: '890 MB', status: 'Success', date: '30 Sep 2026, 01:30 AM', color: '#ffffff', tc: '#16a085' },
+                          { id: 4, name: 'full-backup-2026-09-29.zip', type: 'Full', size: '1.1 GB', status: 'Failed', date: '29 Sep 2026, 01:30 AM', color: '#ffffff', tc: '#d21436' },
+                          { id: 5, name: 'db-backup-2026-09-28.sql', type: 'Database', size: '310 MB', status: 'Success', date: '28 Sep 2026, 01:30 AM', color: '#f8f8f8', tc: '#d21436' },
                         ].map(bk => (
                           <tr key={bk.id}>
-                            <td style={{ color: '#94a3b8' }}>{bk.id}</td>
-                            <td style={{ fontWeight: 600, color: '#1e293b' }}>
+                            <td style={{ color: '#171717' }}>{bk.id}</td>
+                            <td style={{ fontWeight: 600, color: '#171717' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <FileText size={14} color="#64748b" />
+                                <FileText size={14} color="#171717" />
                                 <span>{bk.name}</span>
                               </div>
                             </td>
@@ -2510,7 +2510,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                             <td>
                               <span className={`sap-status-pill ${bk.status.toLowerCase()}`}>{bk.status}</span>
                             </td>
-                            <td style={{ color: '#64748b' }}>{bk.date}</td>
+                            <td style={{ color: '#171717' }}>{bk.date}</td>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                                 <button className="sap-icon-action-btn" title="Download backup" onClick={() => showToast(`Downloading ${bk.name}`)}>
@@ -2546,9 +2546,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                       <div className="sap-donut-container">
                         <svg viewBox="0 0 160 160" style={{ width: '120px', height: '120px' }}>
-                          <circle cx="80" cy="80" r="54" fill="none" stroke="#2563eb" strokeWidth="18" strokeDasharray="139 339" strokeDashoffset="0" />
-                          <circle cx="80" cy="80" r="54" fill="none" stroke="#8b5cf6" strokeWidth="18" strokeDasharray="122 339" strokeDashoffset="-139" />
-                          <circle cx="80" cy="80" r="54" fill="none" stroke="#10b981" strokeWidth="18" strokeDasharray="78 339" strokeDashoffset="-261" />
+                          <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="18" strokeDasharray="139 339" strokeDashoffset="0" />
+                          <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="18" strokeDasharray="122 339" strokeDashoffset="-139" />
+                          <circle cx="80" cy="80" r="54" fill="none" stroke="#16a085" strokeWidth="18" strokeDasharray="78 339" strokeDashoffset="-261" />
                         </svg>
 
                         <div className="sap-donut-center-text">
@@ -2558,15 +2558,15 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '0.75rem', width: '100%' }}>
                           <div className="sap-donut-legend-item">
-                            <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#2563eb' }} /><span>Database Backups</span></div>
+                            <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Database Backups</span></div>
                             <span className="sap-donut-legend-pct">2.4 GB (41%)</span>
                           </div>
                           <div className="sap-donut-legend-item">
-                            <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#8b5cf6' }} /><span>Application Files</span></div>
+                            <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Application Files</span></div>
                             <span className="sap-donut-legend-pct">2.1 GB (36%)</span>
                           </div>
                           <div className="sap-donut-legend-item">
-                            <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#10b981' }} /><span>Uploads &amp; Assets</span></div>
+                            <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#16a085' }} /><span>Uploads &amp; Assets</span></div>
                             <span className="sap-donut-legend-pct">1.3 GB (23%)</span>
                           </div>
                         </div>
@@ -2588,7 +2588,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       <div className="sap-scheduled-list">
                         <div className="sap-schedule-row">
                           <div className="sap-schedule-left">
-                            <Calendar size={16} color="#2563eb" />
+                            <Calendar size={16} color="#d21436" />
                             <div className="sap-schedule-titles">
                               <h5>Daily Backup</h5>
                               <p>Every day at 01:30 AM</p>
@@ -2609,7 +2609,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                         <div className="sap-schedule-row">
                           <div className="sap-schedule-left">
-                            <Calendar size={16} color="#8b5cf6" />
+                            <Calendar size={16} color="#d21436" />
                             <div className="sap-schedule-titles">
                               <h5>Weekly Backup</h5>
                               <p>Every Sunday at 02:00 AM</p>
@@ -2630,7 +2630,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                         <div className="sap-schedule-row">
                           <div className="sap-schedule-left">
-                            <Calendar size={16} color="#10b981" />
+                            <Calendar size={16} color="#16a085" />
                             <div className="sap-schedule-titles">
                               <h5>Monthly Backup</h5>
                               <p>1st of every month at 03:00 AM</p>
@@ -2788,9 +2788,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                 <div className="sap-page-banner-right">
                   <div className="sap-date-pill">
-                    <Calendar size={15} color="#2563eb" />
+                    <Calendar size={15} color="#d21436" />
                     <span>Wed, 02 Oct 2026</span>
-                    <strong style={{ color: '#0f172a' }}>03:45 PM</strong>
+                    <strong style={{ color: '#171717' }}>03:45 PM</strong>
                   </div>
                   <button className="sap-btn-primary-action" onClick={() => showToast('Downloading 248,521 logs as compressed archive...')}>
                     <Download size={15} />
@@ -2882,50 +2882,50 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       const y = 145 - i * 28
                       return (
                         <g key={k}>
-                          <line x1="35" y1={y} x2="365" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-                          <text x="28" y={y + 3} fill="#94a3b8" fontSize="8.5" textAnchor="end">{k ? `${k}K` : 0}</text>
+                          <line x1="35" y1={y} x2="365" y2={y} stroke="#ffffff" strokeWidth="1" />
+                          <text x="28" y={y + 3} fill="#171717" fontSize="8.5" textAnchor="end">{k ? `${k}K` : 0}</text>
                         </g>
                       )
                     })}
                     {['00:00', '03:30', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'].map((time, idx) => (
-                      <text key={time} x={45 + idx * 45} y="165" fill="#94a3b8" fontSize="8.5" textAnchor="middle">{time}</text>
+                      <text key={time} x={45 + idx * 45} y="165" fill="#171717" fontSize="8.5" textAnchor="middle">{time}</text>
                     ))}
 
                     {/* Info (Blue line) */}
                     <path
                       d="M 45 110 L 80 95 L 120 105 L 160 85 L 200 90 L 240 80 L 280 95 L 320 85 L 360 90"
                       fill="none"
-                      stroke="#2563eb"
+                      stroke="#d21436"
                       strokeWidth="2.5"
                     />
                     {/* Warning (Yellow line) */}
                     <path
                       d="M 45 125 L 80 120 L 120 128 L 160 115 L 200 122 L 240 110 L 280 120 L 320 115 L 360 120"
                       fill="none"
-                      stroke="#f59e0b"
+                      stroke="#d21436"
                       strokeWidth="2"
                     />
                     {/* Error (Red line) */}
                     <path
                       d="M 45 138 L 80 135 L 120 140 L 160 132 L 200 136 L 240 130 L 280 135 L 320 132 L 360 134"
                       fill="none"
-                      stroke="#ef4444"
+                      stroke="#dc2626"
                       strokeWidth="2"
                     />
                     {/* Critical (Purple line) */}
                     <path
                       d="M 45 144 L 80 143 L 120 145 L 160 142 L 200 143 L 240 140 L 280 142 L 320 141 L 360 142"
                       fill="none"
-                      stroke="#8b5cf6"
+                      stroke="#d21436"
                       strokeWidth="2"
                     />
                   </svg>
 
                   <div className="sap-chart-legend-row">
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#2563eb' }} /><span>Info</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#f59e0b' }} /><span>Warning</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#ef4444' }} /><span>Error</span></div>
-                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#8b5cf6' }} /><span>Critical</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Info</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Warning</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#dc2626' }} /><span>Error</span></div>
+                    <div className="sap-chart-legend-item"><span className="sap-chart-legend-dot" style={{ background: '#d21436' }} /><span>Critical</span></div>
                   </div>
                 </div>
 
@@ -2943,10 +2943,10 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                   <div className="sap-donut-container">
                     <svg viewBox="0 0 160 160" style={{ width: '120px', height: '120px' }}>
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#2563eb" strokeWidth="18" strokeDasharray="248 339" strokeDashoffset="0" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#f59e0b" strokeWidth="18" strokeDasharray="58 339" strokeDashoffset="-248" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#ef4444" strokeWidth="18" strokeDasharray="25 339" strokeDashoffset="-306" />
-                      <circle cx="80" cy="80" r="54" fill="none" stroke="#8b5cf6" strokeWidth="18" strokeDasharray="6 339" strokeDashoffset="-331" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="18" strokeDasharray="248 339" strokeDashoffset="0" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="18" strokeDasharray="58 339" strokeDashoffset="-248" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#dc2626" strokeWidth="18" strokeDasharray="25 339" strokeDashoffset="-306" />
+                      <circle cx="80" cy="80" r="54" fill="none" stroke="#d21436" strokeWidth="18" strokeDasharray="6 339" strokeDashoffset="-331" />
                     </svg>
 
                     <div className="sap-donut-center-text">
@@ -2956,19 +2956,19 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '0.65rem', width: '100%' }}>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#2563eb' }} /><span>Info</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Info</span></div>
                         <span className="sap-donut-legend-pct">73.4% (182,430)</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#f59e0b' }} /><span>Warning</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Warning</span></div>
                         <span className="sap-donut-legend-pct">17.3% (42,881)</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#ef4444' }} /><span>Error</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#dc2626' }} /><span>Error</span></div>
                         <span className="sap-donut-legend-pct">7.5% (18,672)</span>
                       </div>
                       <div className="sap-donut-legend-item">
-                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#8b5cf6' }} /><span>Critical</span></div>
+                        <div className="sap-donut-legend-left"><span className="sap-donut-legend-dot" style={{ background: '#d21436' }} /><span>Critical</span></div>
                         <span className="sap-donut-legend-pct">1.8% (4,538)</span>
                       </div>
                     </div>
@@ -2989,12 +2989,12 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
 
                   <div className="sap-source-bar-list">
                     {[
-                      { name: 'Web Server', pct: '42.1%', val: 42.1, color: '#3b82f6' },
-                      { name: 'Application', pct: '28.3%', val: 28.3, color: '#8b5cf6' },
-                      { name: 'Database', pct: '15.4%', val: 15.4, color: '#10b981' },
-                      { name: 'Auth System', pct: '8.2%', val: 8.2, color: '#f59e0b' },
-                      { name: 'API', pct: '4.1%', val: 4.1, color: '#ef4444' },
-                      { name: 'Others', pct: '1.9%', val: 1.9, color: '#64748b' },
+                      { name: 'Web Server', pct: '42.1%', val: 42.1, color: '#d21436' },
+                      { name: 'Application', pct: '28.3%', val: 28.3, color: '#d21436' },
+                      { name: 'Database', pct: '15.4%', val: 15.4, color: '#16a085' },
+                      { name: 'Auth System', pct: '8.2%', val: 8.2, color: '#d21436' },
+                      { name: 'API', pct: '4.1%', val: 4.1, color: '#dc2626' },
+                      { name: 'Others', pct: '1.9%', val: 1.9, color: '#171717' },
                     ].map(src => (
                       <div key={src.name} className="sap-source-bar-item">
                         <div className="sap-source-bar-label-row">
@@ -3023,7 +3023,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#475569' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#171717' }}>
                         <span>Auto Refresh (10s)</span>
                         <label className="sap-toggle-switch">
                           <input type="checkbox" checked={logAutoRefresh} onChange={e => setLogAutoRefresh(e.target.checked)} />
@@ -3105,15 +3105,15 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                             className={`clickable ${isSelected ? 'selected' : ''}`}
                             onClick={() => setSelectedLogId(log.id)}
                           >
-                            <td style={{ color: '#94a3b8' }}>{log.id}</td>
-                            <td style={{ color: '#64748b' }}>{log.time}</td>
+                            <td style={{ color: '#171717' }}>{log.id}</td>
+                            <td style={{ color: '#171717' }}>{log.time}</td>
                             <td>
                               <span className={`sap-alert-badge ${log.level.toLowerCase()}`}>{log.level}</span>
                             </td>
-                            <td style={{ fontWeight: 600, color: '#334155' }}>{log.service}</td>
-                            <td style={{ color: '#0f172a' }}>{log.message}</td>
-                            <td style={{ color: '#64748b' }}>{log.user}</td>
-                            <td style={{ color: '#475569' }}>{log.ip}</td>
+                            <td style={{ fontWeight: 600, color: '#171717' }}>{log.service}</td>
+                            <td style={{ color: '#171717' }}>{log.message}</td>
+                            <td style={{ color: '#171717' }}>{log.user}</td>
+                            <td style={{ color: '#171717' }}>{log.ip}</td>
                             <td onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
                               <button className="sap-icon-action-btn" onClick={() => setSelectedLogId(log.id)}>
                                 <MoreHorizontal size={14} />
@@ -3147,7 +3147,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-log-details-card">
                     <div className="sap-drawer-header">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <FileText size={18} color="#2563eb" />
+                        <FileText size={18} color="#d21436" />
                         <h3>Log Details</h3>
                       </div>
                       <button className="sap-drawer-close-btn" onClick={() => setSelectedLogId(0)}>
@@ -3172,7 +3172,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       </div>
                       <div className="sap-log-meta-row">
                         <span className="sap-log-meta-key">Message</span>
-                        <span className="sap-log-meta-val" style={{ color: selectedLog.level === 'ERROR' || selectedLog.level === 'CRITICAL' ? '#dc2626' : '#0f172a' }}>
+                        <span className="sap-log-meta-val" style={{ color: selectedLog.level === 'ERROR' || selectedLog.level === 'CRITICAL' ? '#dc2626' : '#171717' }}>
                           {selectedLog.message}
                         </span>
                       </div>
@@ -3199,7 +3199,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     </div>
 
                     <div>
-                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: '#171717', display: 'block', marginBottom: '6px' }}>
                         Stack Trace
                       </span>
                       <div className="sap-stack-trace-box">
@@ -3248,7 +3248,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <p>Manage server status, services, maintenance mode, cache and system configuration.</p>
                 </div>
                 <div className="ss-datetime-chip">
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563eb' }}>calendar_today</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#d21436' }}>calendar_today</span>
                   <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}</span>
                   <span className="ss-time">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
@@ -3430,7 +3430,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                       ].map(([icon, label, val]) => (
                         <div key={label} className="ss-info-row">
                           <span className="ss-info-icon">
-                            <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#2563eb' }}>{icon}</span>
+                            <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#d21436' }}>{icon}</span>
                           </span>
                           <span className="ss-info-key">{label}</span>
                           <span className={`ss-info-val ${label === 'Environment' ? 'ss-env-pill' : ''}`}>{val}</span>
@@ -3499,7 +3499,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
                         <span>Worker Process #1</span>
-                        <span style={{ color: '#16a34a' }}>Active (PID: 1204)</span>
+                        <span style={{ color: '#16a085' }}>Active (PID: 1204)</span>
                       </div>
                       <div className="sap-progress-track" style={{ marginTop: '4px' }}>
                         <div className="sap-progress-fill" style={{ width: '45%' }} />
@@ -3508,7 +3508,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
                         <span>Worker Process #2</span>
-                        <span style={{ color: '#16a34a' }}>Active (PID: 1205)</span>
+                        <span style={{ color: '#16a085' }}>Active (PID: 1205)</span>
                       </div>
                       <div className="sap-progress-track" style={{ marginTop: '4px' }}>
                         <div className="sap-progress-fill" style={{ width: '38%' }} />
@@ -3517,7 +3517,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600 }}>
                         <span>Background Queue Worker</span>
-                        <span style={{ color: '#16a34a' }}>Active (PID: 1210)</span>
+                        <span style={{ color: '#16a085' }}>Active (PID: 1210)</span>
                       </div>
                       <div className="sap-progress-track" style={{ marginTop: '4px' }}>
                         <div className="sap-progress-fill" style={{ width: '22%' }} />
@@ -3572,7 +3572,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                     <div className="sap-stat-row-val">
                       <span className="sap-stat-number">{stats?.totalStudents || '14,820'}</span>
                     </div>
-                    <span className="sap-stat-subtext" style={{ color: '#16a34a' }}>+120 today</span>
+                    <span className="sap-stat-subtext" style={{ color: '#16a085' }}>+120 today</span>
                   </div>
                 </div>
 
@@ -3603,7 +3603,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-stat-content">
                     <span className="sap-stat-title">Security State</span>
                     <div className="sap-stat-row-val">
-                      <span className="sap-stat-number" style={{ color: '#16a34a' }}>Healthy</span>
+                      <span className="sap-stat-number" style={{ color: '#16a085' }}>Healthy</span>
                     </div>
                     <span className="sap-stat-subtext">0 breaches</span>
                   </div>
@@ -3627,7 +3627,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-card-header">
                     <h3>Admin Management &rarr;</h3>
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#171717' }}>
                     Review, assign privileges, and monitor all {adminsList.length} registered administrators across Central, PCM, Biology, and Maths departments.
                   </p>
                 </div>
@@ -3636,7 +3636,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-card-header">
                     <h3>Security Center &rarr;</h3>
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#171717' }}>
                     Analyze threat vectors, inspect recent failed login bursts, and review the global login geographic heat map.
                   </p>
                 </div>
@@ -3645,7 +3645,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                   <div className="sap-card-header">
                     <h3>Backup &amp; Restore &rarr;</h3>
                   </div>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#171717' }}>
                     Verify automated daily snapshots, generate immediate database archives, or inspect disk storage consumption.
                   </p>
                 </div>
@@ -3726,9 +3726,9 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
               </button>
             </div>
             <div className="sap-modal-body">
-              <p style={{ fontSize: '0.85rem', color: '#475569' }}>
+              <p style={{ fontSize: '0.85rem', color: '#171717' }}>
                 Are you sure you want to suspend privileges and terminate sessions for{' '}
-                <strong style={{ color: '#0f172a' }}>{lockModalAdmin.name}</strong>?
+                <strong style={{ color: '#171717' }}>{lockModalAdmin.name}</strong>?
               </p>
               <div className="sap-form-group" style={{ marginTop: '0.75rem' }}>
                 <label className="sap-form-label">Reason for suspension (optional)</label>
@@ -3770,16 +3770,16 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
             <div className="sap-modal-body">
               {alerts.length ? (
                 alerts.map(a => (
-                  <div key={a.id} style={{ padding: '10px 12px', border: '1px solid #fee2e2', background: '#fff5f5', borderRadius: 8, marginBottom: 8 }}>
+                  <div key={a.id} style={{ padding: '10px 12px', border: '1px solid #f8f8f8', background: '#f8f8f8', borderRadius: 8, marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <strong style={{ color: '#dc2626', fontSize: '0.85rem' }}>{a.alert_type}</strong>
-                      <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{new Date(a.created_at).toLocaleTimeString()}</span>
+                      <span style={{ fontSize: '0.75rem', color: '#171717' }}>{new Date(a.created_at).toLocaleTimeString()}</span>
                     </div>
-                    <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#475569' }}>{a.description}</p>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#171717' }}>{a.description}</p>
                   </div>
                 ))
               ) : (
-                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b' }}>
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#171717' }}>
                   No active critical security anomalies detected. System status is green.
                 </div>
               )}
@@ -3803,7 +3803,7 @@ export default function SuperAdminPanel({ onExitSuperAdmin }: SuperAdminPanelPro
                 <X size={18} />
               </button>
             </div>
-            <div className="sap-modal-body" style={{ fontSize: '0.84rem', color: '#334155', lineHeight: 1.6 }}>
+            <div className="sap-modal-body" style={{ fontSize: '0.84rem', color: '#171717', lineHeight: 1.6 }}>
               <p><strong>Security Center:</strong> Review real-time brute force detection, IP blocklists, and global geographic authentication sources.</p>
               <p><strong>Admin Management:</strong> Provision, suspend, and configure modular access roles for all content and exam staff.</p>
               <p><strong>API &amp; Usage:</strong> Track throughput, response time latency metrics, error patterns (4xx/5xx), and endpoint frequency.</p>

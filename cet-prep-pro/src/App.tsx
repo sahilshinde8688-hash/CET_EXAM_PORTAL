@@ -3,6 +3,7 @@ import SignIn from './components/SignIn'
 import { clearAdminCredentials } from './adminAuth'
 import { ApiResponseError, authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
 
+const LandingPage = lazy(() => import('./components/LandingPage'))
 const MobileQRModal = lazy(() => import('./components/MobileQRModal'))
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const MockTests = lazy(() => import('./components/MockTests'))
@@ -11,7 +12,7 @@ const Analysis = lazy(() => import('./components/Analysis'))
 const Settings = lazy(() => import('./components/Settings'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 
-export type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'unauthorized'
+export type Page = 'landing' | 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'unauthorized'
 
 const getLoginDestination = (user: AuthUser): { page: Page; path: string } => {
   if (user.role === 'admin') {
@@ -26,7 +27,8 @@ const getLoginDestination = (user: AuthUser): { page: Page; path: string } => {
 
 const pathToPage = (pathname: string): Page => {
   if (pathname.startsWith('/admin')) return 'admin'
-  if (pathname === '/dashboard' || pathname === '/') return 'dashboard'
+  if (pathname === '/') return 'landing'
+  if (pathname === '/dashboard') return 'dashboard'
   if (pathname === '/mock-tests') return 'mocktests'
   if (pathname === '/results') return 'results'
   if (pathname === '/analytics') return 'analytics'
@@ -37,6 +39,7 @@ const pathToPage = (pathname: string): Page => {
 
 const pageToPath = (page: Page) => {
   if (page === 'admin') return '/admin/dashboard'
+  if (page === 'landing') return '/'
   if (page === 'signin') return '/login'
   if (page === 'unauthorized') return '/unauthorized'
   return `/${page === 'mocktests' ? 'mock-tests' : page}`
@@ -134,7 +137,7 @@ export default function App() {
   const lastClientActivityRef = useRef(Date.now())
   const lastActivityProjectionRef = useRef(0)
   const activityRequestInProgressRef = useRef(false)
-  const restoreSessionRef = useRef<(requestedPage: Page) => Promise<void>>(async () => {})
+  const restoreSessionRef = useRef<(requestedPage: Page, showLoader?: boolean) => Promise<void>>(async () => {})
   const sessionRestoreGenerationRef = useRef(0)
 
   const restoreSession = async (requestedPage: Page, showLoader = true) => {
@@ -175,10 +178,10 @@ export default function App() {
       if (generation !== sessionRestoreGenerationRef.current) return
       if (!(error instanceof SessionExpiredError)) {
         setSessionCheckError(getSessionCheckErrorMessage(error))
-        if (requestedPage !== 'signin') {
+        if (requestedPage !== 'signin' && requestedPage !== 'landing') {
           window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
         }
-        setPage('signin')
+        setPage(requestedPage === 'landing' ? 'landing' : 'signin')
         return
       }
 
@@ -188,10 +191,10 @@ export default function App() {
       setSessionExpiresAt(null)
       setSessionInactivityTimeoutSeconds(null)
       session.clear()
-      if (requestedPage !== 'signin') {
+      if (requestedPage !== 'signin' && requestedPage !== 'landing') {
         window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
       }
-      setPage('signin')
+      setPage(requestedPage === 'landing' ? 'landing' : 'signin')
     } finally {
       window.clearTimeout(timeoutId)
       if (generation === sessionRestoreGenerationRef.current) setAuthLoading(false)
@@ -282,21 +285,42 @@ export default function App() {
   }, [page, sessionInactivityTimeoutSeconds])
 
   useEffect(() => {
-    const handlePopState = () => { void restoreSession(pathToPage(window.location.pathname), false) }
+    const handlePopState = () => {
+      const requestedPage = pathToPage(window.location.pathname)
+      if (requestedPage === 'landing') {
+        sessionRestoreGenerationRef.current += 1
+        setAuthLoading(false)
+        setPage('landing')
+        return
+      }
+      void restoreSession(requestedPage, false)
+    }
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) void restoreSession(pathToPage(window.location.pathname), false)
+      if (!event.persisted) return
+      const requestedPage = pathToPage(window.location.pathname)
+      if (requestedPage === 'landing') {
+        sessionRestoreGenerationRef.current += 1
+        setAuthLoading(false)
+        setPage('landing')
+        return
+      }
+      void restoreSession(requestedPage, false)
     }
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === session.KEY) void restoreSession(pathToPage(window.location.pathname), false)
+      if (event.key === session.KEY && pathToPage(window.location.pathname) !== 'landing') {
+        void restoreSession(pathToPage(window.location.pathname), false)
+      }
     }
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && pathToPage(window.location.pathname) !== 'signin') {
+      const requestedPage = pathToPage(window.location.pathname)
+      if (document.visibilityState === 'visible' && requestedPage !== 'signin' && requestedPage !== 'landing') {
         void restoreSession(pathToPage(window.location.pathname), false)
       }
     }
     const handleSessionExpired = (event: Event) => {
       sessionRestoreGenerationRef.current += 1
       const detail = (event as CustomEvent<{ hadSession?: boolean; message?: string }>).detail
+      const preservePublicLanding = pathToPage(window.location.pathname) === 'landing'
       setSessionExpired(Boolean(detail?.hadSession))
       setSessionExpiredMessage(detail?.message || 'Your session expired because you were inactive. Please sign in again.')
       setSessionExpiresAt(null)
@@ -304,15 +328,19 @@ export default function App() {
       setShowSessionWarning(false)
       clearAdminCredentials()
       setAuthLoading(false)
-      window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
-      setPage('signin')
+      if (!preservePublicLanding) {
+        window.history.replaceState({ page: 'signin' }, '', pageToPath('signin'))
+        setPage('signin')
+      }
     }
     const handleMaintenanceActive = (event: Event) => {
       const detail = (event as CustomEvent<{ message?: string }>).detail
       setMaintenanceMessage(detail?.message || 'The system is under maintenance. Please check back later.')
     }
 
-    void restoreSession(pathToPage(window.location.pathname))
+    const initialPage = pathToPage(window.location.pathname)
+    if (initialPage === 'landing') setAuthLoading(false)
+    else void restoreSession(initialPage)
     window.addEventListener('popstate', handlePopState)
     window.addEventListener('pageshow', handlePageShow)
     window.addEventListener('storage', handleStorage)
@@ -406,8 +434,8 @@ export default function App() {
 
   if (maintenanceMessage !== null) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
-        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16 }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#ffffff' }}>
+        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 16 }}>
           <h1>System Maintenance</h1>
           <p>{maintenanceMessage}</p>
           <button type="button" onClick={() => window.location.reload()}>Check again</button>
@@ -415,12 +443,18 @@ export default function App() {
       </div>
     )
   }
-  if (authLoading) return signInView
+  if (authLoading && page !== 'landing') return signInView
   if (navigatingTo) return <PageLoader target={navigatingTo} />
   return (
     <>
     <Suspense fallback={<PageLoader target={page} />}>
       {page === 'signin' && signInView}
+      {page === 'landing' && (
+        <LandingPage
+          onLogin={() => navigate('signin')}
+          onStartPreparing={() => navigate('mocktests')}
+        />
+      )}
       {page === 'mocktests' && <MockTests onNavigate={navigate} />}
       {page === 'results' && <Results onNavigate={navigate} />}
       {page === 'analytics' && <Analysis onNavigate={navigate} />}
@@ -436,8 +470,8 @@ export default function App() {
       )}
       {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
       {page === 'unauthorized' && (
-        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc' }}>
-          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16 }}>
+        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#ffffff' }}>
+          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 16 }}>
             <h1>403</h1>
             <h2>Access Denied</h2>
             <p>You don't have permission to access this area.</p>

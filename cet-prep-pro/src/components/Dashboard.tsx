@@ -302,7 +302,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               title="Open on Phone / QR Scanner"
               aria-label="Open on Phone or scan QR code"
             >
-              <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>qr_code_2</span>
+              <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
             </button>
             <NotificationCenter onOpenNotification={openNotification} />
             
@@ -311,12 +311,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                 <span className="material-symbols-outlined">help</span>
               </button>
               {showHelp && (
-                <div className="db-popover" style={{ position: 'absolute', top: '48px', right: 0, width: '280px', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', zIndex: 100, border: '1px solid #e2e8f0', padding: '16px' }}>
+                <div className="db-popover" style={{ position: 'absolute', top: '48px', right: 0, width: '280px', background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', zIndex: 100, border: '1px solid #e5e5e5', padding: '16px' }}>
                   <h4 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 600 }}>Need Help?</h4>
-                  <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '13px', color: '#334155', display: 'grid', gap: '8px' }}>
-                    <li><a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>Take a Tour</a></li>
-                    <li><a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>MHT-CET Guidelines</a></li>
-                    <li><a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>Contact Support</a></li>
+                  <ul style={{ margin: 0, padding: '0 0 0 16px', fontSize: '13px', color: '#171717', display: 'grid', gap: '8px' }}>
+                    <li><a href="#" style={{ color: '#d21436', textDecoration: 'none' }}>Take a Tour</a></li>
+                    <li><a href="#" style={{ color: '#d21436', textDecoration: 'none' }}>MHT-CET Guidelines</a></li>
+                    <li><a href="#" style={{ color: '#d21436', textDecoration: 'none' }}>Contact Support</a></li>
                   </ul>
                 </div>
               )}
@@ -404,7 +404,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     }}>
                       <span className="material-symbols-outlined">share</span>
                     </button>
-                    {shareToast && <span style={{ position: 'absolute', bottom: '-28px', right: 0, background: '#1e293b', color: '#fff', fontSize: '11px', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Link Copied!</span>}
+                    {shareToast && <span style={{ position: 'absolute', bottom: '-28px', right: 0, background: '#172c4f', color: '#fff', fontSize: '11px', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Link Copied!</span>}
                   </div>
                 </div>
                 <div className="db-resume-icon-wrap">

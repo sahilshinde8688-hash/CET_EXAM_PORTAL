@@ -36,6 +36,7 @@ type EmailConfiguration = {
   error: string | null
   setupEncryptionConfigured: boolean
 }
+type AdminSecuritySnapshot = Awaited<ReturnType<typeof adminSettingsAPI.getSecurity>>
 
 const backupTables = ['users', 'questions', 'mock_tests', 'test_results', 'system_settings', 'admin_audit_logs'] as const
 
@@ -94,7 +95,7 @@ const defaults: SettingsData = {
   email_notifications: true, in_app_notifications: true, registration_notifications: true, completion_notifications: true, result_notifications: true, announcements: true,
   transactional_result_emails_enabled: true, parent_result_emails_enabled: false, student_welcome_emails_enabled: true,
   google_oauth: false, smtp_host: '', smtp_port: 587, external_api_url: '', webhook_url: '',
-  primary_color: '#2563eb', secondary_color: '#0f172a', dark_mode: false, login_branding: true,
+  primary_color: '#d21436', secondary_color: '#171717', dark_mode: false, login_branding: true,
   student_registration: true, mock_test_system: true, google_login: false, result_publishing: true, new_user_registration: true, email_notifications_feature: true,
   retention_days: 365,
 }
@@ -141,6 +142,13 @@ export default function AdminSettings() {
   const [emailServiceValidation, setEmailServiceValidation] = useState<'unchecked' | 'valid' | 'invalid'>('unchecked')
   const [emailServiceMessage, setEmailServiceMessage] = useState('')
   const [retryingNotification, setRetryingNotification] = useState<string | null>(null)
+  const [adminSecurity, setAdminSecurity] = useState<AdminSecuritySnapshot | null>(null)
+  const [securityCurrentPassword, setSecurityCurrentPassword] = useState('')
+  const [securityCode, setSecurityCode] = useState('')
+  const [newAdminPassword, setNewAdminPassword] = useState('')
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState('')
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([])
+  const [securityBusy, setSecurityBusy] = useState(false)
   const [announcementTitle, setAnnouncementTitle] = useState('')
   const [announcementMessage, setAnnouncementMessage] = useState('')
   const [announcementPage, setAnnouncementPage] = useState<NotificationPage>('dashboard')
@@ -192,6 +200,18 @@ export default function AdminSettings() {
     if (active === 'notifications') void loadEmailNotifications()
   }, [active])
 
+  const loadAdminSecurity = async () => {
+    try {
+      setAdminSecurity(await adminSettingsAPI.getSecurity())
+    } catch (securityError) {
+      setError(securityError instanceof Error ? securityError.message : 'Unable to load administrator security details.')
+    }
+  }
+
+  useEffect(() => {
+    if (active === 'security') void loadAdminSecurity()
+  }, [active])
+
   const update = (key: string, value: string | boolean | number) => setSettings(previous => ({ ...previous, [key]: value }))
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3500) }
 
@@ -202,6 +222,8 @@ export default function AdminSettings() {
       ? ['portal_name', 'tagline', 'admin_email', 'support_contact', 'maintenance_mode']
       : active === 'notifications'
         ? ['email_notifications', 'in_app_notifications', 'registration_notifications', 'completion_notifications', 'result_notifications', 'announcements', 'transactional_result_emails_enabled', 'parent_result_emails_enabled', 'student_welcome_emails_enabled']
+        : active === 'security'
+          ? Object.keys(settings).filter(key => key !== 'two_factor')
         : Object.keys(settings)
     try {
       await adminSettingsAPI.save(Object.fromEntries(keys.map(key => [key, settings[key]])))
@@ -285,6 +307,72 @@ export default function AdminSettings() {
       setError(emailError instanceof Error ? emailError.message : 'Unable to retry the email notification.')
     } finally {
       setRetryingNotification(null)
+    }
+  }
+
+  const regenerateRecoveryCodes = async () => {
+    setSecurityBusy(true)
+    setError('')
+    try {
+      const result = await adminSettingsAPI.regenerateRecoveryCodes({
+        currentPassword: securityCurrentPassword,
+        code: securityCode,
+      })
+      setRecoveryCodes(result.recoveryCodes)
+      setSecurityCurrentPassword('')
+      setSecurityCode('')
+      notify('New recovery codes generated. Save them now; they will only be shown once.')
+      await loadAdminSecurity()
+    } catch (securityError) {
+      setError(securityError instanceof Error ? securityError.message : 'Unable to regenerate recovery codes.')
+    } finally {
+      setSecurityBusy(false)
+    }
+  }
+
+  const changeAdminPassword = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (newAdminPassword !== confirmAdminPassword) {
+      setError('The new passwords do not match.')
+      return
+    }
+    setSecurityBusy(true)
+    setError('')
+    try {
+      const result = await adminSettingsAPI.changeAdminPassword({
+        currentPassword: securityCurrentPassword,
+        code: securityCode,
+        newPassword: newAdminPassword,
+      })
+      setSecurityCurrentPassword('')
+      setSecurityCode('')
+      setNewAdminPassword('')
+      setConfirmAdminPassword('')
+      notify(`Password changed. Revoked ${result.revokedSessions} other session(s).`)
+      await loadAdminSecurity()
+    } catch (securityError) {
+      setError(securityError instanceof Error ? securityError.message : 'Unable to change administrator password.')
+    } finally {
+      setSecurityBusy(false)
+    }
+  }
+
+  const revokeOtherAdminSessions = async () => {
+    setSecurityBusy(true)
+    setError('')
+    try {
+      const result = await adminSettingsAPI.revokeOtherAdminSessions({
+        currentPassword: securityCurrentPassword,
+        code: securityCode,
+      })
+      setSecurityCurrentPassword('')
+      setSecurityCode('')
+      notify(`Revoked ${result.revokedSessions} other session(s).`)
+      await loadAdminSecurity()
+    } catch (securityError) {
+      setError(securityError instanceof Error ? securityError.message : 'Unable to revoke other sessions.')
+    } finally {
+      setSecurityBusy(false)
     }
   }
 
@@ -412,7 +500,90 @@ export default function AdminSettings() {
             </div>
           </Card>
         </>}
-        {active === 'security' && <><Card title="Authentication policy" icon="shield"><SwitchRow label="Two-factor authentication" description="Require a second factor for administrator accounts." checked={bool('two_factor')} onChange={v => update('two_factor', v)} /><SwitchRow label="CAPTCHA on sign in" checked={bool('captcha')} onChange={v => update('captcha', v)} /><SwitchRow label="Force password change" checked={bool('force_password_change')} onChange={v => update('force_password_change', v)} /><div className="as-grid"><Field label="Login attempt limit" value={Number(value('login_attempt_limit'))} onChange={v => update('login_attempt_limit', Number(v))} type="number" min={1} max={20} /><Field label="Session inactivity timeout (minutes)" value={Number(value('session_timeout'))} onChange={v => update('session_timeout', Number.parseInt(v, 10) || 1)} type="number" min={1} max={1440} /></div><p className="as-card-intro">Sessions remain active while users are working and expire after this many minutes without activity.</p></Card><Card title="Security activity" icon="history"><div className="as-health-list"><StatusRow label="Active sessions" value="Protected" status="green" /><StatusRow label="Last security review" value="Today, 09:42" status="blue" /><StatusRow label="Force logout all users" value="Irreversible action" status="red" action={() => setConfirmAction('Force logout all users?')} /></div></Card></>}
+        {active === 'security' && <>
+          <Card title="Authentication policy" icon="shield">
+            <div className="as-health-list">
+              <StatusRow
+                label="Administrator two-factor authentication"
+                value={adminSecurity?.mfaEnabled ? 'Enabled and required for admin access' : 'Set up during the next administrator sign-in'}
+                status={adminSecurity?.mfaEnabled ? 'green' : 'blue'}
+              />
+            </div>
+            <p className="as-card-intro">Administrator MFA is mandatory and cannot be disabled from this page. Use Google Authenticator or Microsoft Authenticator. Passwords must be at least 12 characters with uppercase, lowercase, a number, and a symbol.</p>
+            <SwitchRow label="CAPTCHA on sign in" checked={bool('captcha')} onChange={v => update('captcha', v)} />
+            <SwitchRow label="Force password change" checked={bool('force_password_change')} onChange={v => update('force_password_change', v)} />
+            <div className="as-grid">
+              <Field label="Login attempt limit" value={Number(value('login_attempt_limit'))} onChange={v => update('login_attempt_limit', Number(v))} type="number" min={1} max={20} />
+              <Field label="Session inactivity timeout (minutes)" value={Number(value('session_timeout'))} onChange={v => update('session_timeout', Number.parseInt(v, 10) || 1)} type="number" min={1} max={1440} />
+            </div>
+            <p className="as-card-intro">Sessions expire after the configured period without activity. Administrator password and MFA failures are rate-limited; repeated failures trigger a temporary account lock.</p>
+          </Card>
+          <Card title="Verify your identity" icon="verified_user">
+            <div className="as-grid">
+              <Field label="Current password" value={securityCurrentPassword} onChange={setSecurityCurrentPassword} type="password" />
+              <Field label="Authenticator code or unused recovery code" value={securityCode} onChange={setSecurityCode} />
+            </div>
+            <p className="as-card-intro">Sensitive changes require your current password and a fresh authenticator code. If using a recovery code, it is consumed after one successful use.</p>
+            <div className="as-card-actions">
+              <button className="as-secondary" type="button" disabled={securityBusy} onClick={() => void regenerateRecoveryCodes()}>
+                {securityBusy ? 'Working…' : 'Regenerate recovery codes'}
+              </button>
+              <button className="as-secondary" type="button" disabled={securityBusy} onClick={() => void revokeOtherAdminSessions()}>
+                {securityBusy ? 'Working…' : 'Revoke other sessions'}
+              </button>
+            </div>
+            {recoveryCodes.length > 0 && <div className="as-recovery-codes" role="status">
+              <strong>Save these new recovery codes now. They will not be shown again.</strong>
+              <div>{recoveryCodes.map(code => <code key={code}>{code}</code>)}</div>
+              <button className="as-secondary" type="button" onClick={() => setRecoveryCodes([])}>I have saved them</button>
+            </div>}
+          </Card>
+          <Card title="Change administrator password" icon="lock_reset">
+            <form onSubmit={event => void changeAdminPassword(event)}>
+              <div className="as-grid">
+                <Field label="New password" value={newAdminPassword} onChange={setNewAdminPassword} type="password" />
+                <Field label="Confirm new password" value={confirmAdminPassword} onChange={setConfirmAdminPassword} type="password" />
+              </div>
+              <div className="as-card-actions">
+                <button className="as-primary" type="submit" disabled={securityBusy || !securityCurrentPassword || !securityCode || !newAdminPassword || !confirmAdminPassword}>
+                  {securityBusy ? 'Changing password…' : 'Change password'}
+                </button>
+              </div>
+            </form>
+          </Card>
+          <Card title="Recent security activity" icon="history">
+            <div className="as-health-list">
+              <StatusRow label="Failed attempts in current window" value={String(adminSecurity?.failedLoginAttempts.count ?? 0)} status={adminSecurity?.failedLoginAttempts.count ? 'red' : 'green'} />
+              {adminSecurity?.failedLoginAttempts.lockedUntil && <StatusRow label="Account lock expires" value={new Date(adminSecurity.failedLoginAttempts.lockedUntil).toLocaleString()} status="red" />}
+            </div>
+            <h4>Recent sign-ins</h4>
+            <div className="as-email-log-list">
+              {(adminSecurity?.loginActivity || []).map((activity, index) => (
+                <article className="as-email-log-row" key={`${activity.created_at}-${index}`}>
+                  <div className="as-email-log-main">
+                    <strong>{activity.event.replace(/_/g, ' ')}</strong>
+                    <span>{activity.device_name || activity.browser || 'Unknown device'} · {activity.ip_address || 'Unknown IP'}</span>
+                    <small>{new Date(activity.created_at).toLocaleString()}</small>
+                  </div>
+                </article>
+              ))}
+              {!adminSecurity?.loginActivity.length && <Empty label="No administrator login activity recorded" />}
+            </div>
+            <h4>Active sessions</h4>
+            <div className="as-email-log-list">
+              {(adminSecurity?.activeSessions || []).map((currentSession, index) => (
+                <article className="as-email-log-row" key={`${currentSession.lastActivity}-${index}`}>
+                  <div className="as-email-log-main">
+                    <strong>{currentSession.deviceName} {currentSession.isCurrent ? '· This device' : ''}</strong>
+                    <span>{currentSession.browser} · {currentSession.operatingSystem} · {currentSession.ipAddress}</span>
+                    <small>Last activity {new Date(currentSession.lastActivity).toLocaleString()}</small>
+                  </div>
+                </article>
+              ))}
+              {!adminSecurity?.activeSessions.length && <Empty label="No active administrator sessions" />}
+            </div>
+          </Card>
+        </>}
         {active === 'ai' && <><Card title="Provider & usage" icon="smart_toy"><div className="as-grid"><label className="as-field"><span>AI provider</span><select value={String(value('ai_provider'))} onChange={e => update('ai_provider', e.target.value)}><option>OpenAI</option><option>Google Gemini</option><option>Anthropic</option><option>OpenRouter</option></select></label><label className="as-field"><span>AI model</span><select value={String(value('ai_model'))} onChange={e => update('ai_model', e.target.value)}><option>gpt-4o-mini</option><option>gpt-4.1-mini</option><option>gemini-2.0-flash</option></select></label><label className="as-field"><span>API key</span><div className="as-input-action"><input type={showKey ? 'text' : 'password'} value="••••••••••••••••" readOnly /><button type="button" onClick={() => setShowKey(!showKey)}><span className="material-symbols-outlined">{showKey ? 'visibility_off' : 'visibility'}</span></button></div></label><Field label="Daily usage limit" value={Number(value('ai_daily_limit'))} onChange={v => update('ai_daily_limit', Number(v))} type="number" /></div><SwitchRow label="Enable AI features" checked={bool('ai_enabled')} onChange={v => update('ai_enabled', v)} /></Card><Card title="AI feature controls" icon="auto_awesome"><SwitchRow label="AI Question Generator" checked={bool('ai_question_generator')} onChange={v => update('ai_question_generator', v)} /><SwitchRow label="AI Doubt Solver" checked={bool('ai_doubt_solver')} onChange={v => update('ai_doubt_solver', v)} /><SwitchRow label="AI Performance Analysis" checked={bool('ai_performance_analysis')} onChange={v => update('ai_performance_analysis', v)} /><div className="as-usage"><div><span>Usage this month</span><strong>34,820 / 50,000 tokens</strong></div><div className="as-progress"><i style={{ width: '69%' }} /></div></div></Card></>}
         {active === 'notifications' && <>
           <Card title="Notification channels" icon="notifications">
@@ -444,7 +615,7 @@ export default function AdminSettings() {
                 maxLength={1000}
                 rows={4}
                 placeholder="Write the information students need to know."
-                style={{ width: '100%', minHeight: 96, resize: 'vertical', padding: '11px 12px', border: '1px solid #cbd5e1', borderRadius: 9, font: 'inherit', color: '#172033' }}
+                style={{ width: '100%', minHeight: 96, resize: 'vertical', padding: '11px 12px', border: '1px solid #e5e5e5', borderRadius: 9, font: 'inherit', color: '#171717' }}
                 onChange={event => {
                   setAnnouncementMessage(event.target.value)
                   setAnnouncementRequestId(null)
@@ -509,7 +680,7 @@ export default function AdminSettings() {
                 {emailNotifications.map(notification => (
                   <article className="as-email-log-row" key={notification.id}>
                     <div className="as-email-log-main">
-                      <strong>{notification.notification_type.replaceAll('_', ' ')}</strong>
+                      <strong>{notification.notification_type.replace(/_/g, ' ')}</strong>
                       <span>{notification.recipient_email}</span>
                       <small>{notification.student_name || 'Admin test'}{notification.exam_name ? ` · ${notification.exam_name}` : ''} · {new Date(notification.created_at).toLocaleString()}</small>
                       {notification.safe_error && <small className="as-email-log-error">{notification.safe_error}</small>}

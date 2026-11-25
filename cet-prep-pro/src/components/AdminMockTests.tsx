@@ -610,10 +610,10 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Easy': return '#dcfce7'
-      case 'Medium': return '#fef9c3'
-      case 'Hard': return '#fee2e2'
-      default: return '#f1f5f9'
+      case 'Easy': return '#ffffff'
+      case 'Medium': return '#f8f8f8'
+      case 'Hard': return '#f8f8f8'
+      default: return '#ffffff'
     }
   }
 
@@ -1100,27 +1100,27 @@ Example:
             </div>
 
             {formData.visibility === 'assigned' && (
-              <div style={{ marginTop: '24px', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ marginTop: '24px', border: '1px solid #e5e5e5', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', background: '#ffffff', borderBottom: '1px solid #e5e5e5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>Select Students</h4>
-                    <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#64748b' }}>Only selected students will see this test on their dashboard.</p>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#171717' }}>Select Students</h4>
+                    <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#171717' }}>Only selected students will see this test on their dashboard.</p>
                   </div>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb', background: '#eff6ff', padding: '4px 12px', borderRadius: '99px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#d21436', background: '#ffffff', padding: '4px 12px', borderRadius: '99px' }}>
                     {selectedStudentIds.length} selected
                   </span>
-                  <button type="button" onClick={() => void loadApprovedStudents()} disabled={studentsLoading} style={{ padding: '8px 12px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: studentsLoading ? 'wait' : 'pointer', color: '#334155' }}>
+                  <button type="button" onClick={() => void loadApprovedStudents()} disabled={studentsLoading} style={{ padding: '8px 12px', background: '#fff', border: '1px solid #e5e5e5', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: studentsLoading ? 'wait' : 'pointer', color: '#171717' }}>
                     {studentsLoading ? 'Loading…' : 'Reload students'}
                   </button>
                 </div>
 
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid #ffffff', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <input
                     type="text"
                     placeholder="Search by name, email, or student ID…"
                     value={studentSearch}
                     onChange={e => setStudentSearch(e.target.value)}
-                    style={{ flex: '1 1 240px', padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', color: '#0f172a', outline: 'none' }}
+                    style={{ flex: '1 1 240px', padding: '9px 12px', border: '1px solid #e5e5e5', borderRadius: '8px', fontSize: '14px', color: '#171717', outline: 'none' }}
                   />
                   <button
                     type="button"
@@ -1131,7 +1131,7 @@ Example:
                       }).map(s => String(s.id || s._id))
                       setSelectedStudentIds(prev => [...new Set([...prev, ...visible])])
                     }}
-                    style={{ padding: '9px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: '#334155', whiteSpace: 'nowrap' }}
+                    style={{ padding: '9px 14px', background: '#ffffff', border: '1px solid #e5e5e5', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: '#171717', whiteSpace: 'nowrap' }}
                   >
                     Select All Shown
                   </button>
@@ -1144,7 +1144,7 @@ Example:
                       }).map(s => String(s.id || s._id))
                       setSelectedStudentIds(prev => prev.filter(id => !visible.includes(id)))
                     }}
-                    style={{ padding: '9px 14px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: '#334155', whiteSpace: 'nowrap' }}
+                    style={{ padding: '9px 14px', background: '#ffffff', border: '1px solid #e5e5e5', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: '#171717', whiteSpace: 'nowrap' }}
                   >
                     Deselect All Shown
                   </button>
@@ -1152,9 +1152,9 @@ Example:
 
                 <div style={{ maxHeight: '320px', overflowY: 'auto', padding: '0 20px' }}>
                   {studentsLoading ? (
-                    <p style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '14px' }}>Loading students…</p>
+                    <p style={{ textAlign: 'center', padding: '24px', color: '#171717', fontSize: '14px' }}>Loading students…</p>
                   ) : allStudents.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '24px', color: studentsLoadError ? '#b91c1c' : '#64748b', fontSize: '14px' }}>
+                    <div style={{ textAlign: 'center', padding: '24px', color: studentsLoadError ? '#dc2626' : '#171717', fontSize: '14px' }}>
                       <p style={{ margin: 0 }}>{studentsLoadError
                         ? `Could not load students: ${studentsLoadError}`
                         : 'No approved student accounts found. Approve student accounts in the Admin Dashboard, then reload this list.'}</p>
@@ -1165,14 +1165,14 @@ Example:
                       !q || [s.name, s.email, s.mhcetId, s._id, s.id].some(v => String(v || '').toLowerCase().includes(q))
                     )
                     return filtered.length === 0 ? (
-                      <p style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '14px' }}>No students match your search.</p>
+                      <p style={{ textAlign: 'center', padding: '24px', color: '#171717', fontSize: '14px' }}>No students match your search.</p>
                     ) : filtered.map(student => {
                       const sid = String(student.id || student._id)
                       const checked = selectedStudentIds.includes(sid)
                       return (
                         <label
                           key={sid}
-                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: '1px solid #ffffff', cursor: 'pointer' }}
                         >
                           <input
                             type="checkbox"
@@ -1180,18 +1180,18 @@ Example:
                             onChange={() => setSelectedStudentIds(prev =>
                               checked ? prev.filter(id => id !== sid) : [...prev, sid]
                             )}
-                            style={{ width: '16px', height: '16px', accentColor: '#2563eb', flexShrink: 0, cursor: 'pointer' }}
+                            style={{ width: '16px', height: '16px', accentColor: '#d21436', flexShrink: 0, cursor: 'pointer' }}
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 600, color: '#171717', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {student.name}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: '12px', color: '#171717', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {student.email} {student.mhcetId ? `· ID: ${student.mhcetId}` : ''}{student.branch ? ` · ${student.branch}` : ''}{student.batch ? ` · Batch ${student.batch}` : ''}
                             </div>
                           </div>
                           {checked && (
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '99px', flexShrink: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a085', background: '#ffffff', padding: '2px 8px', borderRadius: '99px', flexShrink: 0 }}>
                               Selected
                             </span>
                           )}
@@ -1202,7 +1202,7 @@ Example:
                 </div>
 
                 {selectedStudentIds.length > 0 && (
-                  <div style={{ padding: '12px 20px', background: '#f0fdf4', borderTop: '1px solid #bbf7d0', fontSize: '13px', color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ padding: '12px 20px', background: '#ffffff', borderTop: '1px solid #ffffff', fontSize: '13px', color: '#16a085', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '16px' }}>✓</span>
                     <span>
                       <strong>{selectedStudentIds.length} student{selectedStudentIds.length === 1 ? '' : 's'}</strong> will be assigned this test when you save.
@@ -1211,7 +1211,7 @@ Example:
                 )}
 
                 {selectedStudentIds.length === 0 && !studentsLoading && (
-                  <div style={{ padding: '12px 20px', background: '#fffbeb', borderTop: '1px solid #fde68a', fontSize: '13px', color: '#92400e' }}>
+                  <div style={{ padding: '12px 20px', background: '#f8f8f8', borderTop: '1px solid #f8f8f8', fontSize: '13px', color: '#d21436' }}>
                     Select at least one student to use Assigned visibility.
                   </div>
                 )}
@@ -1266,7 +1266,7 @@ Example:
       {/* Stats */}
       <div className="amt-stats-grid">
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+          <div className="amt-stat-icon" style={{ background: '#ffffff', color: '#d21436' }}>
             <FileText size={22} />
           </div>
           <div>
@@ -1275,7 +1275,7 @@ Example:
           </div>
         </div>
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+          <div className="amt-stat-icon" style={{ background: '#ffffff', color: '#16a085' }}>
             <PlayCircle size={22} />
           </div>
           <div>
@@ -1284,7 +1284,7 @@ Example:
           </div>
         </div>
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#fef9c3', color: '#a16207' }}>
+          <div className="amt-stat-icon" style={{ background: '#f8f8f8', color: '#d21436' }}>
             <Calendar size={22} />
           </div>
           <div>
@@ -1293,7 +1293,7 @@ Example:
           </div>
         </div>
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#f1f5f9', color: '#64748b' }}>
+          <div className="amt-stat-icon" style={{ background: '#ffffff', color: '#171717' }}>
             <BarChart3 size={22} />
           </div>
           <div>
@@ -1302,7 +1302,7 @@ Example:
           </div>
         </div>
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#faf5ff', color: '#8b5cf6' }}>
+          <div className="amt-stat-icon" style={{ background: '#f8f8f8', color: '#d21436' }}>
             <CheckCircle size={22} />
           </div>
           <div>
@@ -1375,7 +1375,7 @@ Example:
                   <td>
                     <div style={{ fontWeight: 600 }}>{test.title}</div>
                     {test.scheduledDate && (
-                      <div style={{ fontSize: 11, color: '#2563eb', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: '#d21436', marginTop: 2 }}>
                         <Calendar size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                         {new Date(test.scheduledDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })}{' '}
                         {new Date(test.scheduledDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
@@ -1396,7 +1396,7 @@ Example:
                     </div>
                   </td>
                   <td>
-                    <span className="amt-diff-badge" style={{ background: getDifficultyColor(test.difficulty), color: test.difficulty === 'Easy' ? '#15803d' : test.difficulty === 'Medium' ? '#a16207' : '#dc2626' }}>
+                    <span className="amt-diff-badge" style={{ background: getDifficultyColor(test.difficulty), color: test.difficulty === 'Easy' ? '#16a085' : test.difficulty === 'Medium' ? '#d21436' : '#dc2626' }}>
                       {test.difficulty}
                     </span>
                   </td>
@@ -1514,10 +1514,10 @@ Example:
                 <div role="alert" style={{
                   marginBottom: 18,
                   padding: '12px 16px',
-                  border: '1px solid #fecaca',
+                  border: '1px solid #f8f8f8',
                   borderRadius: 10,
-                  background: '#fef2f2',
-                  color: '#b91c1c',
+                  background: '#f8f8f8',
+                  color: '#dc2626',
                   fontSize: 14,
                 }}>
                   {createError}

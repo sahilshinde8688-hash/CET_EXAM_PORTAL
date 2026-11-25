@@ -4,9 +4,9 @@
   gap: 12px;
   margin: 18px 0;
   padding: 15px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #e5e5e5;
   border-radius: 11px;
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .as-email-config div {
@@ -19,23 +19,23 @@
 }
 
 .as-email-config span {
-  color: #64748b;
+  color: #171717;
   font-size: 11px;
 }
 
 .as-email-config strong {
   margin-top: 4px;
   overflow-wrap: anywhere;
-  color: #1e293b;
+  color: #171717;
   font-size: 12px;
 }
 
 .as-email-warning {
   padding: 11px 13px;
-  border: 1px solid #fed7aa;
+  border: 1px solid #f8f8f8;
   border-radius: 9px;
-  background: #fff7ed;
-  color: #9a3412;
+  background: #f8f8f8;
+  color: #d21436;
   font-size: 12px;
 }
 
@@ -50,7 +50,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 13px;
-  border: 1px solid #eef2f7;
+  border: 1px solid #ffffff;
   border-radius: 10px;
 }
 
@@ -61,7 +61,7 @@
 }
 
 .as-email-log-main strong {
-  color: #1e293b;
+  color: #171717;
   font-size: 12px;
   text-transform: capitalize;
 }
@@ -69,12 +69,12 @@
 .as-email-log-main span,
 .as-email-log-main small {
   overflow-wrap: anywhere;
-  color: #64748b;
+  color: #171717;
   font-size: 11px;
 }
 
 .as-email-log-main .as-email-log-error {
-  color: #b91c1c;
+  color: #dc2626;
 }
 
 .as-email-log-status {
@@ -86,8 +86,8 @@
 }
 
 .as-status--red {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: #f8f8f8;
+  color: #dc2626;
 }
 
 @media (max-width: 620px) {

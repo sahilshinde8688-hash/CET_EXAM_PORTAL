@@ -202,6 +202,20 @@ const findUserById = async (id) => {
   return null
 }
 
+const findAdminMfaUserById = async (id) => {
+  if (!id) return null
+  const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return {
+    ...userToCamel(data),
+    totpEnabled: Boolean(data.totp_enabled),
+    totpSecretEncrypted: data.totp_secret_encrypted || null,
+    totpLastCounter: data.totp_last_counter,
+    backupCodeHashes: data.backup_code_hashes || [],
+  }
+}
+
 const findUserByEmail = async (email) => {
   if (!email) return null
   const cleanEmail = email.toLowerCase().trim()
@@ -513,6 +527,7 @@ const createSession = async (sessionData) => {
     last_activity: sessionData.lastActivity || new Date().toISOString(),
     expires_at: sessionData.expiresAt,
     is_current: sessionData.isCurrent !== undefined ? sessionData.isCurrent : true,
+    mfa_verified: sessionData.mfaVerified === true,
   }
   const { data, error } = await supabase.from('sessions').insert(payload).select().single()
   if (error) throw error
@@ -549,6 +564,139 @@ const getUserSessions = async (userId) => {
     .select('*')
     .eq('user_id', userId)
     .order('login_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+const revokeOtherUserSessions = async (userId, currentSessionId, revokedAt = new Date().toISOString()) => {
+  const { data: sessions, error: sessionError } = await supabase
+    .from('sessions')
+    .update({ revoked_at: revokedAt, expires_at: revokedAt, is_current: false })
+    .eq('user_id', userId)
+    .neq('session_id', currentSessionId)
+    .is('revoked_at', null)
+    .select('session_id')
+  if (sessionError) throw sessionError
+
+  const { error: refreshError } = await supabase
+    .from('refresh_tokens')
+    .update({ revoked_at: revokedAt })
+    .eq('user_id', userId)
+    .neq('session_id', currentSessionId)
+    .is('revoked_at', null)
+  if (refreshError) throw refreshError
+  return sessions || []
+}
+
+const getAdminAuthLock = async (identifierHash) => {
+  const { data, error } = await supabase.rpc('get_admin_auth_lock', { p_identifier_hash: identifierHash })
+  if (error) throw error
+  return Array.isArray(data) ? data[0] : data
+}
+
+const recordAdminAuthFailure = async (identifierHash) => {
+  const { data, error } = await supabase.rpc('record_admin_auth_failure', { p_identifier_hash: identifierHash })
+  if (error) throw error
+  return Array.isArray(data) ? data[0] : data
+}
+
+const clearAdminAuthFailures = async (identifierHash) => {
+  const { error } = await supabase.rpc('clear_admin_auth_failures', { p_identifier_hash: identifierHash })
+  if (error) throw error
+}
+
+const createAdminMfaChallenge = async (challenge) => {
+  const { error: cleanupError } = await supabase
+    .from('admin_mfa_challenges')
+    .delete()
+    .lt('expires_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+  if (cleanupError) throw cleanupError
+
+  const { data, error } = await supabase
+    .from('admin_mfa_challenges')
+    .insert({
+      user_id: challenge.userId,
+      token_hash: challenge.tokenHash,
+      purpose: challenge.purpose,
+      totp_secret_encrypted: challenge.totpSecretEncrypted || null,
+      remember_me: challenge.rememberMe === true,
+      expires_at: challenge.expiresAt,
+    })
+    .select('id,user_id,token_hash,purpose,totp_secret_encrypted,remember_me,expires_at,used_at')
+    .single()
+  if (error) throw error
+  return data
+}
+
+const findAdminMfaChallenge = async (tokenHash) => {
+  const { data, error } = await supabase
+    .from('admin_mfa_challenges')
+    .select('id,user_id,token_hash,purpose,totp_secret_encrypted,remember_me,expires_at,used_at')
+    .eq('token_hash', tokenHash)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+const markAdminMfaChallengeUsed = async (tokenHash, usedAt = new Date().toISOString()) => {
+  const { data, error } = await supabase
+    .from('admin_mfa_challenges')
+    .update({ used_at: usedAt })
+    .eq('token_hash', tokenHash)
+    .is('used_at', null)
+    .gt('expires_at', usedAt)
+    .select('id')
+    .maybeSingle()
+  if (error) throw error
+  return Boolean(data)
+}
+
+const completeAdminTotpSetup = async ({ userId, tokenHash, counter, backupCodeHashes }) => {
+  const { data, error } = await supabase.rpc('complete_admin_totp_setup', {
+    p_user_id: userId,
+    p_challenge_hash: tokenHash,
+    p_counter: counter,
+    p_backup_code_hashes: backupCodeHashes,
+  })
+  if (error) throw error
+  return data === true
+}
+
+const consumeAdminTotpCounter = async (userId, counter) => {
+  const { data, error } = await supabase.rpc('consume_admin_totp_counter', {
+    p_user_id: userId,
+    p_counter: counter,
+  })
+  if (error) throw error
+  return data === true
+}
+
+const consumeAdminBackupCode = async (userId, codeHash) => {
+  const { data, error } = await supabase.rpc('consume_admin_backup_code', {
+    p_user_id: userId,
+    p_code_hash: codeHash,
+  })
+  if (error) throw error
+  return data === true
+}
+
+const getAdminAuthAttempts = async (identifierHash) => {
+  const { data, error } = await supabase
+    .from('admin_auth_attempts')
+    .select('failure_count,window_started_at,locked_until,last_attempt_at')
+    .eq('identifier_hash', identifierHash)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+const getUserLoginHistory = async (userId, limit = 30) => {
+  const { data, error } = await supabase
+    .from('login_history')
+    .select('event,ip_address,user_agent,browser,operating_system,device_name,created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
   if (error) throw error
   return data || []
 }
@@ -1619,6 +1767,7 @@ module.exports = {
   getSystemSetting,
   // User
   findUserById,
+  findAdminMfaUserById,
   findUserByEmail,
   findUserByMhcetId,
   createUser,
@@ -1637,6 +1786,20 @@ module.exports = {
   deleteSession,
   deleteUserSessions,
   getUserSessions,
+  revokeOtherUserSessions,
+
+  // Administrator MFA
+  getAdminAuthLock,
+  recordAdminAuthFailure,
+  clearAdminAuthFailures,
+  createAdminMfaChallenge,
+  findAdminMfaChallenge,
+  markAdminMfaChallengeUsed,
+  completeAdminTotpSetup,
+  consumeAdminTotpCounter,
+  consumeAdminBackupCode,
+  getAdminAuthAttempts,
+  getUserLoginHistory,
 
   // Refresh Token
   createRefreshToken,

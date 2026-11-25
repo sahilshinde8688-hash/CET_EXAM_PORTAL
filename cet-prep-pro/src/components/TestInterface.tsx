@@ -839,7 +839,7 @@ export default function TestInterface({
       <div style={{ 
         position: 'fixed', 
         inset: 0, 
-        background: '#f8fafc', 
+        background: '#ffffff',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
@@ -847,8 +847,8 @@ export default function TestInterface({
       }}>
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <h2 style={{ fontSize: '24px', color: '#dc2626', marginBottom: '16px' }}>Something went wrong</h2>
-          <p style={{ color: '#64748b', marginBottom: '24px' }}>{error}</p>
-          <button onClick={onClose} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+          <p style={{ color: '#171717', marginBottom: '24px' }}>{error}</p>
+          <button onClick={onClose} style={{ padding: '12px 24px', background: '#d21436', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
             Go Back
           </button>
         </div>
@@ -864,7 +864,7 @@ export default function TestInterface({
         left: 0, 
         right: 0, 
         bottom: 0, 
-        background: '#f8fafc', 
+        background: '#ffffff',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
@@ -876,14 +876,14 @@ export default function TestInterface({
           <div style={{ 
             width: '80px', 
             height: '80px', 
-            border: '4px solid #e2e8f0', 
-            borderTopColor: '#2563eb', 
+            border: '4px solid #e5e5e5',
+            borderTopColor: '#d21436',
             borderRadius: '50%', 
             animation: 'spin 1s linear infinite',
             margin: '0 auto 24px'
           }} />
-          <div style={{ fontSize: '20px', fontWeight: 600, color: '#0f172a', marginBottom: '8px' }}>Loading Test Questions...</div>
-          <p style={{ fontSize: '14px', color: '#64748b' }}>Please wait while we prepare your test</p>
+          <div style={{ fontSize: '20px', fontWeight: 600, color: '#171717', marginBottom: '8px' }}>Loading Test Questions...</div>
+          <p style={{ fontSize: '14px', color: '#171717' }}>Please wait while we prepare your test</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
@@ -895,7 +895,7 @@ export default function TestInterface({
       <div style={{ 
         position: 'fixed', 
         inset: 0, 
-        background: '#f8fafc', 
+        background: '#ffffff',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
@@ -903,21 +903,21 @@ export default function TestInterface({
         minHeight: '100vh'
       }}>
         <div style={{ textAlign: 'center', padding: '40px', maxWidth: '500px' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '80px', color: '#ef4444', marginBottom: '24px', display: 'block' }}>error</span>
-          <h2 style={{ fontSize: '28px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>Unable to Load Test</h2>
-          <p style={{ fontSize: '16px', color: '#64748b', marginBottom: '32px', lineHeight: 1.6 }}>No questions available at the moment. Please check your internet connection and try again.</p>
+          <span className="material-symbols-outlined" style={{ fontSize: '80px', color: '#dc2626', marginBottom: '24px', display: 'block' }}>error</span>
+          <h2 style={{ fontSize: '28px', fontWeight: 700, color: '#171717', marginBottom: '12px' }}>Unable to Load Test</h2>
+          <p style={{ fontSize: '16px', color: '#171717', marginBottom: '32px', lineHeight: 1.6 }}>No questions available at the moment. Please check your internet connection and try again.</p>
           <button 
             onClick={onClose}
             style={{ 
               padding: '14px 32px', 
-              background: '#2563eb', 
+              background: '#d21436',
               color: 'white', 
               border: 'none', 
               borderRadius: '12px', 
               fontSize: '16px', 
               fontWeight: 600, 
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)'
+              boxShadow: '0 4px 12px rgba(210, 20, 54, 0.3)'
             }}
           >
             Go Back
@@ -979,7 +979,7 @@ export default function TestInterface({
     ) : undefined
     return (
       <>
-        {assignedReviewError && <p role="alert" style={{ margin: '12px 24px', color: '#b91c1c' }}>Your score is available, but question review could not be loaded: {assignedReviewError}</p>}
+        {assignedReviewError && <p role="alert" style={{ margin: '12px 24px', color: '#dc2626' }}>Your score is available, but question review could not be loaded: {assignedReviewError}</p>}
         <ExamResultDashboard
           onClose={onClose}
           onRetakeExam={() => onAssignedRetake?.()}
@@ -1054,17 +1054,17 @@ export default function TestInterface({
         <div style={{ 
           position: 'fixed', 
           inset: 0, 
-          background: '#f8fafc', 
+          background: '#ffffff',
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center', 
           zIndex: 99999 
         }}>
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '60px', color: '#ef4444', marginBottom: '20px', display: 'block' }}>error</span>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#0f172a', marginBottom: '12px' }}>Unable to Load User Data</h2>
-            <p style={{ color: '#64748b', marginBottom: '24px' }}>Please check your connection and try again.</p>
-            <button onClick={onClose} style={{ padding: '12px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '60px', color: '#dc2626', marginBottom: '20px', display: 'block' }}>error</span>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#171717', marginBottom: '12px' }}>Unable to Load User Data</h2>
+            <p style={{ color: '#171717', marginBottom: '24px' }}>Please check your connection and try again.</p>
+            <button onClick={onClose} style={{ padding: '12px 24px', background: '#d21436', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
               Go Back
             </button>
           </div>
@@ -1288,11 +1288,11 @@ export default function TestInterface({
                 style={{
                   padding: '6px 12px',
                   borderRadius: '6px',
-                  border: '1px solid #e2e8f0',
-                  background: '#f8fafc',
+                  border: '1px solid #e5e5e5',
+                  background: '#ffffff',
                   fontSize: '14px',
                   fontWeight: 500,
-                  color: '#334155',
+                  color: '#171717',
                   outline: 'none',
                   cursor: 'pointer'
                 }}
@@ -1315,7 +1315,7 @@ export default function TestInterface({
             <span className="test-palette-toggle-text">Palette</span>
             <span className="test-palette-badge">{currentIndex + 1}/{questions.length}</span>
           </button>
-          <div className="test-timer" style={timerPaused ? { borderColor: '#f59e0b', background: 'rgba(245,158,11,0.1)', color: '#d97706' } : {}}>
+          <div className="test-timer" style={timerPaused ? { borderColor: '#d21436', background: 'rgba(210, 20, 54, 0.1)', color: '#d21436' } : {}}>
             <span className="material-symbols-outlined">{timerPaused ? 'timer_off' : 'timer'}</span>
             <span className="test-timer-text">
               {isReviewMode ? 'Review Mode' : formatTime(timeRemaining)}
@@ -1323,7 +1323,7 @@ export default function TestInterface({
             {timerPaused && !isReviewMode && (
               <span style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
-                background: '#f59e0b', color: '#fff', padding: '2px 6px',
+                background: '#d21436', color: '#fff', padding: '2px 6px',
                 borderRadius: '4px', animation: 'timerPausePulse 1.4s ease-in-out infinite'
               }}>PAUSED</span>
             )}
@@ -1340,7 +1340,7 @@ export default function TestInterface({
           )}
         </div>
       </header>
-      {assignedSaveError && <p role="alert" style={{ color: '#b91c1c', margin: '8px 32px 0' }}>{assignedSaveError}</p>}
+      {assignedSaveError && <p role="alert" style={{ color: '#dc2626', margin: '8px 32px 0' }}>{assignedSaveError}</p>}
 
       <main className="test-main">
         <section className="test-question-area">
@@ -1406,8 +1406,8 @@ export default function TestInterface({
                           <span className={`test-option-circle ${isSelected ? 'test-option-circle--active' : ''}`}>{String.fromCharCode(65 + i)}</span>
                           <span className="test-option-text"><RichQuestionContent content={opt} /></span>
                         </div>
-                        {isReviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#10b981'}}>check_circle</span>}
-                        {isReviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#ef4444'}}>cancel</span>}
+                        {isReviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#16a085'}}>check_circle</span>}
+                        {isReviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#dc2626'}}>cancel</span>}
                         {!isReviewMode && isSelected && <span className="material-symbols-outlined test-option-check">check_circle</span>}
                       </button>
                     )
@@ -1415,10 +1415,10 @@ export default function TestInterface({
                 </div>
 
                 {isReviewMode && (
-                  <div className="test-review-explanation" style={{ marginTop: '32px', padding: '24px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div className="test-review-explanation" style={{ marginTop: '32px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e5e5' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="material-symbols-outlined" style={{ color: '#3b82f6' }}>info</span>
+                      <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#171717', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="material-symbols-outlined" style={{ color: '#d21436' }}>info</span>
                         Detailed Solution & Review
                       </h3>
                       <button
@@ -1447,7 +1447,7 @@ export default function TestInterface({
                         }}
                         disabled={loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)]}
                         style={{
-                          background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                          background: 'linear-gradient(135deg, #d21436 0%, #172c4f 100%)',
                           color: '#fff',
                           border: 'none',
                           padding: '7px 14px',
@@ -1458,7 +1458,7 @@ export default function TestInterface({
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
-                          boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                          boxShadow: '0 2px 4px rgba(210, 20, 54, 0.2)',
                         }}
                       >
                         <span className={`material-symbols-outlined ${loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)] ? 'spin' : ''}`} style={{ fontSize: '16px' }}>
@@ -1470,14 +1470,14 @@ export default function TestInterface({
 
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '32px' }}>
                       <div>
-                        <span style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Your Answer</span>
-                        <span style={{ fontSize: '16px', fontWeight: 600, color: Number(answers[currentQuestion._id]) === Number(currentQuestion.correctIndex ?? 0) ? '#10b981' : (answers[currentQuestion._id] !== undefined ? '#ef4444' : '#64748b') }}>
+                        <span style={{ fontSize: '13px', color: '#171717', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Your Answer</span>
+                        <span style={{ fontSize: '16px', fontWeight: 600, color: Number(answers[currentQuestion._id]) === Number(currentQuestion.correctIndex ?? 0) ? '#16a085' : (answers[currentQuestion._id] !== undefined ? '#dc2626' : '#171717') }}>
                           {answers[currentQuestion._id] !== undefined ? `Option ${String.fromCharCode(65 + Number(answers[currentQuestion._id]))}` : 'Not Attempted'}
                         </span>
                       </div>
                       <div>
-                        <span style={{ fontSize: '13px', color: '#64748b', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Correct Answer</span>
-                        <span style={{ fontSize: '16px', fontWeight: 600, color: '#10b981' }}>
+                        <span style={{ fontSize: '13px', color: '#171717', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Correct Answer</span>
+                        <span style={{ fontSize: '16px', fontWeight: 600, color: '#16a085' }}>
                           Option {String.fromCharCode(65 + Number(currentQuestion.correctIndex ?? 0))}
                         </span>
                       </div>
@@ -1485,13 +1485,13 @@ export default function TestInterface({
 
                     {/* Author Solution */}
                     {currentQuestion.solution ? (
-                      <div style={{ fontSize: '15px', lineHeight: '1.7', color: '#334155', borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginBottom: '14px' }}>
-                        <b style={{ color: '#1e40af', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Reference Explanation:</b>
+                      <div style={{ fontSize: '15px', lineHeight: '1.7', color: '#171717', borderTop: '1px solid #e5e5e5', paddingTop: '16px', marginBottom: '14px' }}>
+                        <b style={{ color: '#d21436', fontSize: '13px', display: 'block', marginBottom: '6px' }}>Reference Explanation:</b>
                         <FormattedSolution content={currentQuestion.solution} />
                       </div>
                     ) : (
-                      <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', marginBottom: '14px' }}>
-                        <p style={{ color: '#94a3b8', fontStyle: 'italic', margin: 0, fontSize: '14px' }}>
+                      <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '16px', marginBottom: '14px' }}>
+                        <p style={{ color: '#171717', fontStyle: 'italic', margin: 0, fontSize: '14px' }}>
                           Click "✨ Explain with AI" above to generate a full step-by-step mathematical derivation for this question.
                         </p>
                       </div>
@@ -1499,9 +1499,9 @@ export default function TestInterface({
 
                     {/* AI Deep Solution */}
                     {aiSolutions[currentQuestion._id || currentQuestion.text.slice(0, 30)] && (
-                      <div style={{ background: '#fff', border: '1.5px solid #bfdbfe', borderRadius: '10px', padding: '18px', marginTop: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#1e40af', fontWeight: 700, fontSize: '13.5px', marginBottom: '12px' }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563eb' }}>auto_awesome</span>
+                      <div style={{ background: '#fff', border: '1.5px solid #e5e5e5', borderRadius: '10px', padding: '18px', marginTop: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#d21436', fontWeight: 700, fontSize: '13.5px', marginBottom: '12px' }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#d21436' }}>auto_awesome</span>
                           GPT-4o Step-by-Step Mathematical Derivation & Concept Breakdown
                         </div>
                         <FormattedSolution content={aiSolutions[currentQuestion._id || currentQuestion.text.slice(0, 30)]} />
@@ -1680,28 +1680,28 @@ export default function TestInterface({
           }} onClick={e => e.stopPropagation()}>
             {reportSuccess ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#16a34a', marginBottom: '12px' }}>check_circle</span>
-                <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#0f172a' }}>Report Submitted!</h3>
-                <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '14px' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#16a085', marginBottom: '12px' }}>check_circle</span>
+                <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: '#171717' }}>Report Submitted!</h3>
+                <p style={{ margin: '0 0 20px', color: '#171717', fontSize: '14px' }}>
                   Thank you for reporting. Our team will review Q{currentIndex + 1} and correct it if needed.
                 </p>
                 <button onClick={() => setShowReportModal(false)} style={{
-                  padding: '10px 24px', borderRadius: '8px', background: '#2563eb', color: '#fff',
+                  padding: '10px 24px', borderRadius: '8px', background: '#d21436', color: '#fff',
                   border: 'none', fontWeight: 600, fontSize: '14px', cursor: 'pointer'
                 }}>Close</button>
               </div>
             ) : (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ margin: 0, fontSize: '18px', color: '#0f172a', fontWeight: 700 }}>
+                  <h3 style={{ margin: 0, fontSize: '18px', color: '#171717', fontWeight: 700 }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '22px', verticalAlign: 'middle', marginRight: '8px', color: '#dc2626' }}>report</span>
                     Report Issue — Q{currentIndex + 1}
                   </h3>
-                  <button onClick={() => setShowReportModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
+                  <button onClick={() => setShowReportModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#171717' }}>
                     <span className="material-symbols-outlined">close</span>
                   </button>
                 </div>
-                <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13.5px' }}>
+                <p style={{ margin: '0 0 16px', color: '#171717', fontSize: '13.5px' }}>
                   Select the type of issue you found with this question:
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
@@ -1715,8 +1715,8 @@ export default function TestInterface({
                     <label key={opt.value} style={{
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
                       borderRadius: '8px', cursor: 'pointer', fontSize: '14px',
-                      border: reportType === opt.value ? '2px solid #3b82f6' : '1px solid #e2e8f0',
-                      background: reportType === opt.value ? '#eff6ff' : '#f8fafc',
+                      border: reportType === opt.value ? '2px solid #d21436' : '1px solid #e5e5e5',
+                      background: reportType === opt.value ? '#ffffff' : '#ffffff',
                       fontWeight: reportType === opt.value ? 600 : 400,
                       transition: 'all 0.1s ease',
                     }}>
@@ -1736,15 +1736,15 @@ export default function TestInterface({
                   onChange={e => setReportNote(e.target.value)}
                   rows={2}
                   style={{
-                    width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                    width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e5e5e5',
                     fontSize: '13.5px', resize: 'vertical', fontFamily: 'inherit', marginBottom: '16px',
                     outline: 'none', boxSizing: 'border-box',
                   }}
                 />
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                   <button onClick={() => setShowReportModal(false)} style={{
-                    padding: '9px 18px', borderRadius: '8px', background: '#f1f5f9', color: '#475569',
-                    border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer'
+                    padding: '9px 18px', borderRadius: '8px', background: '#ffffff', color: '#171717',
+                    border: '1px solid #e5e5e5', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer'
                   }}>Cancel</button>
                   <button
                     disabled={!reportType}
@@ -1754,7 +1754,7 @@ export default function TestInterface({
                     }}
                     style={{
                       padding: '9px 18px', borderRadius: '8px',
-                      background: reportType ? '#2563eb' : '#94a3b8', color: '#fff',
+                      background: reportType ? '#d21436' : '#171717', color: '#fff',
                       border: 'none', fontWeight: 600, fontSize: '13.5px',
                       cursor: reportType ? 'pointer' : 'not-allowed', opacity: reportType ? 1 : 0.7,
                     }}

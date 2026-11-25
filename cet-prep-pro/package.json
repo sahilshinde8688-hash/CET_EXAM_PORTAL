@@ -13,6 +13,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
     "@types/qrcode": "^1.5.6",
+    "@vercel/speed-insights": "^2.1.0",
     "chart.js": "^4.5.1",
     "dompurify": "^3.4.17",
     "framer-motion": "^12.42.2",

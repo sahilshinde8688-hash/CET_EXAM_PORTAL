@@ -78,8 +78,9 @@ Implemented via Helmet.js:
 
 ### 5. Password Security
 
-- **Bcrypt hashing** with 10 salt rounds
-- **Minimum 6 characters** enforced
+- **Bcrypt hashing**; administrator passwords use 12 salt rounds
+- **Administrator passwords** must be at least 12 characters and include uppercase, lowercase, a number, and a symbol (maximum 72 UTF-8 bytes)
+- **Student passwords** retain the existing minimum-length policy
 - **Passwords never stored in cookies** (only session IDs/JWT)
 - **Separate password field** for MHT-CET provisional credentials
 
@@ -98,6 +99,7 @@ Implemented via Helmet.js:
   createdAt: "2024-01-01T00:00:00Z",
   lastActivity: "2024-01-01T00:00:00Z",
   expiresAt: "2024-01-01T00:30:00Z", // Inactivity deadline; extended as activity is recorded
+  mfa_verified: true, // Required for administrator sessions
   revokedAt: null
 }
 ```
@@ -214,17 +216,18 @@ Implemented via Helmet.js:
 3. Frontend sends POST to `/api/auth/login` with CSRF token in header
 4. Backend validates CSRF token
 5. Backend verifies credentials
-6. Backend creates:
+6. For administrators, the backend issues a short-lived MFA challenge instead of a session. First-time setup requires a TOTP code from the authenticator before enrollment is saved; subsequent logins require a current TOTP or unused backup code.
+7. After MFA succeeds, backend creates:
    - Session record
    - Refresh token record
    - Access token (JWT)
    - Refresh token (JWT)
-7. Backend sets three cookies:
+8. Backend sets three cookies:
   - `accessToken` (HttpOnly, up to 15 minutes)
   - `refreshToken` (HttpOnly, rolled forward with active use)
   - `csrfToken` (readable by JavaScript, rolled forward with the session cookies)
-8. Frontend saves user to localStorage
-9. Frontend redirects to dashboard
+9. Frontend saves display-only user information to localStorage
+10. Frontend redirects to dashboard
 
 ### Session Check and Refresh Flow
 
@@ -248,6 +251,37 @@ The frontend tracks meaningful interaction locally and periodically sends a thro
 6. Backend clears all cookies
 7. Frontend clears only authentication-related local state (exam progress is preserved)
 8. Frontend redirects to login page
+
+## Administrator TOTP MFA setup, deployment, and recovery
+
+Administrator access requires MFA; there is no self-service MFA-disable endpoint. TOTP uses RFC 6238, compatible with Google Authenticator and Microsoft Authenticator. The TOTP secret is encrypted with AES-256-GCM in the database, and backup codes are stored as hashes.
+
+### Apply and configure
+
+1. Back up the Supabase database. Apply [`supabase/migrations/20261125_admin_totp_mfa.sql`](./supabase/migrations/20261125_admin_totp_mfa.sql) in the Supabase SQL Editor, or use the project's normal Supabase migration workflow (`supabase db push`). Apply it before deploying/restarting the API; do not run the migration against production without the usual review and backup.
+2. Set `ADMIN_TOTP_ENCRYPTION_KEY` in the API's secret manager. Generate a base64-encoded 32-byte key with:
+   ```sh
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
+   Keep this key stable and backed up separately from the database. Changing or losing it makes existing TOTP secrets undecryptable. Never commit the key or put it in a frontend `VITE_` variable. The API refuses to start in production without it.
+3. Configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `FRONTEND_URL`, and `NODE_ENV=production` in the backend environment. Do not copy real credentials into `.env.example`.
+4. Install backend dependencies from `cet-api` with `npm install`, then start/redeploy the API.
+5. If there are no admin accounts, create the first one from the repository root with `node scripts/createSuperAdmin.js`. The script prompts for the email and a strong password; it does not print the password. It refuses to create a duplicate admin. Existing administrator accounts can sign in with their existing password once; a legacy plaintext password is migrated to bcrypt on successful login, and weak admin passwords must be changed before continuing.
+6. On first administrator login, scan the displayed QR code in Google Authenticator or Microsoft Authenticator. If scanning is unavailable, enter the manual key shown during this authenticated setup step. Enter the generated six-digit code to confirm enrollment, then store the displayed one-time backup codes offline in a secure place.
+7. Later logins require the six-digit authenticator code. A single-use backup code can be entered instead if the phone is unavailable. The admin Security settings page can rotate backup codes after the current password and a fresh second factor are confirmed.
+
+The setup QR/manual key is returned only to the password-authenticated, short-lived MFA challenge and is held temporarily in the login page while setup is pending. It is not included in regular user/session responses or stored in browser local storage. Do not share screenshots of the QR code or manual key.
+
+### HTTPS and operational safeguards
+
+Serve the site and API only over HTTPS in production. Set `NODE_ENV=production` so authentication cookies use the secure flag, configure the exact frontend origin in CORS, and use a strong unique `JWT_SECRET`. Keep the Supabase service-role key and TOTP encryption key server-side. Production deployments should configure Redis (`REDIS_URL`) so IP rate limits are shared across API instances; administrator account failures are additionally tracked in the database with a five-failure, 15-minute lockout.
+
+Admin sessions are only issued after MFA, regenerated after successful authentication, stored server-side with MFA verification state, and protected by the existing CSRF checks and inactivity timeout. Logout revokes the persisted session. The Security settings page supports password changes, backup-code rotation, revoking other sessions, and viewing recent login/security events.
+
+### Lost authenticator recovery
+
+- If the phone is lost but a backup code is available, sign in with the code and immediately enroll a replacement authenticator and rotate the remaining backup codes.
+- If both the phone and every backup code are unavailable, there is no application-level bypass. A trusted database operator must verify the administrator's identity and perform a documented, audited recovery using the Supabase service-role/SQL access: revoke all that user's active sessions and refresh tokens, delete their pending MFA challenges, clear the encrypted TOTP secret and backup-code hashes, and set `totp_enabled` to `false` for that specific admin row. The next password login will require fresh MFA enrollment. Do not expose this operation through an unauthenticated route or execute it based only on an email request. Back up and review the database before making the change.
 
 ## Environment Variables Required
 

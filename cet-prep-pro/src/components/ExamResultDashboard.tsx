@@ -225,11 +225,11 @@ export default function ExamResultDashboard({
       {/* ── Top Header ────────────────────────────────────────── */}
       <header className="compact-result-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <span className="compact-result-eyebrow" style={{ color: '#2563eb', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+          <span className="compact-result-eyebrow" style={{ color: '#d21436', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
             Official Score Report & Diagnostic
           </span>
-          <h1 style={{ margin: '4px 0', fontSize: '26px', fontWeight: 700, color: '#0f172a' }}>{examName}</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>
+          <h1 style={{ margin: '4px 0', fontSize: '26px', fontWeight: 700, color: '#171717' }}>{examName}</h1>
+          <p style={{ margin: 0, color: '#171717', fontSize: '14px' }}>
             Candidate: <b>{candidateName}</b> {rollNumber && rollNumber !== 'N/A' ? `• Roll: ${rollNumber}` : ''} • Submitted on {new Date().toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' })}
           </p>
         </div>
@@ -239,9 +239,9 @@ export default function ExamResultDashboard({
             style={{
               padding: '9px 16px',
               borderRadius: '8px',
-              background: '#f1f5f9',
-              border: '1px solid #cbd5e1',
-              color: '#334155',
+              background: '#ffffff',
+              border: '1px solid #e5e5e5',
+              color: '#171717',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -259,7 +259,7 @@ export default function ExamResultDashboard({
             style={{
               padding: '9px 16px',
               borderRadius: '8px',
-              background: '#2563eb',
+              background: '#d21436',
               color: '#fff',
               border: 'none',
               cursor: 'pointer',
@@ -277,7 +277,7 @@ export default function ExamResultDashboard({
       </header>
 
       {/* ── Tabs Navigation Bar ───────────────────────────────── */}
-      <nav className="exam-result-tabs-nav" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid #e2e8f0', paddingBottom: '2px' }}>
+      <nav className="exam-result-tabs-nav" style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '2px solid #e5e5e5', paddingBottom: '2px' }}>
         {[
           { key: 'overview', label: 'Overview & Scorecard', icon: 'analytics' },
           { key: 'aiCoach', label: 'AI Diagnostic Coach', icon: 'psychology', badge: 'AI Powered' },
@@ -290,8 +290,8 @@ export default function ExamResultDashboard({
               padding: '12px 18px',
               border: 'none',
               background: 'transparent',
-              borderBottom: activeTab === tab.key ? '3px solid #2563eb' : '3px solid transparent',
-              color: activeTab === tab.key ? '#2563eb' : '#64748b',
+              borderBottom: activeTab === tab.key ? '3px solid #d21436' : '3px solid transparent',
+              color: activeTab === tab.key ? '#d21436' : '#171717',
               fontWeight: activeTab === tab.key ? 700 : 500,
               fontSize: '14.5px',
               cursor: 'pointer',
@@ -304,7 +304,7 @@ export default function ExamResultDashboard({
             <span className="material-symbols-outlined" style={{ fontSize: '19px' }}>{tab.icon}</span>
             <span>{tab.label}</span>
             {tab.badge && (
-              <span style={{ fontSize: '11px', background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: '10px', fontWeight: 700, border: '1px solid #bfdbfe' }}>
+              <span style={{ fontSize: '11px', background: '#ffffff', color: '#171717', padding: '2px 7px', borderRadius: '10px', fontWeight: 700, border: '1px solid #e5e5e5' }}>
                 {tab.badge}
               </span>
             )}
@@ -316,26 +316,26 @@ export default function ExamResultDashboard({
       {activeTab === 'overview' && (
         <main className="compact-result-content">
           {/* Score & Key Metric Banner */}
-          <section className="compact-result-score-panel" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: '#fff', borderRadius: '16px', padding: '28px 32px', marginBottom: '24px', position: 'relative', overflow: 'hidden' }}>
+          <section className="compact-result-score-panel" style={{ background: 'linear-gradient(135deg, #172c4f 0%, #172c4f 100%)', color: '#fff', borderRadius: '16px', padding: '28px 32px', marginBottom: '24px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'relative', zIndex: 2 }}>
-              <span className="compact-result-label" style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase' }}>
+              <span className="compact-result-label" style={{ color: '#171717', fontSize: '13px', fontWeight: 600, textTransform: 'uppercase' }}>
                 Your Final Exam Score
               </span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '8px 0 12px' }}>
-                <strong style={{ fontSize: '64px', fontWeight: 800, color: '#60a5fa', lineHeight: 1 }}>{animatedScore}</strong>
-                <span style={{ fontSize: '24px', color: '#94a3b8' }}>/{maxScore.toFixed(0)}</span>
+                <strong style={{ fontSize: '64px', fontWeight: 800, color: '#171717', lineHeight: 1 }}>{animatedScore}</strong>
+                <span style={{ fontSize: '24px', color: '#171717' }}>/{maxScore.toFixed(0)}</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-                <span className={`compact-result-performance ${hasPassed ? 'is-pass' : 'is-fail'}`} style={{ padding: '6px 14px', borderRadius: '20px', fontWeight: 600, fontSize: '13px', background: hasPassed ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', color: hasPassed ? '#34d399' : '#f87171', border: `1px solid ${hasPassed ? '#059669' : '#dc2626'}` }}>
+                <span className={`compact-result-performance ${hasPassed ? 'is-pass' : 'is-fail'}`} style={{ padding: '6px 14px', borderRadius: '20px', fontWeight: 600, fontSize: '13px', background: hasPassed ? 'rgba(22,160,133, 0.2)' : 'rgba(220, 38, 38, 0.2)', color: hasPassed ? '#16a085' : '#dc2626', border: `1px solid ${hasPassed ? '#16a085' : '#dc2626'}` }}>
                   {percentage.toFixed(1)}% • {hasPassed ? 'Qualified for Engineering' : 'Needs Improvement'}
                 </span>
                 {aiAnalytics?.projectedPercentile && (
-                  <span style={{ padding: '6px 14px', borderRadius: '20px', fontWeight: 600, fontSize: '13px', background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid #3b82f6' }}>
+                  <span style={{ padding: '6px 14px', borderRadius: '20px', fontWeight: 600, fontSize: '13px', background: 'rgba(210, 20, 54, 0.2)', color: '#171717', border: '1px solid #d21436' }}>
                     Predicted CET Percentile: <b>{aiAnalytics.projectedPercentile}</b>
                   </span>
                 )}
                 {aiAnalytics?.estimatedCetRank && (
-                  <span style={{ padding: '6px 14px', borderRadius: '20px', fontWeight: 600, fontSize: '13px', background: 'rgba(168, 85, 247, 0.2)', color: '#d8b4fe', border: '1px solid #a855f7' }}>
+                  <span style={{ padding: '6px 14px', borderRadius: '20px', fontWeight: 600, fontSize: '13px', background: 'rgba(210, 20, 54, 0.2)', color: '#f8f8f8', border: '1px solid #d21436' }}>
                     Estimated State Rank: <b>{aiAnalytics.estimatedCetRank}</b>
                   </span>
                 )}
@@ -345,44 +345,44 @@ export default function ExamResultDashboard({
 
           {/* Middle Grid: Summary & Donut */}
           <div className="compact-result-middle-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-            <section className="compact-result-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>Attempt Breakdown</h2>
+            <section className="compact-result-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e5e5e5' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px', color: '#171717' }}>Attempt Breakdown</h2>
               <div className="compact-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px' }}>
-                <div style={{ background: '#eff6ff', padding: '12px 14px', borderRadius: '10px' }}>
+                <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px' }}>
                   <span className="summary-dot is-blue" />
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Attempted</span>
-                  <strong style={{ display: 'block', fontSize: '20px', color: '#1e40af' }}>{answeredQuestions}</strong>
+                  <span style={{ color: '#171717', fontSize: '13px' }}>Attempted</span>
+                  <strong style={{ display: 'block', fontSize: '20px', color: '#d21436' }}>{answeredQuestions}</strong>
                 </div>
-                <div style={{ background: '#f0fdf4', padding: '12px 14px', borderRadius: '10px' }}>
+                <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px' }}>
                   <span className="summary-dot is-green" />
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Correct</span>
-                  <strong style={{ display: 'block', fontSize: '20px', color: '#166534' }}>{correctAnswers}</strong>
+                  <span style={{ color: '#171717', fontSize: '13px' }}>Correct</span>
+                  <strong style={{ display: 'block', fontSize: '20px', color: '#16a085' }}>{correctAnswers}</strong>
                 </div>
-                <div style={{ background: '#fef2f2', padding: '12px 14px', borderRadius: '10px' }}>
+                <div style={{ background: '#f8f8f8', padding: '12px 14px', borderRadius: '10px' }}>
                   <span className="summary-dot is-red" />
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Incorrect</span>
-                  <strong style={{ display: 'block', fontSize: '20px', color: '#991b1b' }}>{wrongAnswers}</strong>
+                  <span style={{ color: '#171717', fontSize: '13px' }}>Incorrect</span>
+                  <strong style={{ display: 'block', fontSize: '20px', color: '#dc2626' }}>{wrongAnswers}</strong>
                 </div>
-                <div style={{ background: '#fffbeb', padding: '12px 14px', borderRadius: '10px' }}>
+                <div style={{ background: '#f8f8f8', padding: '12px 14px', borderRadius: '10px' }}>
                   <span className="summary-dot is-amber" />
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Unanswered</span>
-                  <strong style={{ display: 'block', fontSize: '20px', color: '#854d0e' }}>{unansweredQuestions}</strong>
+                  <span style={{ color: '#171717', fontSize: '13px' }}>Unanswered</span>
+                  <strong style={{ display: 'block', fontSize: '20px', color: '#d21436' }}>{unansweredQuestions}</strong>
                 </div>
-                <div style={{ background: '#faf5ff', padding: '12px 14px', borderRadius: '10px' }}>
+                <div style={{ background: '#f8f8f8', padding: '12px 14px', borderRadius: '10px' }}>
                   <span className="summary-dot is-purple" />
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Accuracy</span>
-                  <strong style={{ display: 'block', fontSize: '20px', color: '#6b21a8' }}>{accuracy}%</strong>
+                  <span style={{ color: '#171717', fontSize: '13px' }}>Accuracy</span>
+                  <strong style={{ display: 'block', fontSize: '20px', color: '#d21436' }}>{accuracy}%</strong>
                 </div>
-                <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px' }}>
+                <div style={{ background: '#ffffff', padding: '12px 14px', borderRadius: '10px' }}>
                   <span className="summary-dot is-slate" />
-                  <span style={{ color: '#64748b', fontSize: '13px' }}>Time Taken</span>
-                  <strong style={{ display: 'block', fontSize: '20px', color: '#334155' }}>{timeTaken}</strong>
+                  <span style={{ color: '#171717', fontSize: '13px' }}>Time Taken</span>
+                  <strong style={{ display: 'block', fontSize: '20px', color: '#171717' }}>{timeTaken}</strong>
                 </div>
               </div>
             </section>
 
-            <section className="compact-result-card compact-analytics-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>Pacing & Efficiency</h2>
+            <section className="compact-result-card compact-analytics-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e5e5e5' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px', color: '#171717' }}>Pacing & Efficiency</h2>
               <div className="compact-analytics-layout">
                 <div className="compact-donut" style={{ '--correct': `${totalQuestions ? (correctAnswers / totalQuestions) * 100 : 0}%`, '--incorrect': `${totalQuestions ? (wrongAnswers / totalQuestions) * 100 : 0}%` } as React.CSSProperties}>
                   <div><strong>{answeredPercent}%</strong><span>Attempt Rate</span></div>
@@ -396,7 +396,7 @@ export default function ExamResultDashboard({
                   <span>Time Assessment</span>
                   <div><label>Total Duration</label><strong>{timeTaken}</strong></div>
                   <div><label>Avg. Time / Question</label><strong>{answeredQuestions > 0 ? `${(resultDurationMinutes(timeTaken) / answeredQuestions).toFixed(1)} min` : '--'}</strong></div>
-                  <div><label>Accuracy Ratio</label><strong style={{ color: accuracy >= 75 ? '#16a34a' : '#d97706' }}>{accuracy}% Accurate</strong></div>
+                  <div><label>Accuracy Ratio</label><strong style={{ color: accuracy >= 75 ? '#16a085' : '#d21436' }}>{accuracy}% Accurate</strong></div>
                 </div>
               </div>
             </section>
@@ -404,60 +404,60 @@ export default function ExamResultDashboard({
 
           {/* Bottom Grid: Subject Breakdown & AI Summary */}
           <div className="compact-result-bottom-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-            <section className="compact-result-card compact-subject-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px', color: '#0f172a' }}>Subject Performance</h2>
+            <section className="compact-result-card compact-subject-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e5e5e5' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px', color: '#171717' }}>Subject Performance</h2>
               {subjectWiseScores.map(subject => (
                 <div className="compact-subject-row" key={subject.subject} style={{ marginBottom: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{subject.subject}</span>
-                    <strong style={{ color: '#0f172a' }}>{subject.score.toFixed(0)}/{subject.maxScore.toFixed(0)}</strong>
+                    <span style={{ fontWeight: 600, color: '#171717' }}>{subject.subject}</span>
+                    <strong style={{ color: '#171717' }}>{subject.score.toFixed(0)}/{subject.maxScore.toFixed(0)}</strong>
                   </div>
-                  <div className="compact-subject-track" style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div className="compact-subject-track" style={{ height: '8px', background: '#ffffff', borderRadius: '4px', overflow: 'hidden' }}>
                     <span
                       style={{
                         display: 'block',
                         height: '100%',
                         borderRadius: '4px',
                         width: `${Math.max(0, Math.min(subject.percentage, 100))}%`,
-                        background: subject.percentage >= 75 ? '#10b981' : subject.percentage >= 50 ? '#3b82f6' : '#f59e0b',
+                        background: subject.percentage >= 75 ? '#16a085' : subject.percentage >= 50 ? '#d21436' : '#d21436',
                       }}
                     />
                   </div>
-                  <small style={{ color: '#64748b', display: 'block', marginTop: '4px' }}>
+                  <small style={{ color: '#171717', display: 'block', marginTop: '4px' }}>
                     {subject.percentage >= 75 ? '🔥 Strong Area' : subject.percentage >= 50 ? '✅ Adequate' : '⚠️ Critical Focus Needed'} · {subject.percentage.toFixed(0)}%
                   </small>
                 </div>
               ))}
             </section>
 
-            <section className="compact-result-card compact-insights-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0' }}>
+            <section className="compact-result-card compact-insights-card" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e5e5e5' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="material-symbols-outlined" style={{ color: '#3b82f6' }}>auto_awesome</span>
+                <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#171717', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined" style={{ color: '#d21436' }}>auto_awesome</span>
                   AI Mentor Quick Summary
                 </h2>
                 <button
                   onClick={() => setActiveTab('aiCoach')}
-                  style={{ background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ background: '#ffffff', color: '#171717', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
                 >
                   View Full Audit →
                 </button>
               </div>
               <div className="compact-insights-columns" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
-                  <b style={{ color: '#166534', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Key Strengths</b>
+                <div style={{ background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #ffffff' }}>
+                  <b style={{ color: '#16a085', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Key Strengths</b>
                   {(aiAnalytics?.strengths || strongSubjects).slice(0, 3).map(item => (
-                    <span key={item} style={{ display: 'block', fontSize: '12.5px', color: '#15803d', marginBottom: '3px' }}>✓ {item}</span>
+                    <span key={item} style={{ display: 'block', fontSize: '12.5px', color: '#16a085', marginBottom: '3px' }}>✓ {item}</span>
                   ))}
                 </div>
-                <div style={{ background: '#fef2f2', padding: '12px', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                  <b style={{ color: '#991b1b', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Needs Revision</b>
+                <div style={{ background: '#f8f8f8', padding: '12px', borderRadius: '8px', border: '1px solid #f8f8f8' }}>
+                  <b style={{ color: '#dc2626', display: 'block', marginBottom: '6px', fontSize: '13px' }}>Needs Revision</b>
                   {(aiAnalytics?.weaknesses || weakSubjects).slice(0, 3).map(item => (
-                    <span key={item} style={{ display: 'block', fontSize: '12.5px', color: '#b91c1c', marginBottom: '3px' }}>⚠ {item}</span>
+                    <span key={item} style={{ display: 'block', fontSize: '12.5px', color: '#dc2626', marginBottom: '3px' }}>⚠ {item}</span>
                   ))}
                 </div>
               </div>
-              <p style={{ fontSize: '13.5px', lineHeight: 1.6, color: '#334155', margin: 0, fontStyle: 'italic' }}>
+              <p style={{ fontSize: '13.5px', lineHeight: 1.6, color: '#171717', margin: 0, fontStyle: 'italic' }}>
                 "{aiAnalytics?.summaryDiagnosis || aiFeedback}"
               </p>
             </section>
@@ -465,7 +465,7 @@ export default function ExamResultDashboard({
 
           {/* Question Grid Analytics */}
           {analyticsGrid && (
-            <div className="compact-detailed-analytics" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+            <div className="compact-detailed-analytics" style={{ background: '#fff', borderRadius: '14px', padding: '24px', border: '1px solid #e5e5e5', marginBottom: '24px' }}>
               {analyticsGrid}
             </div>
           )}
@@ -474,7 +474,7 @@ export default function ExamResultDashboard({
           <footer className="compact-result-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
             <button
               onClick={() => setActiveTab('solutions')}
-              style={{ padding: '11px 20px', borderRadius: '8px', background: '#3b82f6', color: '#fff', border: 'none', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{ padding: '11px 20px', borderRadius: '8px', background: '#d21436', color: '#fff', border: 'none', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <span className="material-symbols-outlined">menu_book</span>
               Review Step-by-Step Solutions
@@ -482,7 +482,7 @@ export default function ExamResultDashboard({
             {canRetake && (
               <button
                 onClick={onRetakeExam}
-                style={{ padding: '11px 20px', borderRadius: '8px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                style={{ padding: '11px 20px', borderRadius: '8px', background: '#ffffff', color: '#171717', border: '1px solid #e5e5e5', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <span className="material-symbols-outlined">replay</span>
                 Retake Test
@@ -494,13 +494,13 @@ export default function ExamResultDashboard({
 
       {/* ── TAB 2: AI DIAGNOSTIC COACH ───────────────────────── */}
       {activeTab === 'aiCoach' && (
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '32px' }}>
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e5e5e5', padding: '32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <div>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#d21436', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
                 OpenRouter AI Mentor Engine (GPT-4o)
               </span>
-              <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#171717', margin: '4px 0 0' }}>
                 Deep Performance Audit & Action Plan
               </h2>
             </div>
@@ -516,9 +516,9 @@ export default function ExamResultDashboard({
               style={{
                 padding: '8px 16px',
                 borderRadius: '8px',
-                background: '#eff6ff',
-                color: '#1d4ed8',
-                border: '1px solid #bfdbfe',
+                background: '#ffffff',
+                color: '#171717',
+                border: '1px solid #e5e5e5',
                 fontWeight: 600,
                 fontSize: '13px',
                 cursor: loadingAi ? 'wait' : 'pointer',
@@ -536,54 +536,54 @@ export default function ExamResultDashboard({
 
           {loadingAi && !aiAnalytics ? (
             <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <span className="material-symbols-outlined spin" style={{ fontSize: '48px', color: '#3b82f6', marginBottom: '16px' }}>
+              <span className="material-symbols-outlined spin" style={{ fontSize: '48px', color: '#d21436', marginBottom: '16px' }}>
                 psychology
               </span>
-              <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', margin: '0 0 8px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#171717', margin: '0 0 8px' }}>
                 Analyzing your question patterns, pacing, and chapter accuracy...
               </h3>
-              <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
+              <p style={{ color: '#171717', fontSize: '14px', margin: 0 }}>
                 Synthesizing personalized MHT-CET coaching advice powered by GPT-4o.
               </p>
             </div>
           ) : aiError && !aiAnalytics ? (
-            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#ef4444', marginBottom: '8px' }}>error</span>
-              <h3 style={{ color: '#991b1b', margin: '0 0 8px', fontSize: '16px' }}>AI Analysis Unavailable</h3>
-              <p style={{ color: '#7f1d1d', margin: '0 0 16px', fontSize: '14px' }}>{aiError}</p>
+            <div style={{ background: '#f8f8f8', border: '1px solid #f8f8f8', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#dc2626', marginBottom: '8px' }}>error</span>
+              <h3 style={{ color: '#dc2626', margin: '0 0 8px', fontSize: '16px' }}>AI Analysis Unavailable</h3>
+              <p style={{ color: '#dc2626', margin: '0 0 16px', fontSize: '14px' }}>{aiError}</p>
             </div>
           ) : (
             <div>
               {/* Executive Diagnosis Banner */}
-              <div style={{ background: 'linear-gradient(to right, #eff6ff, #f0fdf4)', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '20px 24px', marginBottom: '28px' }}>
-                <h4 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 700, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>verified</span>
+              <div style={{ background: 'linear-gradient(to right, #ffffff, #ffffff)', border: '1px solid #e5e5e5', borderRadius: '12px', padding: '20px 24px', marginBottom: '28px' }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 700, color: '#171717', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="material-symbols-outlined" style={{ color: '#d21436' }}>verified</span>
                   Executive Academic Diagnosis
                 </h4>
-                <p style={{ margin: 0, fontSize: '15px', lineHeight: 1.7, color: '#1e293b' }}>
+                <p style={{ margin: 0, fontSize: '15px', lineHeight: 1.7, color: '#171717' }}>
                   {aiAnalytics?.summaryDiagnosis}
                 </p>
               </div>
 
               {/* State Rank & Percentile Projections */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-                <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Projected CET Percentile</span>
-                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#2563eb', margin: '6px 0 4px' }}>
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e5e5' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#171717', textTransform: 'uppercase' }}>Projected CET Percentile</span>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#d21436', margin: '6px 0 4px' }}>
                     {aiAnalytics?.projectedPercentile || `${((score / maxScore) * 100).toFixed(1)}%ile`}
                   </div>
-                  <small style={{ color: '#64748b' }}>Estimated from standard MHT-CET normalization</small>
+                  <small style={{ color: '#171717' }}>Estimated from standard MHT-CET normalization</small>
                 </div>
-                <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Projected State Merit Rank</span>
-                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#7c3aed', margin: '6px 0 4px' }}>
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e5e5' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#171717', textTransform: 'uppercase' }}>Projected State Merit Rank</span>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#d21436', margin: '6px 0 4px' }}>
                     {aiAnalytics?.estimatedCetRank || 'Rank 3,000 - 6,000'}
                   </div>
-                  <small style={{ color: '#64748b' }}>Across all Maharashtra applicants</small>
+                  <small style={{ color: '#171717' }}>Across all Maharashtra applicants</small>
                 </div>
-                <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Pacing & Speed Audit</span>
-                  <div style={{ fontSize: '14.5px', fontWeight: 600, color: '#0f172a', margin: '8px 0 0', lineHeight: 1.5 }}>
+                <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #e5e5e5' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#171717', textTransform: 'uppercase' }}>Pacing & Speed Audit</span>
+                  <div style={{ fontSize: '14.5px', fontWeight: 600, color: '#171717', margin: '8px 0 0', lineHeight: 1.5 }}>
                     {aiAnalytics?.speedAndAccuracyAnalysis || 'Maintain accurate calculations while increasing question cadence.'}
                   </div>
                 </div>
@@ -591,24 +591,24 @@ export default function ExamResultDashboard({
 
               {/* Strengths & Weaknesses Split Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '14px', padding: '22px' }}>
-                  <h4 style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ background: '#ffffff', border: '1px solid #ffffff', borderRadius: '14px', padding: '22px' }}>
+                  <h4 style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: 700, color: '#16a085', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="material-symbols-outlined">thumb_up</span>
                     Key Demonstrated Strengths
                   </h4>
-                  <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: 1.7, color: '#14532d', fontSize: '14px' }}>
+                  <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: 1.7, color: '#16a085', fontSize: '14px' }}>
                     {(aiAnalytics?.strengths || strongSubjects).map((s, idx) => (
                       <li key={idx} style={{ marginBottom: '6px' }}>{s}</li>
                     ))}
                   </ul>
                 </div>
 
-                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '14px', padding: '22px' }}>
-                  <h4 style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: 700, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ background: '#f8f8f8', border: '1px solid #f8f8f8', borderRadius: '14px', padding: '22px' }}>
+                  <h4 style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: 700, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="material-symbols-outlined">flag</span>
                     High-Impact Improvement Areas
                   </h4>
-                  <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: 1.7, color: '#7f1d1d', fontSize: '14px' }}>
+                  <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: 1.7, color: '#dc2626', fontSize: '14px' }}>
                     {(aiAnalytics?.weaknesses || weakSubjects).map((w, idx) => (
                       <li key={idx} style={{ marginBottom: '6px' }}>{w}</li>
                     ))}
@@ -619,8 +619,8 @@ export default function ExamResultDashboard({
               {/* Subject-Wise Action Plan */}
               {aiAnalytics?.actionPlan && aiAnalytics.actionPlan.length > 0 && (
                 <div style={{ marginBottom: '32px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="material-symbols-outlined" style={{ color: '#2563eb' }}>rocket_launch</span>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#171717', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined" style={{ color: '#d21436' }}>rocket_launch</span>
                     Tailored 7-Day High-Yield Revision Plan
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
@@ -632,31 +632,31 @@ export default function ExamResultDashboard({
                           key={idx}
                           style={{
                             background: '#fff',
-                            border: `1px solid ${isHigh ? '#fca5a5' : isMed ? '#fde68a' : '#bfdbfe'}`,
+                            border: `1px solid ${isHigh ? '#f8f8f8' : isMed ? '#f8f8f8' : '#e5e5e5'}`,
                             borderRadius: '12px',
                             padding: '18px',
                             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <span style={{ fontWeight: 700, fontSize: '15px', color: '#0f172a' }}>{plan.subject}</span>
+                            <span style={{ fontWeight: 700, fontSize: '15px', color: '#171717' }}>{plan.subject}</span>
                             <span
                               style={{
                                 fontSize: '11px',
                                 fontWeight: 700,
                                 padding: '2px 8px',
                                 borderRadius: '12px',
-                                background: isHigh ? '#fef2f2' : isMed ? '#fefce8' : '#eff6ff',
-                                color: isHigh ? '#dc2626' : isMed ? '#b45309' : '#1d4ed8',
+                                background: isHigh ? '#f8f8f8' : isMed ? '#f8f8f8' : '#ffffff',
+                                color: isHigh ? '#dc2626' : isMed ? '#d21436' : '#171717',
                               }}
                             >
                               {plan.priority} Priority
                             </span>
                           </div>
-                          <p style={{ fontSize: '13px', fontWeight: 600, color: '#475569', margin: '0 0 8px' }}>
-                            🎯 Focus Chapter: <span style={{ color: '#0f172a' }}>{plan.focus}</span>
+                          <p style={{ fontSize: '13px', fontWeight: 600, color: '#171717', margin: '0 0 8px' }}>
+                            🎯 Focus Chapter: <span style={{ color: '#171717' }}>{plan.focus}</span>
                           </p>
-                          <p style={{ fontSize: '13.5px', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                          <p style={{ fontSize: '13.5px', color: '#171717', margin: 0, lineHeight: 1.5 }}>
                             {plan.action}
                           </p>
                         </div>
@@ -668,11 +668,11 @@ export default function ExamResultDashboard({
 
               {/* Coach Verdict Callout */}
               {aiAnalytics?.coachVerdict && (
-                <div style={{ background: '#f8fafc', borderLeft: '4px solid #2563eb', padding: '16px 20px', borderRadius: '0 12px 12px 0' }}>
-                  <b style={{ color: '#1e40af', display: 'block', marginBottom: '4px', fontSize: '13.5px' }}>
+                <div style={{ background: '#ffffff', borderLeft: '4px solid #d21436', padding: '16px 20px', borderRadius: '0 12px 12px 0' }}>
+                  <b style={{ color: '#d21436', display: 'block', marginBottom: '4px', fontSize: '13.5px' }}>
                     Mentor's Verdict & Motivational Note:
                   </b>
-                  <p style={{ margin: 0, fontSize: '14.5px', color: '#334155', lineHeight: 1.6, fontStyle: 'italic' }}>
+                  <p style={{ margin: 0, fontSize: '14.5px', color: '#171717', lineHeight: 1.6, fontStyle: 'italic' }}>
                     "{aiAnalytics.coachVerdict}"
                   </p>
                 </div>
@@ -684,13 +684,13 @@ export default function ExamResultDashboard({
 
       {/* ── TAB 3: STEP-BY-STEP SOLUTIONS ─────────────────────── */}
       {activeTab === 'solutions' && (
-        <div style={{ background: '#f4f7f9', borderRadius: '18px', border: '1px solid #dfe8ee', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.04)', padding: '20px 18px 18px', maxWidth: '760px', margin: '0 auto' }}>
+        <div style={{ background: '#ffffff', borderRadius: '18px', border: '1px solid #ffffff', boxShadow: '0 8px 20px rgba(23, 44, 79, 0.04)', padding: '20px 18px 18px', maxWidth: '760px', margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '18px' }}>
             <div style={{ flex: 1, minWidth: '240px' }}>
-              <h2 style={{ fontSize: '30px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px', lineHeight: 1.1 }}>
+              <h2 style={{ fontSize: '30px', fontWeight: 800, color: '#171717', margin: '0 0 8px', lineHeight: 1.1 }}>
                 Complete Solution Booklet
               </h2>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '15px', maxWidth: '520px', lineHeight: 1.5 }}>
+              <p style={{ margin: 0, color: '#171717', fontSize: '15px', maxWidth: '520px', lineHeight: 1.5 }}>
                 Detailed conceptual breakdowns and AI step-by-step solutions for every test question.
               </p>
               <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
@@ -698,9 +698,9 @@ export default function ExamResultDashboard({
                   onClick={() => void handleDownloadBooklet()}
                   disabled={downloadingBooklet}
                   style={{
-                    padding: '12px 18px', borderRadius: '10px', background: '#2563eb', color: '#fff',
+                    padding: '12px 18px', borderRadius: '10px', background: '#d21436', color: '#fff',
                     border: 'none', fontWeight: 700, fontSize: '14px', cursor: downloadingBooklet ? 'wait' : 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 6px 18px rgba(37, 99, 235, 0.18)'
+                    display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 6px 18px rgba(210, 20, 54, 0.18)'
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{downloadingBooklet ? 'hourglass_top' : 'download'}</span>
@@ -709,8 +709,8 @@ export default function ExamResultDashboard({
                 <button
                   onClick={() => shareTestReport(examName, score, maxScore, aiAnalytics?.projectedPercentile || String(percentage.toFixed(1)))}
                   style={{
-                    padding: '12px 18px', borderRadius: '10px', background: '#f1f5f9', color: '#334155',
-                    border: '1px solid #cbd5e1', fontWeight: 700, fontSize: '14px', cursor: 'pointer',
+                    padding: '12px 18px', borderRadius: '10px', background: '#ffffff', color: '#171717',
+                    border: '1px solid #e5e5e5', fontWeight: 700, fontSize: '14px', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: '8px'
                   }}
                 >
@@ -721,7 +721,7 @@ export default function ExamResultDashboard({
               {bookletMessage && (
                 <p role={bookletMessage.type === 'error' ? 'alert' : 'status'} style={{
                   margin: '10px 0 0',
-                  color: bookletMessage.type === 'error' ? '#b91c1c' : '#15803d',
+                  color: bookletMessage.type === 'error' ? '#dc2626' : '#16a085',
                   fontSize: '13px',
                   fontWeight: 700,
                 }}>
@@ -743,14 +743,14 @@ export default function ExamResultDashboard({
                   style={{
                     padding: '8px 14px',
                     borderRadius: '999px',
-                    border: solutionFilter === f.key ? '1px solid #2563eb' : '1px solid #d8e1ea',
-                    background: solutionFilter === f.key ? '#eaf3ff' : '#f8fafc',
-                    color: solutionFilter === f.key ? '#1d4ed8' : '#475569',
+                    border: solutionFilter === f.key ? '1px solid #d21436' : '1px solid #ffffff',
+                    background: solutionFilter === f.key ? '#ffffff' : '#ffffff',
+                    color: solutionFilter === f.key ? '#171717' : '#171717',
                     fontWeight: solutionFilter === f.key ? 700 : 600,
                     fontSize: '13px',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
-                    boxShadow: solutionFilter === f.key ? 'inset 0 0 0 1px rgba(37,99,235,0.08)' : 'none',
+                    boxShadow: solutionFilter === f.key ? 'inset 0 0 0 1px rgba(210, 20, 54, 0.08)' : 'none',
                   }}
                 >
                   {f.label}
@@ -760,11 +760,11 @@ export default function ExamResultDashboard({
           </div>
 
           {filteredQuestions.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 20px', background: '#f8fafc', borderRadius: '12px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '40px', color: '#94a3b8', marginBottom: '8px' }}>
+            <div style={{ textAlign: 'center', padding: '48px 20px', background: '#ffffff', borderRadius: '12px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '40px', color: '#171717', marginBottom: '8px' }}>
                 filter_list_off
               </span>
-              <p style={{ color: '#64748b', fontSize: '15px', margin: 0 }}>
+              <p style={{ color: '#171717', fontSize: '15px', margin: 0 }}>
                 No questions found under the "{solutionFilter}" filter.
               </p>
             </div>
@@ -786,28 +786,28 @@ export default function ExamResultDashboard({
                     key={qKey}
                     id={`question-card-${originalIndex}`}
                     style={{
-                      border: `1px solid ${isIncorrect ? '#fca5a5' : isCorrect ? '#bbf7d0' : '#dbe4f0'}`,
+                      border: `1px solid ${isIncorrect ? '#f8f8f8' : isCorrect ? '#ffffff' : '#f8f8f8'}`,
                       borderRadius: '14px',
                       padding: '18px',
                       background: '#fff',
-                      boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)',
+                      boxShadow: '0 1px 3px rgba(23, 44, 79, 0.03)',
                     }}
                   >
                     {/* Header: Q Number, Badges, Status */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
+                        <span style={{ fontSize: '18px', fontWeight: 800, color: '#171717', lineHeight: 1 }}>
                           Q{originalIndex + 1}
                         </span>
-                        <span style={{ fontSize: '12px', background: '#eff6ff', color: '#1d4ed8', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                        <span style={{ fontSize: '12px', background: '#ffffff', color: '#171717', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
                           {q.subject || 'General'}
                         </span>
                         {q.topic && (
-                          <span style={{ fontSize: '12px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                          <span style={{ fontSize: '12px', background: '#ffffff', color: '#171717', padding: '4px 8px', borderRadius: '6px', fontWeight: 600 }}>
                             {q.topic}
                           </span>
                         )}
-                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+                        <span style={{ fontSize: '12px', color: '#171717', fontWeight: 600 }}>
                           +{q.marks || 1}
                           {Number(q.negativeMarks || 0) > 0 ? ` / -${q.negativeMarks}` : ' / 0'}
                         </span>
@@ -816,19 +816,19 @@ export default function ExamResultDashboard({
                       {/* Result Pill */}
                       <div>
                         {isCorrect && (
-                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #86efac', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#16a085', background: '#ffffff', border: '1px solid #ffffff', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check_circle</span>
                             Correct (+{q.marks || 1})
                           </span>
                         )}
                         {isIncorrect && (
-                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fca5a5', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#dc2626', background: '#f8f8f8', border: '1px solid #f8f8f8', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>cancel</span>
                             Incorrect {Number(q.negativeMarks || 0) > 0 ? `(-${q.negativeMarks})` : '(0)'}
                           </span>
                         )}
                         {isUnanswered && (
-                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#854d0e', background: '#fffbeb', border: '1px solid #fde68a', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#d21436', background: '#f8f8f8', border: '1px solid #f8f8f8', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>remove_circle_outline</span>
                             Unattempted (0)
                           </span>
@@ -837,7 +837,7 @@ export default function ExamResultDashboard({
                     </div>
 
                     {/* Question Statement */}
-                    <div style={{ fontSize: '15.5px', fontWeight: 500, color: '#0f172a', marginBottom: '18px', lineHeight: 1.6, minWidth: 0, overflowWrap: 'anywhere' }}>
+                    <div style={{ fontSize: '15.5px', fontWeight: 500, color: '#171717', marginBottom: '18px', lineHeight: 1.6, minWidth: 0, overflowWrap: 'anywhere' }}>
                       <RichQuestionContent content={q.text} />
                     </div>
 
@@ -847,18 +847,18 @@ export default function ExamResultDashboard({
                         const isThisCorrect = optIdx === Number(q.correctIndex ?? 0)
                         const isThisUserAns = userAns !== null && optIdx === userAns
 
-                        let border = '#e2e8f0'
-                        let bg = '#f8fafc'
-                        let badgeColor = '#64748b'
+                        let border = '#e5e5e5'
+                        let bg = '#ffffff'
+                        let badgeColor = '#171717'
 
                         if (isThisCorrect) {
-                          border = '#86efac'
-                          bg = '#f0fdf4'
-                          badgeColor = '#15803d'
+                          border = '#ffffff'
+                          bg = '#ffffff'
+                          badgeColor = '#16a085'
                         } else if (isThisUserAns && !isThisCorrect) {
-                          border = '#fca5a5'
-                          bg = '#fef2f2'
-                          badgeColor = '#b91c1c'
+                          border = '#f8f8f8'
+                          bg = '#f8f8f8'
+                          badgeColor = '#dc2626'
                         }
 
                         return (
@@ -876,7 +876,7 @@ export default function ExamResultDashboard({
                               minWidth: 0,
                             }}
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14.5px', color: '#1e293b', minWidth: 0, overflowWrap: 'anywhere' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14.5px', color: '#171717', minWidth: 0, overflowWrap: 'anywhere' }}>
                               <span style={{ fontWeight: 700, color: badgeColor, minWidth: '22px' }}>
                                 {String.fromCharCode(65 + optIdx)})
                               </span>
@@ -884,7 +884,7 @@ export default function ExamResultDashboard({
                             </div>
                             <div>
                               {isThisCorrect && (
-                                <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                <span style={{ color: '#16a085', fontWeight: 700, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '2px' }}>
                                   <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span> Correct
                                 </span>
                               )}
@@ -900,28 +900,28 @@ export default function ExamResultDashboard({
                     </div>
 
                     {/* Answer Comparison Summary */}
-                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center', padding: '10px 16px', background: '#f8fafc', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px' }}>
+                    <div style={{ display: 'flex', gap: '24px', alignItems: 'center', padding: '10px 16px', background: '#ffffff', borderRadius: '8px', marginBottom: '16px', fontSize: '13.5px' }}>
                       <div>
-                        <span style={{ color: '#64748b', marginRight: '6px' }}>Correct Answer:</span>
-                        <b style={{ color: '#16a34a' }}>Option {correctLetter}</b>
+                        <span style={{ color: '#171717', marginRight: '6px' }}>Correct Answer:</span>
+                        <b style={{ color: '#16a085' }}>Option {correctLetter}</b>
                       </div>
-                      <div style={{ borderLeft: '1px solid #cbd5e1', height: '16px' }} />
+                      <div style={{ borderLeft: '1px solid #e5e5e5', height: '16px' }} />
                       <div>
-                        <span style={{ color: '#64748b', marginRight: '6px' }}>Your Answer:</span>
+                        <span style={{ color: '#171717', marginRight: '6px' }}>Your Answer:</span>
                         {userLetter ? (
-                          <b style={{ color: isCorrect ? '#16a34a' : '#dc2626' }}>
+                          <b style={{ color: isCorrect ? '#16a085' : '#dc2626' }}>
                             Option {userLetter} ({isCorrect ? 'Correct' : 'Wrong'})
                           </b>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Not Attempted</span>
+                          <span style={{ color: '#171717', fontStyle: 'italic' }}>Not Attempted</span>
                         )}
                       </div>
                     </div>
 
                     {/* Author Solution (if available) */}
                     {q.solution && (
-                      <div style={{ background: '#f1f5f9', borderRadius: '10px', padding: '14px 18px', marginBottom: '14px', borderLeft: '4px solid #3b82f6' }}>
-                        <b style={{ color: '#1e40af', fontSize: '13.5px', display: 'block', marginBottom: '6px' }}>
+                      <div style={{ background: '#ffffff', borderRadius: '10px', padding: '14px 18px', marginBottom: '14px', borderLeft: '4px solid #d21436' }}>
+                        <b style={{ color: '#d21436', fontSize: '13.5px', display: 'block', marginBottom: '6px' }}>
                           Reference Solution:
                         </b>
                         <FormattedSolution content={q.solution} />
@@ -930,16 +930,16 @@ export default function ExamResultDashboard({
 
                     {/* AI Step-by-Step Solution Section */}
                     {aiSolutionText && (
-                      <div style={{ background: '#f8fafc', border: '1.5px solid #bfdbfe', borderRadius: '12px', padding: '20px', marginTop: '16px', position: 'relative' }}>
+                      <div style={{ background: '#ffffff', border: '1.5px solid #e5e5e5', borderRadius: '12px', padding: '20px', marginTop: '16px', position: 'relative' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#1e40af', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#2563eb' }}>auto_awesome</span>
+                          <span style={{ fontSize: '13.5px', fontWeight: 700, color: '#d21436', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#d21436' }}>auto_awesome</span>
                             GPT-4o Deep Step-by-Step Derivation & Strategy
                           </span>
                           <button
                             onClick={() => handleExplainQuestion(q, userAns)}
                             title="Regenerate"
-                            style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
+                            style={{ background: 'transparent', border: 'none', color: '#d21436', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
                           >
                             <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>refresh</span>
                             Re-solve
@@ -950,14 +950,14 @@ export default function ExamResultDashboard({
                     )}
 
                     {/* Action Bar */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #ffffff' }}>
                       <div style={{ display: 'flex', gap: '10px' }}>
                         {!aiSolutionText && (
                           <button
                             onClick={() => handleExplainQuestion(q, userAns)}
                             disabled={isLoadingAI}
                             style={{
-                              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                              background: 'linear-gradient(135deg, #d21436 0%, #172c4f 100%)',
                               color: '#fff',
                               border: 'none',
                               padding: '8px 16px',
@@ -968,7 +968,7 @@ export default function ExamResultDashboard({
                               display: 'flex',
                               alignItems: 'center',
                               gap: '6px',
-                              boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)',
+                              boxShadow: '0 2px 4px rgba(210, 20, 54, 0.2)',
                             }}
                           >
                             <span className={`material-symbols-outlined ${isLoadingAI ? 'spin' : ''}`} style={{ fontSize: '18px' }}>
@@ -981,9 +981,9 @@ export default function ExamResultDashboard({
                           <button
                             onClick={() => onSelectQuestion(originalIndex)}
                             style={{
-                              background: '#f8fafc',
-                              border: '1px solid #cbd5e1',
-                              color: '#475569',
+                              background: '#ffffff',
+                              border: '1px solid #e5e5e5',
+                              color: '#171717',
                               padding: '8px 14px',
                               borderRadius: '8px',
                               fontSize: '13px',

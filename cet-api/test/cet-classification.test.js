@@ -48,6 +48,16 @@ test('classifies a mathematics question into subject / chapter / topic', () => {
   assert.ok(result.classificationConfidence > 0.5)
 })
 
+test('classifies determinant questions under the Matrices chapter', () => {
+  const result = classifyQuestion(parsed({
+    question: 'Expand the determinant along the first row and find its value: |1 2; 3 4|',
+    options: { A: '-2', B: '2', C: '10', D: '-10' },
+    solution: 'The determinant is (1 × 4) - (2 × 3) = -2.',
+  }))
+  assert.equal(result.subject, 'Mathematics')
+  assert.equal(result.chapter, 'Matrices')
+})
+
 test('classifies plural chemistry vocabulary (regression: options/solution plurals)', () => {
   const result = classifyQuestion(parsed({
     question: 'Tollens reagent test is used for the detection of:',
@@ -194,6 +204,8 @@ test('getCetTaxonomy exposes the dropdown structure without keywords', () => {
   assert.ok(matrices, 'Matrices chapter missing')
   assert.ok(matrices.topics.some((t) => t.name === 'Adjoint'))
   assert.ok(matrices.topics.every((t) => Array.isArray(t.subTopics)))
+  assert.equal(math.chapters.some((chapter) => chapter.name === 'Determinants'), false)
+  assert.equal(math.chapters.some((chapter) => chapter.name === 'Matrices and Determinants'), false)
 })
 
 test('Physics taxonomy contains the requested Class 12 chapter names', () => {

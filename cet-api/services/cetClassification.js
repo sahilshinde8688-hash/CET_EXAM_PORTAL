@@ -56,7 +56,7 @@ const CET_SYLLABUS = {
       'Algebra of Statements': 'tautology|contradiction|duality principle|algebra of statements',
       'Boolean Algebra & Switching': 'boolean algebra|switching circuit|switches in series|switches in parallel',
     }),
-    Matrices: C('matrix|matrices|square matrix|order of matrix|matrix method', {
+    Matrices: C('matrix|matrices|square matrix|order of matrix|matrix method|determinant|determinants|minor|cofactor|cramer s rule|crames rule', {
       'Formation of Matrix': 'formation of matrix|construct a matrix|elements of matrix|order of the matrix',
       'Types of Matrices': 'symmetric matrix|skew symmetric|diagonal matrix|identity matrix|scalar matrix|triangular matrix|singular matrix|non singular matrix|zero matrix|null matrix|row matrix|column matrix|hermitian matrix|unit matrix',
       'Algebra of Matrices': 'addition of matrices|subtraction of matrices|scalar multiplication of matrix|equal matrices',
@@ -65,8 +65,6 @@ const CET_SYLLABUS = {
       'Adjoint': { k: 'adjoint|adj a|adjoint of a matrix|cofactor matrix', s: { 'Properties of Adjoint': 'properties of adjoint|adjoint of singular|adjoint of non singular' } },
       'Inverse of a Matrix': 'inverse of a matrix|inverse matrix|invertible matrix|inverse by elementary|elementary transformation|elementary row operations|rank of matrix',
       'Solution of Simultaneous Equations': 'matrix method|simultaneous equations by matrix|non homogeneous equations|homogeneous system|system of linear equations|crames rule|cramer s rule',
-    }),
-    Determinants: C('determinant|determinants|minor|cofactor|cramer s rule|crames rule', {
       'Minors & Cofactors': 'minor of an element|cofactor of an element|minors and cofactors',
       'Properties of Determinants': 'properties of determinant|two rows identical|rows and columns interchange|without expanding',
       'Expansion of Determinants': 'expand the determinant|expansion along|value of determinant|third order determinant|second order determinant',

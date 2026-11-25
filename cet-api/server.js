@@ -8,7 +8,11 @@ const { generateCsrfToken } = require('./middleware/csrf')
 const { maintenanceMode } = require('./middleware/maintenanceMode')
 
 // Startup Environment Validation
-const requiredEnv = ['JWT_SECRET', 'SUPABASE_URL']
+const requiredEnv = [
+  'JWT_SECRET',
+  'SUPABASE_URL',
+  ...(process.env.NODE_ENV === 'production' ? ['ADMIN_TOTP_ENCRYPTION_KEY'] : []),
+]
 const missingEnv = requiredEnv.filter((key) => !process.env[key])
 
 if (missingEnv.length > 0) {
@@ -67,6 +71,7 @@ app.use('/api/auth', require('./routes/authRoutes'))
 app.use('/api/email', require('./routes/emailRoutes'))
 app.use('/api/admin/dashboard', require('./routes/adminDashboardRoutes'))
 app.use('/api/admin/settings', require('./routes/adminSettingsRoutes'))
+app.use('/api/admin/security', require('./routes/adminSecurityRoutes'))
 app.use('/api/super-admin', require('./routes/superAdminRoutes'))
 app.use('/api/users', require('./routes/userRoutes'))
 app.use('/api/tests', require('./routes/testRoutes'))
@@ -151,7 +156,7 @@ const startServer = (port) => {
   const currentPort = Number(port)
 
   server = app.listen(currentPort, '0.0.0.0', () => {
-    console.log(`🚀 CET Exam Portal API running on port ${currentPort} (${process.env.NODE_ENV || 'development'})`)
+    console.log(`🚀🗄️ CET Exam Portal API running on port ${currentPort} (${process.env.NODE_ENV || 'development'})`)
   })
 
   server.on('error', (err) => {

@@ -5,6 +5,24 @@ const { clearSessionCookies } = require('../utils/authHelpers')
 const { isSuperAdminUser, hasAdminPrivileges } = require('../utils/adminRoles')
 const SESSION_ACTIVITY_WRITE_INTERVAL_MS = 60 * 1000
 
+const isAllowedAdminPasswordResetRequest = (req) => req.method === 'POST'
+  && (
+    (req.baseUrl === '/api/users' && req.path === '/reset-password')
+    || (req.baseUrl === '/api/admin/security' && req.path === '/password')
+  )
+
+const rejectAdminPasswordResetRequired = (req, res) => {
+  if (req.user?.role !== 'admin' || !req.user.mustResetPassword || isAllowedAdminPasswordResetRequest(req)) {
+    return false
+  }
+  res.status(403).json({
+    success: false,
+    code: 'ADMIN_PASSWORD_RESET_REQUIRED',
+    message: 'Change your administrator password before continuing.',
+  })
+  return true
+}
+
 const rejectExpiredSession = (res) => {
   clearSessionCookies(res)
   return sendSessionExpired(res)
@@ -52,6 +70,15 @@ const createProtect = ({ recordActivity = true } = {}) => async (req, res, next)
     if (!user || (user.role === 'student' && user.status === 'pending')) {
       return res.status(401).json({ success: false, message: 'User account not found or deactivated.' })
     }
+    if (user.role === 'admin' && session.mfa_verified !== true) {
+      const revokedAt = new Date().toISOString()
+      await db.updateSession(decoded.sessionId, {
+        revoked_at: revokedAt,
+        expires_at: revokedAt,
+        is_current: false,
+      })
+      return rejectExpiredSession(res)
+    }
 
     if (user.status === 'rejected') {
       return res.status(403).json({ success: false, message: 'Your account has been deactivated.' })
@@ -64,6 +91,14 @@ const createProtect = ({ recordActivity = true } = {}) => async (req, res, next)
         code: 'ACCOUNT_LOCKED',
         message: user.lockedReason || 'Your account access has been temporarily suspended by the Super Admin.',
         lockedAt: user.lockedAt,
+      })
+    }
+
+    if (user.role === 'admin' && user.mustResetPassword && !isAllowedAdminPasswordResetRequest(req)) {
+      return res.status(403).json({
+        success: false,
+        code: 'ADMIN_PASSWORD_RESET_REQUIRED',
+        message: 'Change your administrator password before continuing.',
       })
     }
 
@@ -83,6 +118,7 @@ const createProtect = ({ recordActivity = true } = {}) => async (req, res, next)
 
     req.user = user
     req.sessionId = decoded.sessionId
+    req.mfaVerified = session.mfa_verified === true
     req.sessionInactivityTimeoutSeconds = inactivityTimeoutSeconds
     req.sessionExpiresAt = shouldRecordActivity
       ? new Date(Date.now() + inactivityTimeoutSeconds * 1000).toISOString()
@@ -108,6 +144,12 @@ const adminOnly = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Authentication required.' })
   }
 
+  if (req.user.role === 'admin' && req.mfaVerified !== true) {
+    return res.status(403).json({ success: false, code: 'ADMIN_MFA_REQUIRED', message: 'Administrator MFA verification is required.' })
+  }
+
+  if (rejectAdminPasswordResetRequired(req, res)) return
+
   if (hasAdminPrivileges(req.user)) {
     return next()
   }
@@ -123,6 +165,12 @@ const requireSuperAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ success: false, message: 'Authentication required.' })
   }
+
+  if (req.user.role === 'admin' && req.mfaVerified !== true) {
+    return res.status(403).json({ success: false, code: 'ADMIN_MFA_REQUIRED', message: 'Administrator MFA verification is required.' })
+  }
+
+  if (rejectAdminPasswordResetRequired(req, res)) return
 
   if (isSuperAdminUser(req.user)) {
     return next()
@@ -156,6 +204,7 @@ const optionalAuth = async (req, res, next) => {
       }
       const user = await db.findUserById(decoded.id)
       if (user && user.status !== 'rejected' && !(user.role === 'student' && user.status === 'pending')) {
+        if (user.role === 'admin' && session.mfa_verified !== true) return next()
         delete user.password
         delete user.mhcetPassword
         req.user = user

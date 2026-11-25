@@ -1038,7 +1038,7 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
           )
         })() : previewSubmitted ? (
           <div className="ctw-preview-instructions">
-            <CheckCircle2 size={26} color="#27805a" /><h2>Preview submitted</h2><p>This was a local preview. No student result was recorded.</p>
+            <CheckCircle2 size={26} color="#16a085" /><h2>Preview submitted</h2><p>This was a local preview. No student result was recorded.</p>
             <div className="ctw-preview-stats">
               <span><strong>{Object.keys(examAnswers).length}</strong>Answered</span>
               <span><strong>{previewQuestions.length - Object.keys(examAnswers).length}</strong>Unanswered</span>

@@ -29,6 +29,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "pdfjs-dist": "^4.10.38",
     "pg": "^8.23.0",
+    "qrcode": "^1.5.4",
     "rate-limit-redis": "^6.0.1",
     "redis": "^6.2.1",
     "sanitize-html": "^2.18.1",

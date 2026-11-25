@@ -69,6 +69,7 @@ router.put('/', protect, adminOnly, validateCsrfToken, apiLimiter, async (req, r
   if (!entries.length || entries.some(([key, value]) =>
     !/^[a-z][a-z0-9_]{0,63}$/.test(key) || /password|secret|token|api_key/i.test(key) ||
     !['string', 'number', 'boolean'].includes(typeof value) ||
+    (key === 'two_factor' && value === false) ||
     (key === 'session_timeout' && (!Number.isSafeInteger(value) || value < 1 || value > 1440))
   )) {
     return res.status(400).json({ success: false, message: 'One or more settings are invalid. The inactivity timeout must be 1 to 1440 minutes.' })
