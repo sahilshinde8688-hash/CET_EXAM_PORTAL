@@ -20,7 +20,6 @@ const { loginLimiter, registerLimiter, refreshLimiter, passwordResetLimiter, adm
 const { protect, protectWithoutActivity } = require('../middleware/auth')
 const { getSessionExpiresAt, sendSessionExpired } = require('../config/auth')
 const emailNotifications = require('../services/emailNotificationService')
-const { hasAdminPrivileges } = require('../utils/adminRoles')
 const {
   createAdminMfaChallenge,
   hashAdminIdentifier,
@@ -200,7 +199,7 @@ const refreshUserSession = async (req, res, recordRefreshHistory = false) => {
       clearSessionCookies(res)
       return sendSessionExpired(res)
     }
-    if (hasAdminPrivileges(user) && session.mfa_verified !== true) {
+    if (session.mfa_verified !== true) {
       const revokedAt = new Date().toISOString()
       await db.updateSession(storedToken.session_id, { revoked_at: revokedAt, expires_at: revokedAt, is_current: false })
       await db.updateRefreshToken(storedToken.id, { revoked_at: revokedAt })
@@ -365,9 +364,7 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       user = await db.findUserByEmail(input.toLowerCase())
     }
 
-    if (user?.role === 'admin') {
-      user = await db.findAdminMfaUserById(user.id)
-    }
+    if (user) user = await db.findMfaUserById(user.id)
 
     if (!user) {
       await db.createLoginHistory({
@@ -436,14 +433,6 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
         await db.updateUser(user.id, { mustResetPassword: true })
         user.mustResetPassword = true
       }
-      if (user.initialPasswordAvailable) {
-        await db.consumeInitialTemporaryPassword(user.id)
-        user.initialPasswordAvailable = false
-      }
-
-      const challenge = await createAdminMfaChallenge(user, Boolean(rememberMe))
-      res.setHeader('Cache-Control', 'no-store')
-      return res.status(200).json({ requiresMfa: true, ...challenge })
     }
 
     if (user.initialPasswordAvailable) {
@@ -451,20 +440,16 @@ router.post('/login', validateCsrfToken, sensitiveHeaders, loginLimiter, async (
       user.initialPasswordAvailable = false
     }
 
-    const payload = await createAuthSession(user, req, res, Boolean(rememberMe))
-
-    if (user.mustResetPassword) {
-      payload.mustResetPassword = true
-    }
-
-    return res.status(200).json(payload)
+    const challenge = await createAdminMfaChallenge(user, Boolean(rememberMe))
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(200).json({ requiresMfa: true, ...challenge })
   } catch (err) {
     console.error('Login route error:', err.message || err)
     return res.status(503).json({ success: false, message: 'Authentication service is temporarily unavailable. Please try again later.' })
   }
 })
 
-router.post('/admin-mfa/verify', validateCsrfToken, sensitiveHeaders, adminMfaLimiter, async (req, res) => {
+const verifyMfa = async (req, res) => {
   try {
     const result = await verifyAdminMfaChallenge(req.body?.challengeToken, req.body?.code)
     if (!result) {
@@ -487,7 +472,7 @@ router.post('/admin-mfa/verify', validateCsrfToken, sensitiveHeaders, adminMfaLi
         success: false,
         code: result.locked ? 'ACCOUNT_LOCKED' : null,
         message: result.locked
-          ? 'Your account has been locked. Please contact the Super Admin.'
+          ? 'Your account has been temporarily locked. Please contact your administrator.'
           : 'Invalid or expired verification request.',
       })
     }
@@ -502,10 +487,12 @@ router.post('/admin-mfa/verify', validateCsrfToken, sensitiveHeaders, adminMfaLi
       ...(result.usedRecoveryCode ? { usedRecoveryCode: true } : {}),
     })
   } catch (err) {
-    console.error('Administrator MFA verification failed:', err.message || err)
+    console.error('MFA verification failed:', err.message || err)
     return res.status(503).json({ success: false, message: 'Authentication service is temporarily unavailable.' })
   }
-})
+}
+
+router.post(['/mfa/verify', '/admin-mfa/verify'], validateCsrfToken, sensitiveHeaders, adminMfaLimiter, verifyMfa)
 
 router.post('/refresh', validateCsrfToken, refreshLimiter, async (req, res) => refreshUserSession(req, res, true))
 

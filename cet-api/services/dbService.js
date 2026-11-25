@@ -202,7 +202,7 @@ const findUserById = async (id) => {
   return null
 }
 
-const findAdminMfaUserById = async (id) => {
+const findMfaUserById = async (id) => {
   if (!id) return null
   const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle()
   if (error) throw error
@@ -1767,7 +1767,7 @@ module.exports = {
   getSystemSetting,
   // User
   findUserById,
-  findAdminMfaUserById,
+  findMfaUserById,
   findUserByEmail,
   findUserByMhcetId,
   createUser,

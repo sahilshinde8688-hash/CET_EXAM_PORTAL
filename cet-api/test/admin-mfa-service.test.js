@@ -38,7 +38,7 @@ const db = {
     })
   },
   findAdminMfaChallenge: async (tokenHash) => state.challenges.get(tokenHash) || null,
-  findAdminMfaUserById: async () => state.user,
+  findMfaUserById: async () => state.user,
   getAdminAuthLock: async () => state.lock,
   completeAdminTotpSetup: async ({ userId, tokenHash, counter, backupCodeHashes }) => {
     const challenge = state.challenges.get(tokenHash)
@@ -112,6 +112,25 @@ test('enrollment requires a valid code and returns recovery codes once', async (
   assert.equal(state.user.totpEnabled, true)
   assert.equal(decryptTotpSecret(state.user.totpSecretEncrypted), challenge.manualSecret)
   assert.equal(await verifyAdminMfaChallenge(challenge.challengeToken, code), null)
+})
+
+test('student accounts must enroll an authenticator before receiving a session', async () => {
+  resetState()
+  state.user = {
+    ...user,
+    id: 'student-1',
+    email: 'student@example.test',
+    role: 'student',
+  }
+
+  const challenge = await createAdminMfaChallenge(state.user)
+  assert.equal(challenge.setupRequired, true)
+
+  const result = await verifyAdminMfaChallenge(challenge.challengeToken, nextCode(challenge.manualSecret))
+  assert.equal(result.valid, true)
+  assert.equal(result.user.role, 'student')
+  assert.equal(result.backupCodes.length, 10)
+  assert.equal(state.user.totpEnabled, true)
 })
 
 test('login rejects expired and replayed authenticator codes and consumes recovery codes once', async () => {

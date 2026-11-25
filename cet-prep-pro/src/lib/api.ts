@@ -435,7 +435,7 @@ export const authAPI = {
     const csrfToken = await ensureCsrfToken()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-    const res = await fetch(`${BASE}/auth/admin-mfa/verify`, {
+    const res = await fetch(`${BASE}/auth/mfa/verify`, {
       method: 'POST',
       credentials: 'include',
       headers,

@@ -61,8 +61,8 @@ const verifyAdminMfaChallenge = async (token, suppliedCode) => {
   const challenge = await db.findAdminMfaChallenge(tokenHash)
   if (!challenge || challenge.used_at || Date.parse(challenge.expires_at) <= Date.now()) return null
 
-  const user = await db.findAdminMfaUserById(challenge.user_id)
-  if (!user || user.role !== 'admin' || user.status !== 'approved') return null
+  const user = await db.findMfaUserById(challenge.user_id)
+  if (!user || !['admin', 'student'].includes(user.role) || user.status === 'pending' || user.status === 'rejected') return null
   if (user.isLocked) return { valid: false, locked: true, user }
   const identifierHash = hashAdminIdentifier(user.email)
   const lock = await db.getAdminAuthLock(identifierHash)

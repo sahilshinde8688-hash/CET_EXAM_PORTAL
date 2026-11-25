@@ -98,7 +98,7 @@ export default function SignIn({
           setSubmitState('idle')
           return
         }
-        if (usedRecoveryCode) setErrorMsg('A recovery code was used. Generate a replacement set from Administrator Settings.')
+        if (usedRecoveryCode) setErrorMsg('A recovery code was used. Contact an administrator to replace your recovery codes.')
         if (authenticatedUser.mustResetPassword) {
           setMfaChallenge(null)
           setMustResetPassword(true)
@@ -374,7 +374,7 @@ export default function SignIn({
                 : mfaChallenge
                 ? mfaChallenge.setupRequired
                   ? 'Scan this QR code with Google Authenticator or Microsoft Authenticator, then enter the current six-digit code.'
-                  : 'Sign in to continue your lab work.'
+                  : 'Enter the current six-digit code from your authenticator app.'
                 : mustResetPassword
                 ? 'Choose a new password to secure your account.'
                 : activeTab === 'login'

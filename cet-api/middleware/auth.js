@@ -70,7 +70,7 @@ const createProtect = ({ recordActivity = true } = {}) => async (req, res, next)
     if (!user || (user.role === 'student' && user.status === 'pending')) {
       return res.status(401).json({ success: false, message: 'User account not found or deactivated.' })
     }
-    if (user.role === 'admin' && session.mfa_verified !== true) {
+    if (session.mfa_verified !== true) {
       const revokedAt = new Date().toISOString()
       await db.updateSession(decoded.sessionId, {
         revoked_at: revokedAt,
@@ -144,8 +144,8 @@ const adminOnly = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Authentication required.' })
   }
 
-  if (req.user.role === 'admin' && req.mfaVerified !== true) {
-    return res.status(403).json({ success: false, code: 'ADMIN_MFA_REQUIRED', message: 'Administrator MFA verification is required.' })
+  if (req.mfaVerified !== true) {
+    return res.status(403).json({ success: false, code: 'MFA_REQUIRED', message: 'Authenticator verification is required.' })
   }
 
   if (rejectAdminPasswordResetRequired(req, res)) return
@@ -166,8 +166,8 @@ const requireSuperAdmin = (req, res, next) => {
     return res.status(401).json({ success: false, message: 'Authentication required.' })
   }
 
-  if (req.user.role === 'admin' && req.mfaVerified !== true) {
-    return res.status(403).json({ success: false, code: 'ADMIN_MFA_REQUIRED', message: 'Administrator MFA verification is required.' })
+  if (req.mfaVerified !== true) {
+    return res.status(403).json({ success: false, code: 'MFA_REQUIRED', message: 'Authenticator verification is required.' })
   }
 
   if (rejectAdminPasswordResetRequired(req, res)) return
@@ -204,7 +204,7 @@ const optionalAuth = async (req, res, next) => {
       }
       const user = await db.findUserById(decoded.id)
       if (user && user.status !== 'rejected' && !(user.role === 'student' && user.status === 'pending')) {
-        if (user.role === 'admin' && session.mfa_verified !== true) return next()
+        if (session.mfa_verified !== true) return next()
         delete user.password
         delete user.mhcetPassword
         req.user = user

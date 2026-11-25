@@ -11,7 +11,7 @@ const emailNotifications = require('../services/emailNotificationService')
 
 const router = express.Router()
 
-const getAdmin = (req) => db.findAdminMfaUserById(req.user.id || req.user._id)
+const getAdmin = (req) => db.findMfaUserById(req.user.id || req.user._id)
 
 const reauthenticate = async (user, currentPassword, code) => {
   if (typeof currentPassword !== 'string' || typeof code !== 'string' || !user.password) return false

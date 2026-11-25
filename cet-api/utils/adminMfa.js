@@ -67,7 +67,7 @@ const matchTotpCounter = (secret, token, now = Date.now(), lastCounter = null) =
 
 const encryptionKey = () => {
   const configured = process.env.ADMIN_TOTP_ENCRYPTION_KEY
-  if (!configured) throw new Error('ADMIN_TOTP_ENCRYPTION_KEY is required for administrator MFA.')
+  if (!configured) throw new Error('ADMIN_TOTP_ENCRYPTION_KEY is required for MFA.')
   const key = /^[\da-f]{64}$/i.test(configured)
     ? Buffer.from(configured, 'hex')
     : Buffer.from(configured, 'base64')
@@ -90,7 +90,7 @@ const encryptTotpSecret = (secret) => {
 const decryptTotpSecret = (value) => {
   const [version, ivValue, tagValue, encryptedValue] = String(value || '').split('.')
   if (version !== 'v1' || !ivValue || !tagValue || !encryptedValue) {
-    throw new Error('Stored administrator MFA secret is invalid.')
+    throw new Error('Stored MFA secret is invalid.')
   }
   const decipher = crypto.createDecipheriv('aes-256-gcm', encryptionKey(), Buffer.from(ivValue, 'base64url'))
   decipher.setAuthTag(Buffer.from(tagValue, 'base64url'))
