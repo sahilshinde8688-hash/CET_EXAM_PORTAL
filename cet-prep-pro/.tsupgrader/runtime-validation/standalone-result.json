@@ -1,0 +1,129 @@
+{
+  "planHash": "0f3ae7fa42603d6e73566a2628f81e27bd6f7959a71e39de70d972c44f2bc3ca",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-26T14:49:46.3885892Z",
+  "retryCount": 3,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 0,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "frontend-build",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E cet-prep-pro@0.0.0 build\r\n\u003E vite build\r\n\r\n\u001B[36mvite v8.1.0 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\n\u001B[2K\r\ntransforming...\u2713 1021 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                                           1.54 kB \u2502 gzip:   0.68 kB\r\ndist/assets/KaTeX_Size3-Regular-CTq5MqoE.woff             4.42 kB\r\ndist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2            4.92 kB\r\ndist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2            5.20 kB\r\ndist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2            5.46 kB\r\ndist/assets/KaTeX_Size4-Regular-BF-4gkZK.woff             5.98 kB\r\ndist/assets/KaTeX_Size2-Regular-oD1tc_U0.woff             6.18 kB\r\ndist/assets/KaTeX_Size1-Regular-C195tn64.woff             6.49 kB\r\ndist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2      6.90 kB\r\ndist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2         6.91 kB\r\ndist/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf              7.58 kB\r\ndist/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff       7.65 kB\r\ndist/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff          7.71 kB\r\ndist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2           9.64 kB\r\ndist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2       10.34 kB\r\ndist/assets/KaTeX_Size4-Regular-DWFBv043.ttf             10.36 kB\r\ndist/assets/KaTeX_Script-Regular-D5yQViql.woff           10.58 kB\r\ndist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2         11.31 kB\r\ndist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2            11.34 kB\r\ndist/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf             11.50 kB\r\ndist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2        12.02 kB\r\ndist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2          12.21 kB\r\ndist/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf             12.22 kB\r\ndist/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff        12.31 kB\r\ndist/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf       12.34 kB\r\ndist/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf          12.36 kB\r\ndist/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff          13.20 kB\r\ndist/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff             13.29 kB\r\ndist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2      13.56 kB\r\ndist/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff         14.11 kB\r\ndist/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff           14.40 kB\r\ndist/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff       16.02 kB\r\ndist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2         16.40 kB\r\ndist/assets/KaTeX_Math-Italic-t53AETM-.woff2             16.44 kB\r\ndist/assets/KaTeX_Script-Regular-C5JkGWo-.ttf            16.64 kB\r\ndist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2         16.78 kB\r\ndist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2             16.98 kB\r\ndist/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff          18.66 kB\r\ndist/assets/KaTeX_Math-Italic-DA0__PXp.woff              18.74 kB\r\ndist/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff          19.41 kB\r\ndist/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf         19.43 kB\r\ndist/assets/KaTeX_Fraktur-Regular-CB_wures.ttf           19.57 kB\r\ndist/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf              19.58 kB\r\ndist/assets/KaTeX_Main-Italic-BMLOBm91.woff              19.67 kB\r\ndist/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf          22.36 kB\r\ndist/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf            24.50 kB\r\ndist/assets/KaTeX_Main-Bold-Cx986IdX.woff2               25.32 kB\r\ndist/assets/KaTeX_Main-Regular-B22Nviop.woff2            26.27 kB\r\ndist/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf        27.55 kB\r\ndist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2             28.07 kB\r\ndist/assets/KaTeX_Main-Bold-Jm3AIy58.woff                29.91 kB\r\ndist/assets/KaTeX_Main-Regular-Dr94JaBh.woff             30.77 kB\r\ndist/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf           31.19 kB\r\ndist/assets/KaTeX_Math-Italic-flOr_0UB.ttf               31.30 kB\r\ndist/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf           32.96 kB\r\ndist/assets/KaTeX_AMS-Regular-DMm9YOAa.woff              33.51 kB\r\ndist/assets/KaTeX_Main-Italic-3WenGoN9.ttf               33.58 kB\r\ndist/assets/KaTeX_Main-Bold-waoOVXN0.tt\n\u2026[truncated]",
+        "durationMs": 2673
+      },
+      {
+        "name": "mocktests-lint",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E cet-prep-pro@0.0.0 lint\r\n\u003E oxlint src/components/MockTests.tsx src/lib/mockTestCatalog.ts src/lib/mockTestCatalog.test.ts\r\n\r\n",
+        "durationMs": 581
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E cet-prep-pro@0.0.0 test\r\n\u003E vitest run\r\n\r\n\r\n RUN  v5.1.2 C:/Users/Sahil/Downloads/CET PORTAL/cet-prep-pro\r\n\r\n\r\n Test Files  1 passed (1)\r\n      Tests  5 passed (5)\r\n   Start at  20:19:44\r\n   Duration  190ms (import 41%, transform 33%, worker 14%, tests 11%, environment 1%)\r\n\r\n",
+        "durationMs": 1499,
+        "testResults": {
+          "testFramework": "vitest",
+          "runnerDetectedFrom": "package_json",
+          "testsTotal": 5,
+          "testsPassed": 5,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": false
+        }
+      },
+      {
+        "name": "home-page-responds",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022 class=\u0022light\u0022\u003E\r\n  \u003Chead\u003E\n    \u003Cscript type=\u0022module\u0022\u003Eimport { injectIntoGlobalHook } from \u0022/@react-refresh\u0022;\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$ = () =\u003E {};\nwindow.$RefreshSig$ = () =\u003E (type) =\u003E type;\u003C/script\u003E\n\n    \u003Cscript type=\u0022module\u0022 src=\u0022/@vite/client\u0022\u003E\u003C/script\u003E\n\r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Clink rel=\u0022icon\u0022 type=\u0022image/svg\u002Bxml\u0022 href=\u0022/favicon.svg\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0, viewport-fit=cover\u0022 /\u003E\r\n    \u003Cmeta name=\u0022theme-color\u0022 content=\u0022#d21436\u0022 /\u003E\r\n    \u003Cmeta name=\u0022description\u0022 content=\u0022Prepare for MHT-CET with focused mock tests, timed practice, personal results and performance insights from CET Nova.\u0022 /\u003E\r\n    \u003Ctitle\u003ECET Nova | MHT-CET Preparation\u003C/title\u003E\r\n    \u003Clink href=\u0022https://fonts.googleapis.com\u0022 rel=\u0022preconnect\u0022 /\u003E\r\n    \u003Clink crossorigin=\u0022\u0022 href=\u0022https://fonts.gstatic.com\u0022 rel=\u0022preconnect\u0022 /\u003E\r\n    \u003Clink\r\n      href=\u0022https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600\u0026family=Public\u002BSans:wght@400;600;700\u0026display=swap\u0022\r\n      rel=\u0022stylesheet\u0022\r\n    /\u003E\r\n    \u003Clink\r\n      href=\u0022https://fonts.googleapis.com/css2?family=Material\u002BSymbols\u002BOutlined:wght,FILL@100..700,0..1\u0026display=swap\u0022\r\n      rel=\u0022stylesheet\u0022\r\n    /\u003E\r\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \u003Cdiv id=\u0022app\u0022\u003E\u003C/div\u003E\r\n    \u003Cscript type=\u0022module\u0022 src=\u0022/src/main.tsx\u0022\u003E\u003C/script\u003E\r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n\n--- server output ---\n\r\n\u003E cet-prep-pro@0.0.0 dev\r\n\u003E vite --host 127.0.0.1 --strictPort\r\n\r\n\r\n  \u001B[32m\u001B[1mVITE\u001B[22m v8.1.0\u001B[39m  \u001B[2mready in \u001B[0m\u001B[1m233\u001B[22m\u001B[2m\u001B[0m ms\u001B[22m\r\n\r\n  \u001B[32m\u279C\u001B[39m  \u001B[1mLocal\u001B[22m:   \u001B[36mhttp://127.0.0.1:\u001B[1m5173\u001B[22m/\u001B[39m\r\n",
+        "durationMs": 1380
+      }
+    ],
+    "executions": [
+      {
+        "source": "frontend-build",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "build"
+        ],
+        "cwd": "C:\\Users\\Sahil\\Downloads\\CET PORTAL\\cet-prep-pro",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "mocktests-lint",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "lint",
+          "--",
+          "src/components/MockTests.tsx",
+          "src/lib/mockTestCatalog.ts",
+          "src/lib/mockTestCatalog.test.ts"
+        ],
+        "cwd": "C:\\Users\\Sahil\\Downloads\\CET PORTAL\\cet-prep-pro",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "test"
+        ],
+        "cwd": "C:\\Users\\Sahil\\Downloads\\CET PORTAL\\cet-prep-pro",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "home-page-responds",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "dev",
+          "--",
+          "--host",
+          "127.0.0.1",
+          "--strictPort"
+        ],
+        "cwd": "C:\\Users\\Sahil\\Downloads\\CET PORTAL\\cet-prep-pro",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

@@ -359,6 +359,7 @@ export default function App() {
   const navigate = (target: Page | string) => {
     const resolvedTarget = (target === 'admin-dashboard' ? 'admin' : target) as Page
     if (resolvedTarget === 'landing') {
+      if (session.get()) return
       if (page === 'landing') {
         document.getElementById('home')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         return

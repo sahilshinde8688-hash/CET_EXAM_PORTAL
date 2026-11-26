@@ -102,14 +102,27 @@ const refreshLimiter = createLimiter({
 })
 
 /**
- * General API rate limiter: 200 requests per 15 minutes
+ * Read endpoints are refreshed by multiple dashboard widgets and browser tabs.
+ * Keep those requests from exhausting the stricter write-request budget.
  */
-const apiLimiter = createLimiter({
+const apiReadLimiter = createLimiter({
+  windowMs: API_RATE_LIMIT_WINDOW_MS,
+  max: 1000,
+  message: 'API rate limit exceeded. Please slow down.',
+  keyGenerator: (req, res) => `api:read:${authenticatedUserKey(req, res)}`,
+})
+
+const apiWriteLimiter = createLimiter({
   windowMs: API_RATE_LIMIT_WINDOW_MS,
   max: 200,
   message: 'API rate limit exceeded. Please slow down.',
-  keyGenerator: authenticatedUserKey,
+  keyGenerator: (req, res) => `api:write:${authenticatedUserKey(req, res)}`,
 })
+
+const apiLimiter = (req, res, next) => {
+  const limiter = req.method === 'GET' ? apiReadLimiter : apiWriteLimiter
+  return limiter(req, res, next)
+}
 
 /**
  * Test submission rate limiter: 15 submissions per 15 minutes per user.

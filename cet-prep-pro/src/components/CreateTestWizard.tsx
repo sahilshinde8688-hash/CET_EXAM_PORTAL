@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
-  ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookOpen, Check, CheckCircle2,
+  ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2,
   CircleHelp, Clock3, Eye, FileSpreadsheet, FileUp, ImagePlus, LoaderCircle,
   Plus, Save, Search, Settings2, Trash2, Upload, X,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { MockTest, Question } from '../lib/api'
-import { mockTestAssignmentsAPI, mockTestsAPI, questionsAPI, session } from '../lib/api'
+import { mockTestAssignmentsAPI, mockTestsAPI, questionsAPI } from '../lib/api'
 import RichQuestionContent from './RichQuestionContent'
 import '../create-test.css'
 
@@ -95,8 +95,7 @@ const QUESTION_TYPES: QuestionType[] = [
   'Assertion and Reason', 'Match the Following', 'Passage-Based Questions', 'Image-Based Questions',
 ]
 const DIFFICULTIES: Question['difficulty'][] = ['Easy', 'Medium', 'Hard']
-const DRAFT_KEY = `cetnova.create-test.draft.v1:${session.get<{ email?: string; _id?: string }>()?.email || 'admin'}`
-const STEPS = ['Basics', 'Configuration', 'Sections & questions', 'Preview', 'Publish']
+const STEPS = ['Basics', 'Configuration', 'Questions', 'Preview', 'Publish']
 const createId = () => `section-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const createSection = (name = 'Section A'): TestSection => ({
@@ -158,15 +157,6 @@ const getSpreadsheetValue = (row: Record<string, unknown>, ...keys: string[]) =>
     if (value !== undefined && String(value).trim()) return String(value).trim()
   }
   return ''
-}
-
-function isDraftForm(value: unknown): value is DraftForm {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<DraftForm>
-  return typeof candidate.title === 'string'
-    && typeof candidate.subject === 'string'
-    && typeof candidate.config?.version === 'number'
-    && Array.isArray(candidate.config.sections)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -243,7 +233,6 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
   const [savedTestId, setSavedTestId] = useState(() => initialTest && !duplicate ? initialTest._id : '')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
-  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [subjectFilter, setSubjectFilter] = useState('')
   const [chapterFilter, setChapterFilter] = useState('')
@@ -252,7 +241,6 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
   const [typeFilter, setTypeFilter] = useState('')
   const [marksFilter, setMarksFilter] = useState('')
   const [questionMode, setQuestionMode] = useState<'bank' | 'manual' | 'import'>('bank')
-  const [activeSectionId, setActiveSectionId] = useState('')
   const [previewQuestion, setPreviewQuestion] = useState<Question | null>(null)
   const [examDevice, setExamDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [previewStarted, setPreviewStarted] = useState(false)
@@ -279,24 +267,22 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
   const pdfInputRef = useRef<HTMLInputElement>(null)
   const thumbnailInputRef = useRef<HTMLInputElement>(null)
   const questionImageInputRef = useRef<HTMLInputElement>(null)
-  const initialLoaded = useRef(false)
 
   const selectedIds = useMemo(() => new Set(form.config.sections.flatMap(section => section.questionIds)), [form.config.sections])
   const selectedQuestions = useMemo(() => questions.filter(question => selectedIds.has(question._id)), [questions, selectedIds])
   const totalQuestions = selectedIds.size
   const totalMarks = form.config.sections.reduce((sum, section) => sum + section.questionIds.length * section.positiveMarks, 0)
-  const currentSection = form.config.sections.find(section => section.id === activeSectionId) || form.config.sections[0]
+  const currentSection = form.config.sections[0]
   const filteredQuestions = useMemo(() => questions.filter(question => {
     const query = search.trim().toLowerCase()
     return (!query || `${question.text} ${question.topic} ${question.chapter || ''} ${question._id}`.toLowerCase().includes(query))
-      && (!currentSection?.subject || currentSection.subject === 'Mixed' || question.subject === currentSection.subject)
       && (!subjectFilter || question.subject === subjectFilter)
       && (!chapterFilter || question.chapter === chapterFilter)
       && (!topicFilter || question.topic === topicFilter)
       && (!difficultyFilter || question.difficulty === difficultyFilter)
       && (!typeFilter || getQuestionType(question) === typeFilter)
       && (!marksFilter || Number(question.marks) === Number(marksFilter))
-  }), [questions, search, subjectFilter, chapterFilter, topicFilter, difficultyFilter, typeFilter, marksFilter, currentSection?.subject])
+  }), [questions, search, subjectFilter, chapterFilter, topicFilter, difficultyFilter, typeFilter, marksFilter])
 
   const selectedBySubject = useMemo(() => selectedQuestions.reduce<Record<string, number>>((summary, question) => {
     summary[question.subject || 'Other'] = (summary[question.subject || 'Other'] || 0) + 1
@@ -306,9 +292,6 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
     summary[question.difficulty || 'Medium'] = (summary[question.difficulty || 'Medium'] || 0) + 1
     return summary
   }, {}), [selectedQuestions])
-  const currentSectionQuestions = currentSection
-    ? questions.filter(question => currentSection.questionIds.includes(question._id))
-    : []
   const previewQuestions = useMemo(() => form.config.sections.flatMap(section =>
     section.questionIds
       .map(id => questions.find(question => question._id === id))
@@ -344,44 +327,8 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
         if (active) setError(loadError instanceof Error ? loadError.message : 'Could not load the question bank.')
       })
       .finally(() => { if (active) setQuestionsLoading(false) })
-
-    try {
-      const saved = window.localStorage.getItem(DRAFT_KEY)
-      if (saved && !initialQuestionIds.length && !initialTest) {
-        const parsed: unknown = JSON.parse(saved)
-        if (isDraftForm(parsed)) {
-          setForm(parsed)
-          setNotice('Recovered your most recent autosaved test draft.')
-          setDraftSavedAt(Date.now())
-        }
-      }
-    } catch (loadError) {
-      console.error('Could not recover the saved test draft:', loadError)
-      setError('A saved test draft could not be recovered. You can continue with a new test.')
-    }
-    initialLoaded.current = true
     return () => { active = false }
   }, [initialQuestionIds, initialTest])
-
-  useEffect(() => {
-    if (!initialLoaded.current) return
-    const timer = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(DRAFT_KEY, JSON.stringify(form))
-        setDraftSavedAt(Date.now())
-      } catch (saveError) {
-        console.error('Could not autosave the test draft:', saveError)
-        setError('Autosave is unavailable in this browser session. Keep this page open until you save the test.')
-      }
-    }, 500)
-    return () => window.clearTimeout(timer)
-  }, [form])
-
-  useEffect(() => {
-    if (form.config.sections.length && !form.config.sections.some(section => section.id === activeSectionId)) {
-      setActiveSectionId(form.config.sections[0].id)
-    }
-  }, [form.config.sections, activeSectionId])
 
   useEffect(() => {
     setPreviewStarted(false)
@@ -404,9 +351,7 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
 
   const assignQuestion = (question: Question) => {
     if (!currentSection || selectedIds.has(question._id)) return
-    const subject = currentSection.subject || question.subject
     updateSection(currentSection.id, {
-      subject,
       questionIds: [...currentSection.questionIds, question._id],
     })
   }
@@ -754,7 +699,6 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
           allowResume: true,
         })
       }
-      window.localStorage.removeItem(DRAFT_KEY)
       setNotice(status === 'draft' ? 'Draft saved successfully.' : status === 'scheduled' ? 'Test scheduled successfully.' : 'Test published successfully.')
       await onSaved()
       onClose()
@@ -763,20 +707,6 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
     } finally {
       setSaving(false)
     }
-  }
-
-  const addSection = () => {
-    const section = createSection(`Section ${String.fromCharCode(65 + form.config.sections.length)}`)
-    updateConfig({ sections: [...form.config.sections, section] })
-    setActiveSectionId(section.id)
-  }
-
-  const moveSection = (index: number, direction: -1 | 1) => {
-    const target = index + direction
-    if (target < 0 || target >= form.config.sections.length) return
-    const sections = [...form.config.sections]
-    ;[sections[index], sections[target]] = [sections[target], sections[index]]
-    updateConfig({ sections })
   }
 
   const renderBasics = () => (
@@ -877,40 +807,8 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
     </div>
   )
 
-  const renderSectionsAndQuestions = () => (
+  const renderQuestions = () => (
     <div className="ctw-question-layout">
-      <div className="ctw-sections-panel">
-        <div className="ctw-panel-heading"><h3>Sections</h3><button type="button" className="ctw-icon-button" onClick={addSection} aria-label="Add section"><Plus size={17} /></button></div>
-        {form.config.sections.map((section, index) => (
-          <div className={`ctw-section-item${currentSection?.id === section.id ? ' is-active' : ''}`} key={section.id}>
-            <button type="button" className="ctw-section-select" onClick={() => setActiveSectionId(section.id)}>
-              <span>{section.name || `Section ${index + 1}`}</span><small>{section.questionIds.length} questions</small>
-            </button>
-            <div className="ctw-section-actions">
-              <button type="button" className="ctw-icon-button" onClick={() => moveSection(index, -1)} aria-label="Move section up" disabled={!index}><ArrowUp size={14} /></button>
-              <button type="button" className="ctw-icon-button" onClick={() => moveSection(index, 1)} aria-label="Move section down" disabled={index === form.config.sections.length - 1}><ArrowDown size={14} /></button>
-              <button type="button" className="ctw-icon-button ctw-icon-button--danger" aria-label="Delete section" disabled={form.config.sections.length === 1} onClick={() => updateConfig({ sections: form.config.sections.filter(item => item.id !== section.id) })}><Trash2 size={14} /></button>
-            </div>
-          </div>
-        ))}
-        {currentSection && (
-          <div className="ctw-section-settings">
-            <label className="ctw-field">Section name<input value={currentSection.name} onChange={event => updateSection(currentSection.id, { name: event.target.value })} /></label>
-            <label className="ctw-field">Subject
-              <select value={currentSection.subject} onChange={event => updateSection(currentSection.id, { subject: event.target.value })}>
-                <option value="">Choose subject</option>{[...new Set(questions.map(question => question.subject).filter(Boolean))].map(subject => <option key={subject}>{subject}</option>)}
-                <option>Mixed</option>
-              </select>
-            </label>
-            <div className="ctw-grid ctw-grid--two">
-              <label className="ctw-field">Positive marks<input type="number" min={0.25} step={0.25} value={currentSection.positiveMarks} onChange={event => updateSection(currentSection.id, { positiveMarks: Number(event.target.value) })} /></label>
-              <label className="ctw-field">Negative marks<input type="number" min={0} step={0.25} value={currentSection.negativeMarks} onChange={event => updateSection(currentSection.id, { negativeMarks: Number(event.target.value) })} /></label>
-            </div>
-            <label className="ctw-field">Section duration (minutes)<input type="number" min={1} value={currentSection.duration} onChange={event => updateSection(currentSection.id, { duration: event.target.value ? Number(event.target.value) : '' })} placeholder="Use full test duration" /></label>
-            <div className="ctw-section-total"><span>{currentSection.questionIds.length} questions</span><strong>{currentSection.questionIds.length * currentSection.positiveMarks} marks</strong></div>
-          </div>
-        )}
-      </div>
       <div className="ctw-bank-panel">
         <div className="ctw-mode-tabs" role="tablist" aria-label="Question source">
           <button type="button" className={questionMode === 'bank' ? 'is-active' : ''} onClick={() => setQuestionMode('bank')}><BookOpen size={16} />Question bank</button>
@@ -940,7 +838,7 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
                 {filteredQuestions.map(question => {
                   const selected = selectedIds.has(question._id)
                   return <article className={`ctw-question-card${selected ? ' is-selected' : ''}`} key={question._id}>
-                    <label className="ctw-question-check"><input type="checkbox" checked={selected} disabled={selected} onChange={() => assignQuestion(question)} /><span>{question.subject} · {question.chapter || 'Unclassified'} · {question.difficulty}</span></label>
+                    <label className="ctw-question-check"><input type="checkbox" checked={selected} onChange={() => selected ? removeQuestion(question._id) : assignQuestion(question)} /><span>{question.subject} · {question.chapter || 'Unclassified'} · {question.difficulty}</span></label>
                     <div className="ctw-question-statement"><RichQuestionContent content={question.text} /></div>
                     <div className="ctw-question-meta"><span>{getQuestionType(question)}</span><span>{question.marks} marks</span><button type="button" className="ctw-text-button" onClick={() => setPreviewQuestion(question)}><Eye size={14} />Preview</button>
                       {!selected && <button type="button" className="ctw-text-button" onClick={() => assignQuestion(question)}>Add</button>}
@@ -948,7 +846,6 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
                   </article>
                 })}
               </div> : <div className="ctw-empty"><CircleHelp size={20} />No active questions match these filters.</div>}
-            {currentSectionQuestions.length > 0 && <div className="ctw-current-section-list"><strong>Selected in {currentSection?.name}</strong>{currentSectionQuestions.map((question, index) => <div key={question._id}><span>{index + 1}. {question.text.slice(0, 90)}</span><button type="button" aria-label="Remove question" onClick={() => removeQuestion(question._id)}><X size={14} /></button></div>)}</div>}
           </>
         )}
         {questionMode === 'manual' && (
@@ -1083,14 +980,14 @@ export default function CreateTestWizard({ onClose, onSaved, initialQuestionIds 
     </div>
   )
 
-  const stepContent = [renderBasics, renderConfiguration, renderSectionsAndQuestions, renderPreview, renderPublish][step]()
+  const stepContent = [renderBasics, renderConfiguration, renderQuestions, renderPreview, renderPublish][step]()
 
   return (
-    <div className="ctw-overlay" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) onClose() }}>
-      <section className="ctw-dialog" role="dialog" aria-modal="true" aria-labelledby="ctw-title">
-        <header className="ctw-header"><div><span className="ctw-eyebrow">CETNova · EXAM BUILDER</span><h1 id="ctw-title">Create a test</h1></div><div className="ctw-header-actions"><span className="ctw-autosave">{draftSavedAt ? `Autosaved ${new Date(draftSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Autosaving…'}</span><button type="button" className="ctw-icon-button" aria-label="Close test builder" disabled={saving} onClick={onClose}><X size={20} /></button></div></header>
+    <div className="ctw-overlay">
+      <section className="ctw-dialog" aria-labelledby="ctw-title">
+        <header className="ctw-header"><div><span className="ctw-eyebrow">CETNova · EXAM BUILDER</span><h1 id="ctw-title">Create a test</h1></div><div className="ctw-header-actions"><button type="button" className="ctw-icon-button" aria-label="Close test builder" disabled={saving} onClick={onClose}><X size={20} /></button></div></header>
         <div className="ctw-stepper" aria-label="Test creation progress">{STEPS.map((label, index) => <button type="button" key={label} className={`ctw-step${step === index ? ' is-active' : ''}${step > index ? ' is-complete' : ''}`} onClick={() => { if (index < step) setStep(index); else if (index === step + 1) goNext() }}><span>{step > index ? <Check size={14} /> : index + 1}</span><small>{label}</small></button>)}</div>
-        <main className="ctw-main"><div className="ctw-content"><div className="ctw-step-heading"><span>STEP {step + 1} OF {STEPS.length} · VERSION {form.config.revision}</span><h2>{STEPS[step]}</h2><p>{['Name your test and decide who it is for.', 'Set timing, marking and the student experience.', 'Organize sections and build your question set.', 'See the configured experience before publishing.', 'Confirm test details and choose how to release it.'][step]}</p></div>
+        <main className="ctw-main"><div className="ctw-content"><div className="ctw-step-heading"><span>STEP {step + 1} OF {STEPS.length} · VERSION {form.config.revision}</span><h2>{STEPS[step]}</h2><p>{['Name your test and decide who it is for.', 'Set timing, marking and the student experience.', 'Choose questions for your test.', 'See the configured experience before publishing.', 'Confirm test details and choose how to release it.'][step]}</p></div>
           {error && <div className="ctw-alert ctw-alert--error" role="alert">{error}</div>}
           {notice && !error && <div className="ctw-alert ctw-alert--success" role="status">{notice}</div>}
           {stepContent}

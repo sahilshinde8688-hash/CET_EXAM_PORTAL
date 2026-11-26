@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { questionsAPI, usersAPI, testsAPI, mockTestsAPI, session, Question, type AuthUser, type StartedMockTest, type TestResult } from '../lib/api'
 import ExamSuccessPage from './ExamSuccessPage'
 import ExamResultDashboard from './ExamResultDashboard'
@@ -117,6 +117,9 @@ export default function TestInterface({
   onAssignedSubmitted?: () => Promise<void> | void;
   onAssignedRetake?: () => void;
 }) {
+  const visitedQuestionsStorageKey = assignedAttempt
+    ? `cet_assigned_visited_${assignedAttempt.attempt._id}`
+    : `cet_test_visited_${mockTestId || examName}`
   const [questions, setQuestions] = useState<Question[]>(() => assignedAttempt?.questions.map(normalizeQuestion) || [])
   const [loading, setLoading] = useState(!assignedAttempt)
   const [error, setError] = useState<string | null>(null)
@@ -145,6 +148,16 @@ export default function TestInterface({
     }
     const saved = localStorage.getItem('cet_exam_marked')
     return saved ? JSON.parse(saved) : {}
+  })
+  const [visitedQuestionIds, setVisitedQuestionIds] = useState<Set<string>>(() => {
+    if (reviewMode) return new Set()
+    try {
+      const saved = sessionStorage.getItem(visitedQuestionsStorageKey)
+      const ids: unknown = saved ? JSON.parse(saved) : []
+      return new Set(Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [])
+    } catch {
+      return new Set()
+    }
   })
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(() => {
@@ -218,6 +231,21 @@ export default function TestInterface({
   }, [answers, assignedMode, reviewMode])
 
   useEffect(() => {
+    if (reviewMode || !questions[currentIndex]) return
+    const questionId = questions[currentIndex]._id
+    setVisitedQuestionIds(previous => {
+      if (previous.has(questionId)) return previous
+      return new Set(previous).add(questionId)
+    })
+  }, [currentIndex, questions, reviewMode])
+
+  useEffect(() => {
+    if (reviewMode) return
+    if (submitted) sessionStorage.removeItem(visitedQuestionsStorageKey)
+    else sessionStorage.setItem(visitedQuestionsStorageKey, JSON.stringify([...visitedQuestionIds]))
+  }, [reviewMode, submitted, visitedQuestionIds, visitedQuestionsStorageKey])
+
+  useEffect(() => {
     if (reviewMode || assignedMode) {
       if (assignedAttempt) {
         const key = `cet_assigned_marked_${assignedAttempt.attempt._id}`
@@ -265,6 +293,8 @@ export default function TestInterface({
   const [showSubmissionAnimation, setShowSubmissionAnimation] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [expiryNoticeVisible, setExpiryNoticeVisible] = useState(false)
+  const autoExpirySubmitStartedRef = useRef(false)
   const [showResultPage, setShowResultPage] = useState(reviewMode)
   const [confirmationId, setConfirmationId] = useState<string>('')
   const [user, setUser] = useState<{ name: string; mhcetId?: string; email: string } | null>(() => {
@@ -450,10 +480,13 @@ export default function TestInterface({
         }
         if (submittedResult) {
           setConfirmationId(`CONF-${Date.now()}-${Math.random().toString(36).slice(2, 11).toUpperCase()}`)
+        }
+        if (submittedResult || autoExpirySubmitStartedRef.current) {
           setShowSubmissionAnimation(true)
         }
       } catch (error) {
         console.error('Failed to submit assigned mock test:', error)
+        if (autoExpirySubmitStartedRef.current) setExpiryNoticeVisible(false)
         setSubmitError(error instanceof Error ? error.message : 'Your test could not be submitted. Please try again.')
         setShowSubmitConfirm(true)
       } finally {
@@ -579,6 +612,11 @@ export default function TestInterface({
     setIsSubmitting(false)
   }
 
+  const submitTestRef = useRef(submitTest)
+  useEffect(() => {
+    submitTestRef.current = submitTest
+  })
+
   const handleViewResults = () => {
     setShowSuccessPage(false)
     setShowResultPage(true)
@@ -586,8 +624,11 @@ export default function TestInterface({
 
   const handleRetakeExam = () => {
     // Reset all state for retake
+    autoExpirySubmitStartedRef.current = false
+    setExpiryNoticeVisible(false)
     setAnswers({})
     setMarked({})
+    setVisitedQuestionIds(new Set())
     setTimeRemaining(durationMinutes * 60)
     setTimeElapsed(0)
     setSubmitted(false)
@@ -742,9 +783,11 @@ export default function TestInterface({
   }, [answers, assignedAttempt, onAssignedSave, submitted])
 
   useEffect(() => {
-    if (reviewMode || loading || submitted || isSubmitting || timeRemaining > 0) return
-    void submitTest()
-  }, [isSubmitting, loading, reviewMode, submitted, timeRemaining])
+    if (reviewMode || loading || submitted || isSubmitting || timeRemaining > 0 || autoExpirySubmitStartedRef.current) return
+    autoExpirySubmitStartedRef.current = true
+    if (assignedMode) setExpiryNoticeVisible(true)
+    void submitTestRef.current()
+  }, [assignedMode, isSubmitting, loading, reviewMode, submitted, timeRemaining])
 
   const formatTime = (seconds: number) => {
     try {
@@ -786,10 +829,13 @@ export default function TestInterface({
     try {
       const q = questions[index]
       if (!q) return 'unvisited'
-      if (index === currentIndex) return 'current'
-      if (answers[q._id] !== undefined) return 'answered'
-      if (marked[q._id]) return 'marked'
-      return 'not-answered'
+      const isAnswered = answers[q._id] !== undefined
+      const isMarked = Boolean(marked[q._id])
+      if (assignedMode && isAnswered && isMarked) return 'answered-marked'
+      if (isAnswered) return 'answered'
+      if (isMarked) return 'marked'
+      if (index === currentIndex) return assignedMode ? 'not-answered' : 'current'
+      return visitedQuestionIds.has(q._id) ? 'not-answered' : 'unvisited'
     } catch (err) {
       console.error('Error in getQuestionState:', err)
       return 'unvisited'
@@ -928,7 +974,11 @@ export default function TestInterface({
   }
 
   if (assignedAttempt && submitted && showSubmissionAnimation) {
-    return <SubmissionAnimation />
+    return (
+      <SubmissionAnimation
+        message={autoExpirySubmitStartedRef.current ? 'Your assigned time is over. Your test has been submitted.' : undefined}
+      />
+    )
   }
 
   if (assignedAttempt && submitted && showResultPage && result && assignedResult) {
@@ -1035,7 +1085,7 @@ export default function TestInterface({
 
   if (assignedAttempt && submitted) {
     return (
-      <main className="test-root">
+      <main className={`test-root${assignedMode ? ' test-root--assigned-exam' : ''}`}>
         <section className="test-result-card" style={{ margin: 'auto', textAlign: 'center' }}>
           <div className="test-success-animation" aria-hidden="true">✓</div>
           <h1>Mock test submitted</h1>
@@ -1265,7 +1315,12 @@ export default function TestInterface({
   }
 
   return (
-    <div className="test-root">
+    <div className={`test-root${assignedMode ? ' test-root--assigned-exam' : ''}`}>
+      {expiryNoticeVisible && (
+        <div className="test-expiry-notice" role="status" aria-live="assertive">
+          Your assigned time is over. Your test is submitting now.
+        </div>
+      )}
       <header className="test-header">
         <div className="test-header-left">
           <button className="test-back-btn" type="button" onClick={() => void handleBackAction()} disabled={Boolean(assignedAttempt && !assignedAttempt.assignment.allowResume)}>
@@ -1315,7 +1370,7 @@ export default function TestInterface({
             <span className="test-palette-toggle-text">Palette</span>
             <span className="test-palette-badge">{currentIndex + 1}/{questions.length}</span>
           </button>
-          <div className="test-timer" style={timerPaused ? { borderColor: '#d21436', background: 'rgba(210, 20, 54, 0.1)', color: '#d21436' } : {}}>
+          <div className="test-timer" style={timerPaused ? { borderColor: assignedMode ? '#DC2626' : '#d21436', background: assignedMode ? 'rgba(220, 38, 38, 0.1)' : 'rgba(210, 20, 54, 0.1)', color: assignedMode ? '#DC2626' : '#d21436' } : {}}>
             <span className="material-symbols-outlined">{timerPaused ? 'timer_off' : 'timer'}</span>
             <span className="test-timer-text">
               {isReviewMode ? 'Review Mode' : formatTime(timeRemaining)}
@@ -1323,20 +1378,20 @@ export default function TestInterface({
             {timerPaused && !isReviewMode && (
               <span style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
-                background: '#d21436', color: '#fff', padding: '2px 6px',
+                background: assignedMode ? '#DC2626' : '#d21436', color: '#fff', padding: '2px 6px',
                 borderRadius: '4px', animation: 'timerPausePulse 1.4s ease-in-out infinite'
               }}>PAUSED</span>
             )}
           </div>
           <style>{`@keyframes timerPausePulse { 0%,100%{opacity:1} 50%{opacity:0.45} }`}</style>
           {isReviewMode ? (
-            <button className="test-submit-btn" onClick={() => setShowResultPage(true)}>Back to Analysis</button>
+            <button className="test-submit-btn test-submit-btn--primary" onClick={() => setShowResultPage(true)}>Back to Analysis</button>
           ) : assignedAttempt ? (
             assignedAttempt.assignment.allowResume && assignedAttempt.assignment.allowBackNavigation
-              ? <button className="test-submit-btn" onClick={() => void handleBackAction()}>Exit</button>
+              ? <button className="test-submit-btn test-submit-btn--exit" onClick={() => void handleBackAction()}>Exit</button>
               : null
           ) : (
-            <button className="test-submit-btn" onClick={() => void handleBackAction()}>Exit</button>
+            <button className="test-submit-btn test-submit-btn--exit" onClick={() => void handleBackAction()}>Exit</button>
           )}
         </div>
       </header>
@@ -1540,6 +1595,7 @@ export default function TestInterface({
                 <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--answered" /> Answered</div>
                 <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--marked" /> Marked</div>
                 <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--not-answered" /> Not Answered</div>
+                {assignedMode && <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--answered-marked" /> Answered &amp; Marked</div>}
                 <div className="test-legend-item"><span className="test-legend-dot test-legend-dot--unvisited" /> Unvisited</div>
               </div>
             </div>

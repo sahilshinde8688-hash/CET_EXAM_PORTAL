@@ -525,9 +525,24 @@ studentRouter.post('/attempts/:attemptId/submit', validateCsrfToken, apiLimiter,
     if (!UUID_RE.test(req.params.attemptId)) return safeError(res, 400, 'Invalid attempt ID.')
     const attempt = await db.getMockTestAttemptById(req.params.attemptId)
     if (!attempt || attempt.studentId !== studentIdFor(req)) return safeError(res, 404, 'Attempt not found.')
-    if (attempt.status !== 'in_progress') return safeError(res, 409, attempt.status === 'expired' ? 'This attempt has expired.' : 'This attempt has already been submitted.')
     const assignment = await db.getMockTestAssignmentById(attempt.assignmentId)
     if (!studentCanAccess(assignment, studentIdFor(req))) return safeError(res, 403, 'This assignment is no longer active.')
+    const canViewResult = assignment.resultVisibility === 'immediate'
+      || assignment.resultVisibility === 'after_close' && Date.now() >= new Date(assignment.endDateTime).getTime()
+    if (attempt.status !== 'in_progress') {
+      if ((attempt.status === 'expired' || attempt.status === 'submitted') && attempt.resultId) {
+        const result = await db.getTestResultById(attempt.resultId)
+        if (result) {
+          return res.json({
+            success: true,
+            message: 'Your assigned time is over. Your test has been submitted.',
+            attempt,
+            ...(canViewResult ? { result } : {}),
+          })
+        }
+      }
+      return safeError(res, 409, attempt.status === 'expired' ? 'This attempt has expired.' : 'This attempt has already been submitted.')
+    }
     const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(attempt.startedAt).getTime()) / 1000))
     if (Date.now() >= new Date(assignment.endDateTime).getTime() || assignment.schedulingStatus === 'expired') {
       const deadline = Math.min(
@@ -539,15 +554,28 @@ studentRouter.post('/attempts/:attemptId/submit', validateCsrfToken, apiLimiter,
         new Date(deadline).toISOString(),
         Math.max(0, Math.floor((deadline - new Date(attempt.startedAt).getTime()) / 1000)),
       )
+      let expiration = null
       if (expired) {
         try {
-          await evaluateAndSaveMockTestAttempt(expired, assignment)
+          expiration = await evaluateAndSaveMockTestAttempt(expired, assignment)
         } catch (error) {
           console.error(`Failed to evaluate expired mock-test attempt ${attempt._id}:`, error)
           return safeError(res, 503, 'The attempt expired and was saved. Result evaluation is pending; the scheduler will retry.')
         }
       }
-      return safeError(res, 410, 'The test deadline has passed. Previously saved answers were preserved.')
+      const completedAttempt = expiration?.attempt || await db.getMockTestAttemptById(attempt._id)
+      const result = expiration?.result || (completedAttempt?.resultId
+        ? await db.getTestResultById(completedAttempt.resultId)
+        : null)
+      if (completedAttempt?.status === 'expired' && result) {
+        return res.json({
+          success: true,
+          message: 'Your assigned time is over. Your test is submitting now.',
+          attempt: completedAttempt,
+          ...(canViewResult ? { result } : {}),
+        })
+      }
+      return safeError(res, 503, 'Your assigned time is over. Your saved answers were preserved while submission is finalized.')
     }
     const timedOut = elapsedSeconds >= assignment.duration * 60
     const answers = timedOut ? attempt.answers : req.body.answers && typeof req.body.answers === 'object' ? req.body.answers : attempt.answers
@@ -641,10 +669,7 @@ studentRouter.post('/attempts/:attemptId/submit', validateCsrfToken, apiLimiter,
       success: true,
       message: 'Mock test submitted successfully.',
       attempt: submittedAttempt,
-      ...(assignment.resultVisibility === 'immediate'
-        || assignment.resultVisibility === 'after_close' && Date.now() >= new Date(assignment.endDateTime).getTime()
-        ? { result }
-        : {}),
+      ...(canViewResult ? { result } : {}),
     })
   } catch (error) {
     return safeError(res, 500, 'Failed to submit mock test.', 'Your attempt could not be submitted. Please retry.')

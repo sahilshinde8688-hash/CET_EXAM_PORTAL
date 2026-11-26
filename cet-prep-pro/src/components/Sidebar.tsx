@@ -1,7 +1,19 @@
 export type Page = 'landing' | 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
 
 import { useEffect, useState } from 'react'
-import { Lottie } from 'lottie-react'
+import {
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
+  QrCode,
+  Settings,
+  Trophy,
+  X,
+  Plus,
+  type LucideIcon,
+} from 'lucide-react'
 import { authAPI, session } from '../lib/api'
 import '../dashboard.css'
 
@@ -14,32 +26,24 @@ interface SidebarProps {
 }
 
 type AnimatedPage = Exclude<Page, 'landing' | 'signin' | 'admin-dashboard'>
-type NavItem = { icon: string; label: string; page: Page; animation?: string }
-type AnimatedNavItem = NavItem & { page: AnimatedPage; animation: string }
-
-const NAV_ANIMATIONS: Record<AnimatedPage, string> = {
-  dashboard: '/icon-animation/DASHBOARD.json',
-  mocktests: '/icon-animation/Test.json',
-  results: '/icon-animation/result.json',
-  analytics: '/icon-animation/Analysis.json',
-  settings: '/icon-animation/PROFILE.json',
-}
+type NavItem = { icon: LucideIcon; label: string; page?: Page; secondary?: boolean; disabled?: boolean }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: 'dashboard', animation: NAV_ANIMATIONS.dashboard, label: 'Dashboard', page: 'dashboard' },
-  { icon: 'quiz', animation: NAV_ANIMATIONS.mocktests, label: 'Mock Tests', page: 'mocktests' },
-  { icon: 'bar_chart', animation: NAV_ANIMATIONS.results, label: 'Result', page: 'results' },
-  { icon: 'analytics', animation: NAV_ANIMATIONS.analytics, label: 'Analytics', page: 'analytics' },
-  { icon: 'settings', animation: NAV_ANIMATIONS.settings, label: 'Settings', page: 'settings' },
-  { icon: 'admin_panel_settings', label: 'Admin', page: 'admin-dashboard' as Page },
+  { icon: LayoutDashboard, label: 'Dashboard', page: 'dashboard' },
+  { icon: ClipboardList, label: 'Mock Tests', page: 'mocktests' },
+  { icon: BarChart3, label: 'Results', page: 'results' },
+  { icon: BarChart3, label: 'Analytics', page: 'analytics' },
+  { icon: BookOpen, label: 'Study Resources', page: 'mocktests', secondary: true },
+  { icon: Trophy, label: 'Leaderboard', disabled: true },
+  { icon: Settings, label: 'Settings', page: 'settings' },
+  { icon: Settings, label: 'Admin', page: 'admin-dashboard' },
 ]
 
-const BOTTOM_NAV_ITEMS: AnimatedNavItem[] = [
-  { icon: 'dashboard', animation: NAV_ANIMATIONS.dashboard, label: 'Home', page: 'dashboard' },
-  { icon: 'quiz', animation: NAV_ANIMATIONS.mocktests, label: 'Tests', page: 'mocktests' },
-  { icon: 'bar_chart', animation: NAV_ANIMATIONS.results, label: 'Result', page: 'results' },
-  { icon: 'analytics', animation: NAV_ANIMATIONS.analytics, label: 'Analytics', page: 'analytics' },
-  { icon: 'person', animation: NAV_ANIMATIONS.settings, label: 'Profile', page: 'settings' },
+const BOTTOM_NAV_ITEMS: Array<NavItem & { page: AnimatedPage }> = [
+  { icon: LayoutDashboard, label: 'Home', page: 'dashboard' },
+  { icon: ClipboardList, label: 'Tests', page: 'mocktests' },
+  { icon: BarChart3, label: 'Results', page: 'results' },
+  { icon: Settings, label: 'Profile', page: 'settings' },
 ]
 
 export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpen: controlledOpen, onCloseMobile }: SidebarProps) {
@@ -81,6 +85,15 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
     onNavigate?.(page)
   }
 
+  const handleStartTest = () => {
+    closeDrawer()
+    if (onStartTest) {
+      onStartTest()
+      return
+    }
+    onNavigate?.('mocktests')
+  }
+
   const handleLogout = async () => {
     closeDrawer()
     window.dispatchEvent(new CustomEvent('app:loading', { detail: true }))
@@ -113,21 +126,26 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
           <span className="db-sidebar-title">CET NOVA</span>
         </a>
 
-        <nav className="db-sidebar-nav">
-          {navItems.map(item => (
-            <a
-              key={item.label}
-              href="#"
-              className={`db-nav-item${activePage === item.page ? ' db-nav-item--active' : ''}`}
-              onClick={e => {
-                e.preventDefault()
-                onNavigate?.(item.page)
-              }}
-            >
-              <span className="material-symbols-outlined">{item.icon}</span>
-              <span>{item.label}</span>
-            </a>
-          ))}
+        <nav className="db-sidebar-nav" aria-label="Main navigation">
+          {navItems.map(item => {
+            const Icon = item.icon
+            const isActive = !item.secondary && item.page === activePage
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className={`db-nav-item${isActive ? ' db-nav-item--active' : ''}${item.disabled ? ' db-nav-item--disabled' : ''}`}
+                onClick={() => item.page && !item.disabled && onNavigate?.(item.page)}
+                disabled={item.disabled}
+                title={item.disabled ? 'Student leaderboard is not available yet.' : item.secondary ? 'Practice sets and previous-year papers' : undefined}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon size={18} aria-hidden="true" />
+                <span>{item.label}</span>
+                {item.disabled && <small className="db-nav-soon">Soon</small>}
+              </button>
+            )
+          })}
         </nav>
 
         <div className="db-sidebar-bottom">
@@ -138,11 +156,11 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
             onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
             title="Scan QR to open portal on your mobile phone or scan codes"
           >
-            <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
+            <QrCode size={18} aria-hidden="true" />
             <span>Phone QR</span>
           </button>
-          <button className="db-start-btn" onClick={() => onStartTest?.()}>
-            <span className="material-symbols-outlined">add</span>
+          <button className="db-start-btn" onClick={handleStartTest}>
+            <Plus size={17} aria-hidden="true" />
             Start New Test
           </button>
           <a
@@ -153,7 +171,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
               await handleLogout()
             }}
           >
-            <span className="material-symbols-outlined">logout</span>
+            <LogOut size={17} aria-hidden="true" />
             <span>Logout</span>
           </a>
         </div>
@@ -195,33 +213,27 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
                 onClick={closeDrawer}
                 aria-label="Close navigation menu"
               >
-                <span className="material-symbols-outlined">close</span>
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
 
             <nav className="db-mobile-drawer-items">
               {navItems.map(item => {
-                const isActive = activePage === item.page
+                const Icon = item.icon
+                const isActive = !item.secondary && item.page === activePage
                 return (
                   <button
                     key={item.label}
                     type="button"
-                    className={`db-nav-item${isActive ? ' db-nav-item--active' : ''}`}
-                    onClick={() => handleNavClick(item.page)}
+                    className={`db-nav-item${isActive ? ' db-nav-item--active' : ''}${item.disabled ? ' db-nav-item--disabled' : ''}`}
+                    onClick={() => item.page && !item.disabled && handleNavClick(item.page)}
+                    disabled={item.disabled}
+                    title={item.disabled ? 'Student leaderboard is not available yet.' : item.secondary ? 'Practice sets and previous-year papers' : undefined}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    {isActive && item.animation ? (
-                      <Lottie
-                        className="db-mobile-nav-animation"
-                        src={item.animation}
-                        loop
-                        autoplay
-                        aria-hidden="true"
-                        rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
-                      />
-                    ) : (
-                      <span className="material-symbols-outlined">{item.icon}</span>
-                    )}
+                    <Icon size={18} aria-hidden="true" />
                     <span>{item.label}</span>
+                    {item.disabled && <small className="db-nav-soon">Soon</small>}
                   </button>
                 )
               })}
@@ -237,18 +249,15 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
                   window.dispatchEvent(new CustomEvent('cet:open-qr'))
                 }}
               >
-                <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
+                <QrCode size={18} aria-hidden="true" />
                 <span>Phone QR / Scanner</span>
               </button>
               <button
                 type="button"
                 className="db-start-btn"
-                onClick={() => {
-                  closeDrawer()
-                  onStartTest?.()
-                }}
+                onClick={handleStartTest}
               >
-                <span className="material-symbols-outlined">add</span>
+                <Plus size={17} aria-hidden="true" />
                 Start New Test
               </button>
               <button
@@ -257,7 +266,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
                 style={{ width: '100%', justifyContent: 'flex-start' }}
                 onClick={handleLogout}
               >
-                <span className="material-symbols-outlined">logout</span>
+                <LogOut size={17} aria-hidden="true" />
                 <span>Logout</span>
               </button>
             </div>
@@ -269,6 +278,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
       <nav className="db-mobile-nav-bar" aria-label="Quick Navigation">
         {BOTTOM_NAV_ITEMS.map(item => {
           const isActive = activePage === item.page
+          const Icon = item.icon
           return (
             <button
               key={item.label}
@@ -277,18 +287,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
               onClick={() => onNavigate?.(item.page)}
               aria-current={isActive ? 'page' : undefined}
             >
-              {isActive ? (
-                <Lottie
-                  className="db-mobile-nav-animation"
-                  src={item.animation}
-                  loop
-                  autoplay
-                  aria-hidden="true"
-                  rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
-                />
-              ) : (
-                <span className="material-symbols-outlined">{item.icon}</span>
-              )}
+              <Icon size={19} aria-hidden="true" />
               <span className="db-mobile-nav-label">{item.label}</span>
               {isActive && <span className="db-mobile-nav-dot" />}
             </button>

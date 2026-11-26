@@ -82,14 +82,6 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
   })) || []
   const formattedPercentile = result?.percentile ? Number(result.percentile).toFixed(1) : '—'
 
-  const navItems = [
-    { icon: 'dashboard',            label: 'Dashboard',  page: 'dashboard'  as Page },
-    { icon: 'quiz',                 label: 'Mock Tests', page: 'mocktests'  as Page },
-    { icon: 'analytics',            label: 'Analytics',  page: 'analytics'  as Page, active: true },
-    { icon: 'bar_chart',            label: 'Result',     page: 'results'    as Page },
-    { icon: 'assignment_turned_in', label: 'Results',    page: 'results'    as Page },
-  ]
-
   return (
     <div className="an-root">
 
@@ -358,25 +350,6 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
 
         </div>
       </main>
-
-      {/* Mobile Bottom Nav */}
-      <nav className="an-mobile-nav">
-        {[
-          { icon: 'dashboard', label: 'Home',      page: 'dashboard' as Page },
-          { icon: 'analytics', label: 'Analytics', page: 'analytics' as Page, active: true },
-          { icon: 'quiz',      label: 'Tests',     page: 'mocktests' as Page },
-          { icon: 'person',    label: 'Profile',   page: null },
-        ].map(item => (
-          <button key={item.label}
-            className={`an-mob-item${item.active ? ' an-mob-item--active' : ''}`}
-            onClick={() => item.page && onNavigate?.(item.page)}
-          >
-            <span className="material-symbols-outlined"
-              style={item.active ? { fontVariationSettings: "'FILL' 1" } : {}}>{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
 
     </div>
   )

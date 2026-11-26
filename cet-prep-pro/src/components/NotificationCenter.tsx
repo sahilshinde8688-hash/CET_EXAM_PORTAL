@@ -48,10 +48,13 @@ export default function NotificationCenter({ onOpenNotification }: NotificationC
   const panelRef = useRef<HTMLDivElement>(null)
   const panelOpenRef = useRef(open)
   const visibleNotificationCountRef = useRef(notifications.length)
+  const unreadRefreshInFlightRef = useRef(false)
   panelOpenRef.current = open
   visibleNotificationCountRef.current = notifications.length
 
   const refreshUnreadCount = useCallback(async () => {
+    if (unreadRefreshInFlightRef.current) return
+    unreadRefreshInFlightRef.current = true
     try {
       const limit = panelOpenRef.current ? Math.max(PAGE_SIZE, Math.min(50, visibleNotificationCountRef.current)) : 1
       const response = await notificationsAPI.list(limit, 0)
@@ -66,6 +69,8 @@ export default function NotificationCenter({ onOpenNotification }: NotificationC
       }
     } catch (loadError) {
       console.error('Failed to refresh notification count:', loadError)
+    } finally {
+      unreadRefreshInFlightRef.current = false
     }
   }, [])
 

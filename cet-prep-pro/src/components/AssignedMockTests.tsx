@@ -145,26 +145,13 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
 
   const submitAttempt = useCallback(async (answers: Record<string, number>, timeSpent: number) => {
     if (!active) throw new Error('The active assignment could not be found. Refresh and resume the test.')
-    try {
-      await progressQueue.current.catch(progressError => {
-        console.error('Assigned-test progress save failed before submission:', progressError)
-      })
-      const response = await mockTestAssignmentsAPI.submit(active.attempt._id, answers, timeSpent)
-      setActive(current => current ? { ...current, attempt: response.attempt } : current)
-      return response
-    } catch (submitError) {
-      const deadline = Math.min(
-        Date.parse(active.assignment.endDateTime),
-        Date.parse(active.attempt.startedAt) + active.assignment.duration * 60_000,
-      )
-      if (Date.now() >= deadline) {
-        setActive(null)
-        await loadAssignments()
-        throw new Error('The test deadline has passed. Previously saved answers were preserved.')
-      }
-      throw submitError
-    }
-  }, [active, loadAssignments])
+    await progressQueue.current.catch(progressError => {
+      console.error('Assigned-test progress save failed before submission:', progressError)
+    })
+    const response = await mockTestAssignmentsAPI.submit(active.attempt._id, answers, timeSpent)
+    setActive(current => current ? { ...current, attempt: response.attempt } : current)
+    return response
+  }, [active])
 
   const refreshActiveAssignment = useCallback(async () => {
     if (!active) return

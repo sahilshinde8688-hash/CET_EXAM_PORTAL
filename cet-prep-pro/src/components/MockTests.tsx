@@ -3,132 +3,45 @@ import Sidebar, { type Page } from './Sidebar'
 import TestInterface from './TestInterface'
 import ExamInstructions from './ExamInstructions'
 import UserAvatar from './UserAvatar'
-import { mockTestsAPI, testsAPI, session, MockTest, TestResult, type AuthUser } from '../lib/api'
+import { mockTestsAPI, testsAPI, questionsAPI, session, type MockTest, type TestResult, type AuthUser, type StudentNotification } from '../lib/api'
+import {
+  getMockTestCategory,
+  getMockTestMaximumMarks,
+  normalizeMockTestSubject,
+  selectCustomPracticeQuestionIds,
+} from '../lib/mockTestCatalog'
 import AssignedMockTests from './AssignedMockTests'
+import NotificationCenter from './NotificationCenter'
 import { supabase } from '../lib/supabaseClient'
 
 type TabType = 'Full Length' | 'Subject-wise' | 'Chapter-wise' | 'Previous Year'
 type DiffFilter = 'All Levels' | 'Easy' | 'Medium' | 'Hard'
-type SubjFilter = 'All Subjects' | 'Physics' | 'Chemistry' | 'Mathematics'
+type SubjFilter = 'All Subjects' | 'Physics' | 'Chemistry' | 'Mathematics' | 'Biology'
+type TestSort = 'Recommended first' | 'Newest' | 'Shortest'
+type AttemptFilter = 'All tests' | 'Not attempted' | 'Attempted' | 'Limit reached'
+type DurationFilter = 'Any duration' | 'Under 60 min' | '60–120 min' | 'Over 120 min'
 
 const TABS: TabType[] = ['Full Length', 'Subject-wise', 'Chapter-wise', 'Previous Year']
-
-const _ALL_TESTS = [
-  {
-    id: 1,
-    icon: 'terminal',
-    iconColor: 'blue',
-    title: 'Full Syllabus Mock Test A',
-    desc: 'Comprehensive simulation covering PCM with latest 2024 patterns.',
-    questions: 150,
-    mins: 180,
-    difficulty: 'Medium' as DiffFilter,
-    subject: 'All Subjects' as SubjFilter,
-    tab: 'Full Length' as TabType,
-    recommended: true,
-    primary: true,
-  },
-  {
-    id: 2,
-    icon: 'function',
-    iconColor: 'purple',
-    title: 'Maths Power Blitz',
-    desc: 'Intensive 50-question set focused on Calculus and Algebra.',
-    questions: 50,
-    mins: 90,
-    difficulty: 'Hard' as DiffFilter,
-    subject: 'Mathematics' as SubjFilter,
-    tab: 'Subject-wise' as TabType,
-    recommended: false,
-    primary: false,
-  },
-  {
-    id: 3,
-    icon: 'experiment',
-    iconColor: 'teal',
-    title: 'Physics Fundamentals',
-    desc: 'Basic level test covering Mechanics and Thermodynamics.',
-    questions: 40,
-    mins: 60,
-    difficulty: 'Easy' as DiffFilter,
-    subject: 'Physics' as SubjFilter,
-    tab: 'Subject-wise' as TabType,
-    recommended: false,
-    primary: false,
-  },
-  {
-    id: 4,
-    icon: 'history',
-    iconColor: 'blue',
-    title: '2023 Previous Year Paper',
-    desc: 'Official MHT-CET 2023 Shift 1 paper with complete solutions.',
-    questions: 150,
-    mins: 180,
-    difficulty: 'Medium' as DiffFilter,
-    subject: 'All Subjects' as SubjFilter,
-    tab: 'Previous Year' as TabType,
-    recommended: false,
-    primary: false,
-  },
-  {
-    id: 5,
-    icon: 'science',
-    iconColor: 'orange',
-    title: 'Chemistry: Organic Focus',
-    desc: 'Chapter-wise test on Organic Chemistry reactions and mechanisms.',
-    questions: 60,
-    mins: 75,
-    difficulty: 'Hard' as DiffFilter,
-    subject: 'Chemistry' as SubjFilter,
-    tab: 'Chapter-wise' as TabType,
-    recommended: false,
-    primary: false,
-  },
-  {
-    id: 6,
-    icon: 'calculate',
-    iconColor: 'purple',
-    title: 'Full Syllabus Mock Test B',
-    desc: 'Alternate full-length simulation with updated question bank.',
-    questions: 150,
-    mins: 180,
-    difficulty: 'Medium' as DiffFilter,
-    subject: 'All Subjects' as SubjFilter,
-    tab: 'Full Length' as TabType,
-    recommended: false,
-    primary: false,
-  },
-]
-
-void _ALL_TESTS
-
+const SUBJECTS: SubjFilter[] = ['All Subjects', 'Physics', 'Chemistry', 'Mathematics', 'Biology']
 const diffColors: Record<string, string> = {
   Easy: 'mt-diff-easy',
   Medium: 'mt-diff-medium',
   Hard: 'mt-diff-hard',
 }
 
-const iconColors: Record<string, string> = {
-  blue: 'mt-icon--blue',
-  purple: 'mt-icon--purple',
-  teal: 'mt-icon--teal',
-  orange: 'mt-icon--orange',
-}
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
 
-const iconMap: Record<string, string> = {
-  'terminal': 'terminal',
-  'function': 'function',
-  'experiment': 'science',
-  'history': 'history',
-  'science': 'science',
-  'calculate': 'calculate',
-}
-
-const colorMap: Record<string, string> = {
-  'blue': 'blue',
-  'purple': 'purple',
-  'teal': 'teal',
-  'orange': 'orange',
+const getSubjectVisual = (subject: SubjFilter) => {
+  switch (subject) {
+    case 'Physics': return { icon: 'science', color: 'blue' }
+    case 'Chemistry': return { icon: 'science', color: 'teal' }
+    case 'Mathematics': return { icon: 'functions', color: 'purple' }
+    case 'Biology': return { icon: 'biotech', color: 'orange' }
+    default: return { icon: 'assignment', color: 'blue' }
+  }
 }
 
 interface MockTestsProps {
@@ -137,13 +50,35 @@ interface MockTestsProps {
 
 export default function MockTests({ onNavigate }: MockTestsProps) {
   const user = session.get<AuthUser>()
+  const examType = String(user?.examType || '').toUpperCase()
+  const streamSubjects = examType === 'PCM'
+    ? ['Physics', 'Chemistry', 'Mathematics']
+    : examType === 'PCB'
+      ? ['Physics', 'Chemistry', 'Biology']
+      : ['Physics', 'Chemistry', 'Mathematics', 'Biology']
   const [activeTab, setActiveTab] = useState<TabType>('Full Length')
   const [diff, setDiff] = useState<DiffFilter>('All Levels')
   const [subj, setSubj] = useState<SubjFilter>('All Subjects')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<TestSort>('Newest')
+  const [attemptFilter, setAttemptFilter] = useState<AttemptFilter>('All tests')
+  const [durationFilter, setDurationFilter] = useState<DurationFilter>('Any duration')
   const [rangeVal, setRangeVal] = useState(60)
+  const [customSubject, setCustomSubject] = useState('Physics')
+  const [customChapter, setCustomChapter] = useState('')
+  const [customDifficulty, setCustomDifficulty] = useState<DiffFilter>('All Levels')
+  const [customQuestionCount, setCustomQuestionCount] = useState(20)
+  const [customLoading, setCustomLoading] = useState(false)
+  const [customError, setCustomError] = useState('')
+  const [questionSubjects, setQuestionSubjects] = useState<string[]>([])
+  const [chaptersBySubject, setChaptersBySubject] = useState<Record<string, string[]>>({})
+  const [taxonomyError, setTaxonomyError] = useState('')
   const [mockTests, setMockTests] = useState<MockTest[]>([])
   const [testResults, setTestResults] = useState<TestResult[]>([])
+  const [analyticsLoading, setAnalyticsLoading] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [mockTestsError, setMockTestsError] = useState('')
+  const [analyticsError, setAnalyticsError] = useState('')
   const [showResumeDialog, setShowResumeDialog] = useState(false)
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
   const [notificationAssignmentId, setNotificationAssignmentId] = useState(() => {
@@ -272,12 +207,35 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    questionsAPI.getSubjectsAndChapters()
+      .then(data => {
+        if (cancelled) return
+        setQuestionSubjects(data.subjects)
+        setChaptersBySubject(data.chaptersBySubject)
+        setTaxonomyError('')
+        if (data.subjects.length) {
+          setCustomSubject(current => data.subjects.includes(current) ? current : data.subjects[0])
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load custom practice topics:', error)
+        if (!cancelled) setTaxonomyError('Topic options are temporarily unavailable. You can still build practice by subject.')
+      })
+    return () => { cancelled = true }
+  }, [])
+
   const loadTestResults = async () => {
     try {
       const data = await testsAPI.getMyResults()
       setTestResults(data)
+      setAnalyticsError('')
     } catch (error) {
       console.error('Failed to load test analytics:', error)
+      setAnalyticsError('Your performance data could not be loaded.')
+    } finally {
+      setAnalyticsLoading(false)
     }
   }
 
@@ -287,80 +245,238 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
     try {
       const data = await mockTestsAPI.getAll({ background })
       setMockTests(data)
+      setMockTestsError('')
     } catch (error) {
       console.error('Failed to load mock tests:', error)
+      setMockTestsError('Available tests could not be loaded. Please try again.')
     } finally {
       setLoading(false)
       mockTestsRequestInProgress.current = false
     }
   }
 
-  const getTabType = (status: string): TabType => {
-    switch (status) {
-      case 'active': return 'Full Length'
-      case 'scheduled': return 'Previous Year'
-      default: return 'Full Length'
-    }
-  }
-
-  const getDifficulty = (d: string): DiffFilter => {
-    if (d === 'Easy' || d === 'Medium' || d === 'Hard') return d
-    return 'All Levels'
-  }
-
-  const getSubject = (s: string): SubjFilter => {
-    if (s === 'Physics' || s === 'Chemistry' || s === 'Mathematics') return s
-    return 'All Subjects'
-  }
-
-  const filtered = mockTests.map(test => ({
-    id: test._id,
-    icon: iconMap[test.subject.toLowerCase()] || 'terminal',
-    iconColor: colorMap[test.difficulty.toLowerCase()] || 'blue',
-    title: test.title,
-    desc: `Questions: ${test.questions} | Duration: ${test.duration} mins`,
-    questions: test.questions,
-    mins: test.duration,
-    questionIds: test.questionIds || [],
-    maxAttempts: test.maxAttempts || 1,
-    attemptsUsed: testResults.filter(result => result.mockTestId
-      ? result.mockTestId === test._id
-      : result.testName.trim().toLowerCase() === test.title.trim().toLowerCase()).length,
-    difficulty: getDifficulty(test.difficulty),
-    subject: getSubject(test.subject),
-    tab: getTabType(test.status),
-    recommended: test.status === 'active',
-    primary: test.status === 'active',
-  })).filter(t => {
-    const tabMatch = t.tab === activeTab || activeTab === 'Full Length' && t.tab === 'Full Length'
-      || activeTab === 'Subject-wise' && t.tab === 'Subject-wise'
-      || activeTab === 'Chapter-wise' && t.tab === 'Chapter-wise'
-      || activeTab === 'Previous Year' && t.tab === 'Previous Year'
-    const diffMatch = diff === 'All Levels' || t.difficulty === diff
-    const subjMatch = subj === 'All Subjects' || t.subject === subj || t.subject === 'All Subjects'
-    return tabMatch && diffMatch && subjMatch
-  })
-
   const testsTaken = testResults.length
   const totalEarnedMarks = testResults.reduce((total, result) => total + (Number(result.score) || 0), 0)
   const totalAvailableMarks = testResults.reduce((total, result) => total + (Number(result.totalMarks) || 0), 0)
   const averageScore = testsTaken > 0 ? Math.round(totalEarnedMarks / testsTaken) : 0
-  const averageMaxScore = testsTaken > 0 ? Math.round(totalAvailableMarks / testsTaken) : 200
+  const averageMaxScore = testsTaken > 0 ? Math.round(totalAvailableMarks / testsTaken) : 0
   const practicedHours = Math.max(0, testResults.reduce((total, result) => total + (Number(result.duration) || 0), 0) / 3600)
   const answeredQuestions = testResults.reduce((total, result) => total + (Number(result.correct) || 0) + (Number(result.incorrect) || 0), 0)
   const correctQuestions = testResults.reduce((total, result) => total + (Number(result.correct) || 0), 0)
   const accuracy = answeredQuestions > 0 ? Math.round(correctQuestions / answeredQuestions * 100) : 0
   const completion = accuracy
-  const targetSubjects = testResults.flatMap(result => result.subjectWiseScores || [])
+  const subjectTotals = testResults.flatMap(result => result.subjectWiseScores || [])
     .reduce((subjects, subject) => {
       const current = subjects.get(subject.subject) || { score: 0, maxScore: 0 }
       subjects.set(subject.subject, { score: current.score + subject.score, maxScore: current.maxScore + subject.maxScore })
       return subjects
     }, new Map<string, { score: number; maxScore: number }>());
-  const targetChapters = Array.from(targetSubjects.entries())
+  const subjectPerformance = Array.from(subjectTotals.entries())
     .map(([label, value]) => ({ label, percentage: value.maxScore ? Math.round(value.score / value.maxScore * 100) : 0 }))
+    .filter(subject => subjectTotals.get(subject.label)?.maxScore)
     .sort((a, b) => a.percentage - b.percentage)
-    .slice(0, 2)
+  const weakSubjects = subjectPerformance
+    .filter(subject => subject.percentage < 70)
+    .filter(subject => streamSubjects.some(streamSubject => normalizeMockTestSubject(subject.label) === streamSubject))
+    .slice(0, 3)
+
+  const getTestDescription = (test: MockTest): string => {
+    const config = asRecord(test.config)
+    return typeof config?.description === 'string' && config.description.trim()
+      ? config.description.trim()
+      : `${test.subject}${test.examType ? ` · ${test.examType}` : ''}`
+  }
+
+  const testCards = mockTests.map(test => {
+    const normalizedSubject = normalizeMockTestSubject(test.subject)
+    const config = asRecord(test.config)
+    const sections = Array.isArray(config?.sections) ? config.sections : []
+    const sectionNames = sections
+      .map(section => asRecord(section)?.name)
+      .filter((name): name is string => typeof name === 'string')
+      .join(' ')
+      .toLowerCase()
+    const subjectCoverage = SUBJECTS.filter(subject => subject !== 'All Subjects'
+      && (normalizedSubject === subject || sectionNames.includes(subject.toLowerCase())))
+    const weakSubjectMatch = weakSubjects.find(subject =>
+      normalizeMockTestSubject(test.subject) === normalizeMockTestSubject(subject.label)
+      || sectionNames.includes(subject.label.toLowerCase()))
+    const attemptsUsed = testResults.filter(result => result.mockTestId
+      ? result.mockTestId === test._id
+      : result.testName.trim().toLowerCase() === test.title.trim().toLowerCase()).length
+    const startsAtValue = typeof config?.startsAt === 'string' ? config.startsAt : test.scheduledDate
+    const startsAt = startsAtValue ? Date.parse(startsAtValue) : Number.NaN
+    const endsAt = typeof config?.endsAt === 'string' ? Date.parse(config.endsAt) : Number.NaN
+    const now = Date.now()
+    const available = test.status === 'active'
+      && (!Number.isFinite(startsAt) || startsAt <= now)
+      && (!Number.isFinite(endsAt) || endsAt > now)
+    const visual = getSubjectVisual(normalizedSubject)
+    const negativeMarks = [...new Set(sections
+      .map(section => Number(asRecord(section)?.negativeMarks))
+      .filter(value => Number.isFinite(value) && value > 0)
+    )].sort((a, b) => a - b)
+    return {
+      source: test,
+      id: test._id,
+      icon: visual.icon,
+      iconColor: visual.color,
+      title: test.title,
+      desc: getTestDescription(test),
+      questions: test.questions,
+      mins: test.duration,
+      maxMarks: getMockTestMaximumMarks(test),
+      negativeMarks,
+      maxAttempts: test.maxAttempts || 1,
+      attemptsUsed,
+      difficulty: test.difficulty,
+      subject: normalizedSubject,
+      subjectCoverage,
+      category: getMockTestCategory(test),
+      recommended: Boolean(weakSubjectMatch),
+      recommendation: weakSubjectMatch?.label || '',
+      available,
+      createdAt: test.createdAt,
+    }
+  })
+
+  const query = searchQuery.trim().toLowerCase()
+  const filtered = testCards.filter(test => {
+    const matchesTab = test.category === activeTab
+    const matchesDifficulty = diff === 'All Levels' || test.difficulty === diff
+    const matchesSubject = subj === 'All Subjects' || test.subject === subj || test.subjectCoverage.includes(subj)
+    const matchesSearch = !query || [
+      test.title,
+      test.desc,
+      test.subject,
+      test.subjectCoverage.join(' '),
+      test.category,
+      test.source.examType || '',
+    ].some(value => value.toLowerCase().includes(query))
+    const matchesAttempts = attemptFilter === 'All tests'
+      || attemptFilter === 'Not attempted' && test.attemptsUsed === 0
+      || attemptFilter === 'Attempted' && test.attemptsUsed > 0 && test.attemptsUsed < test.maxAttempts
+      || attemptFilter === 'Limit reached' && test.attemptsUsed >= test.maxAttempts
+    const matchesDuration = durationFilter === 'Any duration'
+      || durationFilter === 'Under 60 min' && test.mins < 60
+      || durationFilter === '60–120 min' && test.mins >= 60 && test.mins <= 120
+      || durationFilter === 'Over 120 min' && test.mins > 120
+    return matchesTab && matchesDifficulty && matchesSubject && matchesSearch && matchesAttempts && matchesDuration
+  }).sort((a, b) => {
+    if (sortBy === 'Recommended first' && a.recommended !== b.recommended) return a.recommended ? -1 : 1
+    if (sortBy === 'Shortest') return a.mins - b.mins
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+
+  const availableTests = testCards.filter(test => test.available && test.attemptsUsed < test.maxAttempts)
+
+  const startMockTest = (test: MockTest) => {
+    const config = asRecord(test.config)
+    const startsAtValue = typeof config?.startsAt === 'string' ? config.startsAt : test.scheduledDate
+    const startsAt = startsAtValue ? Date.parse(startsAtValue) : Number.NaN
+    const endsAt = typeof config?.endsAt === 'string' ? Date.parse(config.endsAt) : Number.NaN
+    if (test.status !== 'active'
+      || (Number.isFinite(startsAt) && startsAt > Date.now())
+      || (Number.isFinite(endsAt) && endsAt <= Date.now())) {
+      setBlockedMessage('This test is not available yet.')
+      return
+    }
+    if (analyticsLoading || analyticsError) {
+      setBlockedMessage('Your attempt history could not be verified. Please try again before starting this test.')
+      return
+    }
+    const attemptsUsed = testResults.filter(result => result.mockTestId
+      ? result.mockTestId === test._id
+      : result.testName.trim().toLowerCase() === test.title.trim().toLowerCase()).length
+    if (attemptsUsed >= (test.maxAttempts || 1)) {
+      setBlockedMessage('You have reached the attempt limit for this test.')
+      return
+    }
+    if (hasActiveInProgressExam()) {
+      setBlockedMessage('Please complete the first test before starting a new one.')
+      return
+    }
+    const questionIds = test.questionIds || []
+    localStorage.setItem('cet_selected_mock_test_id', test._id)
+    localStorage.setItem('cet_selected_test_name', test.title)
+    localStorage.setItem('cet_selected_test_duration', String(test.duration))
+    localStorage.setItem('cet_selected_question_ids', JSON.stringify(questionIds))
+    localStorage.setItem('cet_selected_question_count', String(test.questions))
+    setSelectedTestName(test.title)
+    setSelectedMockTestId(test._id)
+    setSelectedTestDuration(test.duration)
+    setSelectedQuestionCount(test.questions)
+    setSelectedQuestionIds(questionIds)
+    localStorage.setItem(EXAM_STATE_KEY, 'instructions')
+    localStorage.setItem('cet_exam_owner_id', currentUserId)
+    setStartingTest(true)
+  }
+
+  const handleNotification = (notification: StudentNotification) => {
+    if (notification.targetType && notification.targetId) {
+      sessionStorage.setItem('cet:pending-notification-navigation', JSON.stringify({
+        targetPage: notification.targetPage,
+        targetType: notification.targetType,
+        targetId: notification.targetId,
+      }))
+    }
+    onNavigate?.(notification.targetPage)
+  }
+
+  const generateCustomPractice = async () => {
+    if (hasActiveInProgressExam()) {
+      setBlockedMessage('Please complete the first test before starting a new one.')
+      return
+    }
+    setCustomLoading(true)
+    setCustomError('')
+    try {
+      const bankQuestions = await questionsAPI.getAll({ subject: customSubject, isActive: true })
+      const matchingQuestions = bankQuestions.filter(question =>
+        question.isActive
+        && question._id
+        && (!customChapter || question.chapter === customChapter || question.topic === customChapter)
+        && (customDifficulty === 'All Levels' || question.difficulty === customDifficulty))
+      if (matchingQuestions.length < customQuestionCount) {
+        setCustomError(`Only ${matchingQuestions.length} matching questions are available. Choose fewer questions or broaden your selection.`)
+        return
+      }
+
+      const questionIds = selectCustomPracticeQuestionIds(matchingQuestions, {
+        chapter: customChapter,
+        difficulty: customDifficulty,
+        count: customQuestionCount,
+      })
+      if (questionIds.length < customQuestionCount) {
+        setCustomError(`Only ${questionIds.length} distinct matching questions are available. Choose fewer questions or broaden your selection.`)
+        return
+      }
+      const testName = `Practice · ${customSubject}${customChapter ? ` · ${customChapter}` : ''}`
+      localStorage.removeItem('cet_selected_mock_test_id')
+      localStorage.setItem('cet_selected_test_name', testName)
+      localStorage.setItem('cet_selected_test_duration', String(rangeVal))
+      localStorage.setItem('cet_selected_question_ids', JSON.stringify(questionIds))
+      localStorage.setItem('cet_selected_question_count', String(questionIds.length))
+      setSelectedTestName(testName)
+      setSelectedMockTestId('')
+      setSelectedTestDuration(rangeVal)
+      setSelectedQuestionCount(questionIds.length)
+      setSelectedQuestionIds(questionIds)
+      localStorage.setItem(EXAM_STATE_KEY, 'instructions')
+      localStorage.setItem('cet_exam_owner_id', currentUserId)
+      setStartingTest(true)
+    } catch (error) {
+      console.error('Failed to build a custom practice test:', error)
+      setCustomError(error instanceof Error ? error.message : 'Custom practice could not be created. Please try again.')
+    } finally {
+      setCustomLoading(false)
+    }
+  }
+
+  const availableCustomSubjects = (questionSubjects.length ? questionSubjects : streamSubjects)
+    .filter(subject => streamSubjects.some(streamSubject => normalizeMockTestSubject(subject) === streamSubject))
+  const customChapters = Object.entries(chaptersBySubject)
+    .find(([subject]) => subject.toLowerCase() === customSubject.toLowerCase())?.[1] || []
 
   // ── Resume Test Dialog ───────────────────────────────────────────────────
   const ResumeDialog = () => (
@@ -558,10 +674,6 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
               <span className="material-symbols-outlined">menu</span>
             </button>
             <h1 className="mt-topbar-title">MHT-CET Prep</h1>
-            <div className="mt-search-wrap">
-              <span className="material-symbols-outlined mt-search-icon">search</span>
-              <input className="mt-search-input" placeholder="Search mock tests..." type="text" />
-            </div>
           </div>
           <div className="mt-topbar-right">
             <button
@@ -573,10 +685,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             >
               <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
             </button>
-            <button className="mt-icon-btn mt-notif-btn">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="mt-notif-dot" />
-            </button>
+            <NotificationCenter onOpenNotification={handleNotification} />
             <button className="mt-icon-btn">
               <span className="material-symbols-outlined">help</span>
             </button>
@@ -591,8 +700,9 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           {/* Hero */}
           <div className="mt-hero">
             <div>
-              <h2 className="mt-hero-title">Practice &amp; Perfect</h2>
-              <p className="mt-hero-sub">Refine your preparation with real-time test simulations designed by MHT-CET experts.</p>
+              <p className="mt-eyebrow">YOUR PREPARATION</p>
+              <h2 className="mt-hero-title">Practice with purpose</h2>
+              <p className="mt-hero-sub">Choose a mock test or build a focused practice set from the question bank.</p>
             </div>
           </div>
 
@@ -600,13 +710,22 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             embedded
             toolbarActions={
               <>
-                <button className="mt-quick-btn">
+                <button
+                  type="button"
+                  className="mt-quick-btn"
+                  disabled={!availableTests.length || analyticsLoading || Boolean(analyticsError)}
+                  onClick={() => availableTests[0] && startMockTest(availableTests[0].source)}
+                >
                   <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
-                  Quick Start Mock
+                  {analyticsLoading ? 'Checking attempts…' : analyticsError ? 'Attempt history unavailable' : availableTests.length ? 'Quick start a mock' : 'No mock tests available'}
                 </button>
-                <button className="mt-quick-btn" onClick={() => document.getElementById('assigned-mock-tests')?.scrollIntoView({ behavior: 'smooth' })}>
+                <button
+                  type="button"
+                  className="mt-quick-btn mt-quick-btn--secondary"
+                  onClick={() => document.getElementById('assigned-mock-tests')?.scrollIntoView({ behavior: 'smooth' })}
+                >
                   <span className="material-symbols-outlined">assignment_turned_in</span>
-                  Assigned Mock Tests
+                  View assigned tests
                 </button>
               </>
             }
@@ -622,6 +741,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                 <div className="mt-tabs">
                   {TABS.map(tab => (
                     <button
+                      type="button"
                       key={tab}
                       className={`mt-tab${activeTab === tab ? ' mt-tab--active' : ''}`}
                       onClick={() => setActiveTab(tab)}
@@ -629,80 +749,144 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                   ))}
                 </div>
                 <div className="mt-filter-controls">
+                  <label className="mt-catalog-search">
+                    <span className="material-symbols-outlined">search</span>
+                    <input
+                      type="search"
+                      value={searchQuery}
+                      onChange={event => setSearchQuery(event.target.value)}
+                      placeholder="Search tests and subjects..."
+                      aria-label="Search available tests"
+                    />
+                  </label>
                   <div className="mt-filter-group">
-                    <span className="mt-filter-label">Difficulty:</span>
-                    <select className="mt-select" value={diff} onChange={e => setDiff(e.target.value as DiffFilter)}>
-                      {(['All Levels', 'Easy', 'Medium', 'Hard'] as DiffFilter[]).map(d => <option key={d}>{d}</option>)}
+                    <label className="mt-filter-label" htmlFor="mt-difficulty">Difficulty</label>
+                    <select id="mt-difficulty" className="mt-select" value={diff} onChange={e => setDiff(e.target.value as DiffFilter)}>
+                      {(['All Levels', 'Easy', 'Medium', 'Hard'] as DiffFilter[]).map(value => <option key={value}>{value}</option>)}
                     </select>
                   </div>
                   <div className="mt-filter-group">
-                    <span className="mt-filter-label">Subject:</span>
-                    <select className="mt-select" value={subj} onChange={e => setSubj(e.target.value as SubjFilter)}>
-                      {(['All Subjects', 'Physics', 'Chemistry', 'Mathematics'] as SubjFilter[]).map(s => <option key={s}>{s}</option>)}
+                    <label className="mt-filter-label" htmlFor="mt-subject">Subject</label>
+                    <select id="mt-subject" className="mt-select" value={subj} onChange={e => setSubj(e.target.value as SubjFilter)}>
+                      {SUBJECTS.map(subject => <option key={subject}>{subject}</option>)}
                     </select>
                   </div>
+                  <div className="mt-filter-group">
+                    <label className="mt-filter-label" htmlFor="mt-duration">Duration</label>
+                    <select id="mt-duration" className="mt-select" value={durationFilter} onChange={e => setDurationFilter(e.target.value as DurationFilter)}>
+                      {(['Any duration', 'Under 60 min', '60–120 min', 'Over 120 min'] as DurationFilter[]).map(value => <option key={value}>{value}</option>)}
+                    </select>
+                  </div>
+                  <div className="mt-filter-group">
+                    <label className="mt-filter-label" htmlFor="mt-attempts">Attempts</label>
+                    <select id="mt-attempts" className="mt-select" value={attemptFilter} disabled={analyticsLoading || Boolean(analyticsError)} onChange={e => setAttemptFilter(e.target.value as AttemptFilter)}>
+                      {(['All tests', 'Not attempted', 'Attempted', 'Limit reached'] as AttemptFilter[]).map(value => <option key={value}>{value}</option>)}
+                    </select>
+                  </div>
+                  <div className="mt-filter-group">
+                    <label className="mt-filter-label" htmlFor="mt-sort">Sort</label>
+                    <select id="mt-sort" className="mt-select" value={sortBy} onChange={e => setSortBy(e.target.value as TestSort)}>
+                      <option disabled={!weakSubjects.length}>Recommended first</option>
+                      <option>Newest</option>
+                      <option>Shortest</option>
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-reset-filters"
+                    onClick={() => {
+                      setSearchQuery('')
+                      setDiff('All Levels')
+                      setSubj('All Subjects')
+                      setAttemptFilter('All tests')
+                      setDurationFilter('Any duration')
+                      setSortBy('Newest')
+                    }}
+                  >Reset filters</button>
                 </div>
+                <p className="mt-result-count" aria-live="polite">
+                  {loading ? 'Loading tests…' : `Showing ${filtered.length} of ${testCards.length} available tests`}
+                </p>
               </div>
 
               {/* Test Cards Grid */}
               <div className="mt-cards-grid">
+                {mockTestsError && (
+                  <div className="mt-empty mt-empty--error" role="alert">
+                    <span className="material-symbols-outlined mt-empty-icon">cloud_off</span>
+                    <p>{mockTestsError}</p>
+                    <button type="button" className="mt-retry-btn" onClick={() => void loadMockTests()}>Try again</button>
+                  </div>
+                )}
                 {loading && (
                   <div className="mt-empty">
                     <span className="material-symbols-outlined mt-empty-icon">progress_activity</span>
                     <p>Loading available tests...</p>
                   </div>
                 )}
-                {!loading && filtered.length === 0 && (
+                {!loading && !mockTestsError && filtered.length === 0 && (
                   <div className="mt-empty">
                     <span className="material-symbols-outlined mt-empty-icon">search_off</span>
-                    <p>No tests match your filters.</p>
+                    <h3>{testCards.length ? 'No tests match these filters' : 'No mock tests available yet'}</h3>
+                    <p>{testCards.length ? 'Try changing your search or clearing one of the filters.' : 'Published tests will appear here when they are available for your account.'}</p>
+                    {testCards.length > 0 && <button type="button" className="mt-retry-btn" onClick={() => {
+                      setSearchQuery('')
+                      setDiff('All Levels')
+                      setSubj('All Subjects')
+                      setAttemptFilter('All tests')
+                      setDurationFilter('Any duration')
+                      setSortBy('Newest')
+                    }}>Clear filters</button>}
                   </div>
                 )}
                 {filtered.map(test => {
                   const attemptLimitReached = test.attemptsUsed >= test.maxAttempts
                   return (
                   <div key={test.id} className="mt-glass-card mt-test-card">
-                    {test.recommended && <div className="mt-recommended-badge">Recommended</div>}
-                    <div className={`mt-card-icon ${iconColors[test.iconColor]}`}>
+                    {test.recommended && <div className="mt-recommended-badge">Focus: {test.recommendation}</div>}
+                    <div className={`mt-card-icon mt-icon--${test.iconColor}`}>
                       <span className="material-symbols-outlined">{test.icon}</span>
                     </div>
+                    <span className="mt-test-category">{test.category}</span>
                     <h3 className="mt-card-title">{test.title}</h3>
                     <p className="mt-card-desc">{test.desc}</p>
                     <div className="mt-card-meta">
                       <span className="mt-meta-item">
                         <span className="material-symbols-outlined">format_list_bulleted</span>
-                        {test.questions} Qs
+                        {test.questions} questions
                       </span>
                       <span className="mt-meta-item">
                         <span className="material-symbols-outlined">schedule</span>
-                        {test.mins} Mins
+                        {test.mins} min
                       </span>
-                      <span className="mt-meta-item">
-                        {Math.max(0, test.maxAttempts - test.attemptsUsed)} / {test.maxAttempts} attempts left
-                      </span>
-                      <span className={`mt-diff-badge ${diffColors[test.difficulty]}`}>{test.difficulty}</span>
+                      {test.maxMarks && <span className="mt-meta-item">{test.maxMarks} marks</span>}
+                      {test.negativeMarks.length > 0 && (
+                        <span className="mt-meta-item">
+                          Negative marking · {test.negativeMarks.map(value => `−${value}`).join(' / ')}
+                        </span>
+                      )}
+                      <span className={`mt-diff-badge ${diffColors[test.difficulty] || ''}`}>{test.difficulty}</span>
                     </div>
-                    <button className={`mt-start-btn${test.primary ? ' mt-start-btn--primary' : ''}`} disabled={attemptLimitReached} onClick={() => {
-                      if (hasActiveInProgressExam()) {
-                        setBlockedMessage('Please complete the first test before starting a new one.')
-                        return
-                      }
-
-                      localStorage.setItem('cet_selected_mock_test_id', test.id)
-                      localStorage.setItem('cet_selected_test_name', test.title)
-                      localStorage.setItem('cet_selected_test_duration', String(test.mins))
-                      localStorage.setItem('cet_selected_question_ids', JSON.stringify(test.questionIds))
-                      localStorage.setItem('cet_selected_question_count', String(test.questions))
-                      setSelectedTestName(test.title)
-                      setSelectedMockTestId(test.id)
-                      setSelectedTestDuration(test.mins)
-                      setSelectedQuestionCount(test.questions)
-                      setSelectedQuestionIds(test.questionIds)
-                      setStartingTest(true)
-                    }}>
-                      {attemptLimitReached ? 'Attempt Limit Reached' : 'Start Now'}
-                      {!attemptLimitReached && <span className="material-symbols-outlined">arrow_forward</span>}
-                    </button>
+                    <div className="mt-test-footer">
+                      <span className="mt-attempt-status">
+                        {analyticsLoading
+                          ? 'Checking attempts…'
+                          : analyticsError
+                            ? 'Attempt history unavailable'
+                            : test.available
+                          ? `${Math.max(0, test.maxAttempts - test.attemptsUsed)} of ${test.maxAttempts} attempts left`
+                          : 'Not available yet'}
+                      </span>
+                      <button
+                        type="button"
+                        className={`mt-start-btn${test.available && !attemptLimitReached ? ' mt-start-btn--primary' : ''}`}
+                        disabled={!test.available || analyticsLoading || Boolean(analyticsError) || attemptLimitReached && !onNavigate}
+                        onClick={() => attemptLimitReached ? onNavigate?.('results') : startMockTest(test.source)}
+                      >
+                        {attemptLimitReached ? 'View results' : analyticsLoading ? 'Checking…' : analyticsError ? 'Unavailable' : test.available ? 'Start test' : 'Unavailable'}
+                        {test.available && !attemptLimitReached && <span className="material-symbols-outlined">arrow_forward</span>}
+                      </button>
+                    </div>
                   </div>
                   )
                 })}
@@ -712,57 +896,142 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             {/* Right: Sidebar widgets */}
             <div className="mt-right-col">
 
-              {/* AI Custom Test */}
-              <section className="mt-ai-card">
+              <section className="mt-ai-card" id="mt-custom-practice">
                 <div className="mt-ai-card-inner">
                   <div className="mt-ai-header">
-                    <span className="material-symbols-outlined mt-ai-icon" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
-                    <h3 className="mt-ai-title">AI Custom Test</h3>
+                    <span className="material-symbols-outlined mt-ai-icon">tune</span>
+                    <h3 className="mt-ai-title">Build a practice test</h3>
                   </div>
-                  <p className="mt-ai-desc">Generate a test based on your weak areas identified by our analytics engine.</p>
+                  <p className="mt-ai-desc">Choose a subject and create a timed set using active questions from the student question bank.</p>
+                  <div className="mt-custom-focus">
+                    <span className="mt-field-label">Focus subjects from your results</span>
+                    {weakSubjects.length ? (
+                      <div className="mt-topic-chips">
+                        {weakSubjects.map(subject => (
+                          <button
+                            type="button"
+                            key={subject.label}
+                            className={`mt-topic-chip${normalizeMockTestSubject(customSubject) === normalizeMockTestSubject(subject.label) ? ' mt-topic-chip--active' : ''}`}
+                            onClick={() => {
+                              const matchingSubject = availableCustomSubjects.find(option =>
+                                normalizeMockTestSubject(option) === normalizeMockTestSubject(subject.label))
+                              if (matchingSubject) setCustomSubject(matchingSubject)
+                              setCustomChapter('')
+                            }}
+                          >{subject.label} · {subject.percentage}%</button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-custom-note">
+                        {testsTaken
+                          ? 'No subject-level weakness is available in your results. Choose any subject below.'
+                          : 'Complete a test for personalized subject insights, or choose a subject below.'}
+                      </p>
+                    )}
+                  </div>
                   <div className="mt-ai-fields">
                     <div>
-                      <label className="mt-field-label">Select Weak Topics</label>
-                      <div className="mt-topic-chips">
-                        <span className="mt-topic-chip mt-topic-chip--active">Calculus</span>
-                        <span className="mt-topic-chip mt-topic-chip--active">Organic Chem</span>
-                        <span className="mt-topic-chip">+ Add Topic</span>
-                      </div>
+                      <label className="mt-field-label" htmlFor="mt-custom-subject">Subject</label>
+                      <select
+                        id="mt-custom-subject"
+                        className="mt-custom-select"
+                        value={customSubject}
+                        onChange={event => {
+                          setCustomSubject(event.target.value)
+                          setCustomChapter('')
+                        }}
+                        disabled={!availableCustomSubjects.length}
+                      >
+                        {availableCustomSubjects.map(subject => <option key={subject} value={subject}>{subject}</option>)}
+                      </select>
                     </div>
                     <div>
-                      <label className="mt-field-label">Time Limit: {rangeVal} min</label>
+                      <label className="mt-field-label" htmlFor="mt-custom-chapter">Chapter or topic</label>
+                      <select
+                        id="mt-custom-chapter"
+                        className="mt-custom-select"
+                        value={customChapter}
+                        onChange={event => setCustomChapter(event.target.value)}
+                      >
+                        <option value="">All chapters</option>
+                        {customChapters.map(chapter => <option key={chapter} value={chapter}>{chapter}</option>)}
+                      </select>
+                      {taxonomyError && <p className="mt-custom-note" role="status">{taxonomyError}</p>}
+                    </div>
+                    <div>
+                      <label className="mt-field-label" htmlFor="mt-custom-difficulty">Difficulty</label>
+                      <select
+                        id="mt-custom-difficulty"
+                        className="mt-custom-select"
+                        value={customDifficulty}
+                        onChange={event => setCustomDifficulty(event.target.value as DiffFilter)}
+                      >
+                        {(['All Levels', 'Easy', 'Medium', 'Hard'] as DiffFilter[]).map(value => <option key={value}>{value}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mt-field-label" htmlFor="mt-custom-count">Question count</label>
+                      <select
+                        id="mt-custom-count"
+                        className="mt-custom-select"
+                        value={customQuestionCount}
+                        onChange={event => setCustomQuestionCount(Number(event.target.value))}
+                      >
+                        {[10, 20, 30, 50].map(count => <option key={count} value={count}>{count} questions</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mt-field-label" htmlFor="mt-custom-duration">Time limit: {rangeVal} min</label>
                       <input
-                        type="range" min={30} max={120} value={rangeVal}
+                        id="mt-custom-duration"
+                        type="range" min={30} max={120} step={15} value={rangeVal}
                         onChange={e => setRangeVal(Number(e.target.value))}
                         className="mt-range"
                       />
                       <div className="mt-range-labels"><span>30 MIN</span><span>120 MIN</span></div>
                     </div>
                   </div>
-                  <button className="mt-generate-btn">Generate Personalized Test</button>
+                  {customError && <p className="mt-inline-error" role="alert">{customError}</p>}
+                  <button
+                    type="button"
+                    className="mt-generate-btn"
+                    onClick={() => void generateCustomPractice()}
+                    disabled={customLoading || !availableCustomSubjects.length}
+                  >
+                    <span className={`material-symbols-outlined${customLoading ? ' mt-spin' : ''}`}>
+                      {customLoading ? 'progress_activity' : 'play_arrow'}
+                    </span>
+                    {customLoading ? 'Preparing questions…' : 'Start custom practice'}
+                  </button>
                 </div>
               </section>
 
               {/* Test Analytics */}
               <div className="mt-glass-card mt-analytics-card">
                 <h4 className="mt-analytics-title">Test Analytics</h4>
+                {analyticsError && <p className="mt-inline-error" role="alert">{analyticsError}</p>}
                 <div className="mt-analytics-top">
                   <div>
-                        <span className="mt-big-score">{averageScore}<span className="mt-big-score-unit">/{averageMaxScore}</span></span>
-                    <span className="mt-score-label">Avg Score</span>
+                    <span className="mt-big-score">
+                      {testsTaken ? averageScore : '—'}
+                      {testsTaken > 0 && averageMaxScore > 0 && <span className="mt-big-score-unit">/{averageMaxScore}</span>}
+                    </span>
+                    <span className="mt-score-label">Average score</span>
                   </div>
                   <div className="mt-ring-group">
                     <div className="mt-ring-wrap">
-                    <svg className="mt-ring-svg" viewBox="0 0 80 80">
-                      <circle cx="40" cy="40" r="32" fill="transparent" stroke="#ffffff" strokeWidth="8" />
-                      <circle cx="40" cy="40" r="32" fill="transparent"
-                        stroke="#d21436" strokeWidth="8"
-                        strokeDasharray="200" strokeDashoffset={200 - (200 * completion) / 100}
-                        strokeLinecap="round"
-                        style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}
-                      />
-                    </svg>
-                    <div className="mt-ring-label">{accuracy}%</div>
+                      <svg className="mt-ring-svg" viewBox="0 0 80 80" aria-label={answeredQuestions ? `${accuracy}% accuracy` : 'No accuracy data yet'}>
+                        <circle cx="40" cy="40" r="32" fill="transparent" stroke="#E8ECF2" strokeWidth="8" />
+                        {answeredQuestions > 0 && (
+                          <circle cx="40" cy="40" r="32" fill="transparent"
+                            stroke="#D41236" strokeWidth="8"
+                            strokeDasharray="200" strokeDashoffset={200 - (200 * completion) / 100}
+                            strokeLinecap="round"
+                            style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+                          />
+                        )}
+                      </svg>
+                      <div className="mt-ring-label">{answeredQuestions ? `${accuracy}%` : '—'}</div>
                     </div>
                     <span className="mt-ring-caption">Accuracy</span>
                   </div>
@@ -770,37 +1039,48 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                 <div className="mt-analytics-rows">
                   {[
                     { label: 'Tests Taken', val: testsTaken.toString() },
-                    { label: 'Time Practiced', val: `${practicedHours.toFixed(1)} hrs` },
-                    { label: 'Accuracy', val: `${accuracy}%`, green: true },
+                    { label: 'Questions answered', val: answeredQuestions ? answeredQuestions.toLocaleString() : '—' },
+                    { label: 'Time practiced', val: testsTaken ? `${practicedHours.toFixed(1)} hrs` : '—' },
                   ].map(r => (
                     <div key={r.label} className="mt-analytics-row">
                       <span className="mt-analytics-row-label">{r.label}</span>
-                      <span className={`mt-analytics-row-val${r.green ? ' mt-analytics-row-val--green' : ''}`}>{r.val}</span>
+                      <span className="mt-analytics-row-val">{r.val}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Target Chapters */}
               <div className="mt-glass-card mt-chapters-card">
-                <div className="mt-chapters-header">Target Chapters</div>
+                <div className="mt-chapters-header">
+                  <strong>Subject performance</strong>
+                  <span>Based on your completed test results</span>
+                </div>
                 <div className="mt-chapters-list">
-                  {targetChapters.length > 0 ? targetChapters.map((chapter, index) => ({
-                    icon: index === 0 ? 'priority_high' : 'target',
-                    label: chapter.label,
-                    badge: chapter.percentage < 60 ? 'Critical' : 'Priority',
-                    color: index === 0 ? 'orange' : 'blue',
-                  })).map(ch => (
-                    <div key={ch.label} className="mt-chapter-row">
-                      <div className="mt-chapter-left">
-                        <div className={`mt-chapter-icon mt-chapter-icon--${ch.color}`}>
-                          <span className="material-symbols-outlined">{ch.icon}</span>
-                        </div>
-                        <span className="mt-chapter-label">{ch.label}</span>
-                      </div>
-                      <span className={`mt-chapter-badge mt-chapter-badge--${ch.color}`}>{ch.badge}</span>
-                    </div>
-                  )) : <p className="mt-empty-chapters">Complete a test to identify subjects that need attention.</p>}
+                  {subjectPerformance.length > 0 ? subjectPerformance.slice(0, 4).map(subject => (
+                    <button
+                      type="button"
+                      key={subject.label}
+                      className="mt-chapter-row"
+                      onClick={() => {
+                        const matchingSubject = availableCustomSubjects.find(option =>
+                          normalizeMockTestSubject(option) === normalizeMockTestSubject(subject.label))
+                        if (matchingSubject) {
+                          setCustomSubject(matchingSubject)
+                          setCustomChapter('')
+                          document.getElementById('mt-custom-practice')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }
+                      }}
+                    >
+                      <span className="mt-chapter-label">{subject.label}</span>
+                      <span className={`mt-chapter-badge${subject.percentage < 70 ? ' mt-chapter-badge--focus' : ' mt-chapter-badge--strong'}`}>
+                        {subject.percentage}% · {subject.percentage < 70 ? 'Focus' : 'On track'}
+                      </span>
+                    </button>
+                  )) : (
+                    <p className="mt-empty-chapters">
+                      {analyticsError ? 'Subject performance is unavailable right now.' : 'Complete a test with subject-level scoring to see your performance here.'}
+                    </p>
+                  )}
                 </div>
               </div>
 
