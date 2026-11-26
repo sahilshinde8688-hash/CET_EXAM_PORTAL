@@ -250,7 +250,7 @@
 .hero-purpose-text {
   position: relative;
   display: inline-block;
-  color: var(--cet-primary);
+  color: #000;
   white-space: nowrap;
 }
 
