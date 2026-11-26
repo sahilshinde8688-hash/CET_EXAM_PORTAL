@@ -1,4 +1,5 @@
 import { lazy, startTransition, Suspense, useEffect, useRef, useState } from 'react'
+import './page-loader.css'
 import SignIn from './components/SignIn'
 import { clearAdminCredentials } from './adminAuth'
 import { ApiResponseError, authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
@@ -61,20 +62,15 @@ const getSessionCheckErrorMessage = (error: unknown): string => {
   return 'Session check failed because of an unexpected error. Check the API server and retry.'
 }
 
-  const PAGE_ICONS: Record<string, string> = {
-  dashboard: 'dashboard',
-  mocktests: 'quiz',
-  results:   'history',
-  analytics: 'analytics',
-  settings:  'settings',
-  unauthorized: 'lock',
-}
 const PAGE_LABELS: Record<string, string> = {
+  landing:   'Home',
+  signin:    'Sign in',
   dashboard: 'Dashboard',
   mocktests: 'Mock Tests',
   results:   'Results',
   analytics: 'Analytics',
   settings:  'Settings',
+  admin:     'Admin dashboard',
   unauthorized: 'Access denied',
 }
 
@@ -92,21 +88,21 @@ function PageLoader({ target }: { target: Page }) {
     }, 100)
     return () => clearInterval(interval)
   }, [])
-  const icon = PAGE_ICONS[target] ?? 'school'
   const label = PAGE_LABELS[target] ?? 'Loading'
   return (
-    <div className="ld-root">
+    <div className="ld-root" role="status" aria-live="polite" aria-label={`Opening ${label}`}>
       <div className="ld-progress-track">
         <div className="ld-progress-bar" style={{ width: `${progress}%` }} />
       </div>
       <div className="ld-card">
-        <div className="ld-icon-bubble">
-          <span className="material-symbols-outlined ld-icon">{icon}</span>
-          <div className="ld-icon-ring ld-ring-1" />
-          <div className="ld-icon-ring ld-ring-2" />
-          <div className="ld-icon-ring ld-ring-3" />
+        <div className="ld-icon-bubble" aria-hidden="true">
+          <div className="ld-orbit ld-orbit--outer"><span className="ld-orbit-dot" /></div>
+          <div className="ld-orbit ld-orbit--inner"><span className="ld-orbit-dot" /></div>
+          <span className="ld-monogram">CET</span>
         </div>
-        <p className="ld-label">{label}</p>
+        <p className="ld-eyebrow">CET NOVA</p>
+        <p className="ld-label">Opening {label}</p>
+        <p className="ld-hint">Getting your page ready</p>
         <div className="ld-shimmer-wrap">
           <div className="ld-shimmer ld-shimmer--w80" />
           <div className="ld-shimmer ld-shimmer--w60" />

@@ -1949,7 +1949,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   ? <StudentProfile studentId={viewProfileId} onBack={() => setViewProfileId(null)} />
                   : <RegisteredStudents onViewProfile={setViewProfileId} />
               )}
-              {view === 'questions' && <QuestionBank onCreateTest={(ids) => {
+              {view === 'questions' && <QuestionBank searchQuery={topbarSearch} onCreateTest={(ids) => {
                 setQuestionIdsForTest(ids)
                 changeView('mocktests')
               }} />}

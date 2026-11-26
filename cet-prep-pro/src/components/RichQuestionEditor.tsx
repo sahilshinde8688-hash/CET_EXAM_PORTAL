@@ -684,7 +684,7 @@ export default function RichQuestionEditor({
         onPaste={pasteContent}
         onClick={handleEquationClick}
       />
-      {onPasteImage && !compact && (
+      {onPasteImage && (
         <button type="button" className="rich-question-paste-image" onClick={() => {
           const selection = window.getSelection()
           const range = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null

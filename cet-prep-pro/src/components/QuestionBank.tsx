@@ -19,6 +19,10 @@ import LoadingIndicator from './LoadingIndicator'
 import '../question-bank.css'
 
 type Tab = 'dashboard' | 'list' | 'add' | 'bulk'
+type QuestionBankProps = {
+  onCreateTest: (questionIds: string[]) => void
+  searchQuery?: string
+}
 
 const MATHEMATICS_CHAPTERS_BY_CLASS: Record<'11' | '12', string[]> = {
   '11': [
@@ -62,12 +66,12 @@ const MATHEMATICS_CHAPTERS_BY_CLASS: Record<'11' | '12', string[]> = {
   ],
 }
 
-export default function QuestionBank({ onCreateTest }: { onCreateTest: (questionIds: string[]) => void }) {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+export default function QuestionBank({ onCreateTest, searchQuery = '' }: QuestionBankProps) {
+  const [activeTab, setActiveTab] = useState<Tab>(() => searchQuery.trim() ? 'list' : 'dashboard')
   const [questions, setQuestions] = useState<Question[]>([])
   const [chapterCatalog, setChapterCatalog] = useState<CetTaxonomySubject[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchQuery)
   const [subjectFilter, setSubjectFilter] = useState('')
   const [classFilter, setClassFilter] = useState<'' | '11' | '12'>('')
   const [chapterFilter, setChapterFilter] = useState('')
@@ -80,6 +84,11 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
   const [spreadsheetReview, setSpreadsheetReview] = useState<SpreadsheetImportPreview | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    setSearch(searchQuery)
+    if (searchQuery.trim()) setActiveTab('list')
+  }, [searchQuery])
 
   // PDF question extraction (extract -> review -> import)
   const PDF_MAX_MB = 25
@@ -377,7 +386,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
     : Array.from(new Set([...selectedSubjectChapters, ...questionChapters]))
 
   const filteredQuestions = questions.filter(q => {
-    const query = search.toLowerCase()
+    const query = search.trim().toLowerCase()
     const matchesSearch = !query || q.questionCode?.toLowerCase().includes(query) || q.text?.toLowerCase().includes(query) || q.subject?.toLowerCase().includes(query) || q.topic?.toLowerCase().includes(query) || q.chapter?.toLowerCase().includes(query)
     const matchesSubject = !subjectFilter || normalizeSubject(q.subject) === normalizeSubject(subjectFilter)
     const matchesClass = !classFilter || q.classLevel === classFilter
@@ -472,6 +481,17 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
       showToast(message, 'error')
     } finally {
       setUploadingImage(false)
+    }
+  }
+
+  const uploadOptionImage = async (file: File): Promise<string | void> => {
+    try {
+      const res = await questionsAPI.uploadQuestionImage(file)
+      showToast('Option image uploaded successfully', 'success')
+      return res.imageUrl
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Image upload failed'
+      showToast(message, 'error')
     }
   }
 
@@ -706,7 +726,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
               <button className="qb-btn qb-btn-outline" onClick={load}><RefreshCcw size={16}/> Refresh</button>
             </div>
 
-            {subjectFilter && !chapterFilter && (
+            {subjectFilter && !chapterFilter && !search.trim() && (
               <div className="qb-card qb-hierarchy">
                 <div className="qb-hierarchy-heading">
                   <div>
@@ -764,7 +784,7 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                 <button className="qb-btn qb-btn-outline" onClick={() => setChapterFilter('')}>Back to Chapters</button>
               </div>
             )}
-            {(!subjectFilter || chapterFilter) && <div className="qb-table-container">
+            {(!subjectFilter || chapterFilter || search.trim()) && <div className="qb-table-container">
               <div className="qb-table-toolbar">
                 <div style={{fontWeight: 600}}>Showing {filteredQuestions.length} Questions</div>
                 <div style={{display: 'flex', gap: '8px'}}>
@@ -787,6 +807,13 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                   </thead>
                   <tbody>
                     {loading ? <tr><td colSpan={7}><LoadingIndicator message="Loading questions..." /></td></tr> : null}
+                    {!loading && filteredQuestions.length === 0 && (
+                      <tr>
+                        <td colSpan={7} style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
+                          {search.trim() ? `No questions found for "${search.trim()}".` : 'No questions match the selected filters.'}
+                        </td>
+                      </tr>
+                    )}
                     {filteredQuestions.map(q => (
                       <tr key={q._id}>
                         <td style={{fontFamily: 'monospace', color: 'var(--text-muted)'}}>{q.questionCode || q._id.slice(-6).toUpperCase()}</td>
@@ -987,8 +1014,12 @@ export default function QuestionBank({ onCreateTest }: { onCreateTest: (question
                       <div className="qb-option-input-wrap">
                         <label className="qb-label">Option {String.fromCharCode(65+i)} {form.correctIndex === i && '(Correct Answer)'}</label>
                         <RichQuestionEditor compact value={opt} onChange={value => {
-                          const newOpts = [...form.options]; newOpts[i] = value; setForm({...form, options: newOpts})
-                        }} onPasteImage={uploadQuestionImage} />
+                          setForm(current => {
+                            const options = [...current.options]
+                            options[i] = value
+                            return { ...current, options }
+                          })
+                        }} onPasteImage={uploadOptionImage} />
                       </div>
                       <div style={{display:'flex', flexDirection:'column', gap: 8, marginTop: 24}}>
                         <button className="qb-btn-icon" title="Mark as Correct" onClick={() => setForm({...form, correctIndex: i})}>
