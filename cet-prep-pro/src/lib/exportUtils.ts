@@ -143,23 +143,33 @@ export function downloadSingleTestReport(
   <title>${examName} - Detailed Performance Report</title>
   <style>
     :root {
-      --blue: #d21436;
-      --blue-dark: #171717;
-      --navy: #171717;
-      --text: #171717;
-      --muted: #171717;
-      --soft: #ffffff;
-      --card: #ffffff;
-      --line: #ffffff;
+      --color-background: #F4F4F6;
+      --color-surface: #FFFFFF;
+      --color-surface-secondary: #E7E7E7;
+      --color-border: #D2D2D4;
+      --color-primary: #FF634A;
+      --color-primary-hover: #C94332;
+      --color-text-primary: #252525;
+      --color-text-secondary: #666666;
+      --color-primary-rgb: 255, 99, 74;
+      --color-text-primary-rgb: 37, 37, 37;
+      --blue: var(--color-primary);
+      --blue-dark: var(--color-primary-hover);
+      --navy: var(--color-text-primary);
+      --text: var(--color-text-primary);
+      --muted: var(--color-text-secondary);
+      --soft: var(--color-background);
+      --card: var(--color-surface);
+      --line: var(--color-border);
       --green: #16a085;
       --green-soft: #ffffff;
       --red: #dc2626;
-      --red-soft: #f8f8f8;
-      --amber: #d21436;
-      --amber-soft: #f8f8f8;
-      --gray: #e5e5e5;
-      --gray-strong: #171717;
-      --shadow: rgba(23, 44, 79, 0.08);
+      --red-soft: var(--color-surface-secondary);
+      --amber: var(--color-primary);
+      --amber-soft: var(--color-surface-secondary);
+      --gray: var(--color-border);
+      --gray-strong: var(--color-text-primary);
+      --shadow: rgba(var(--color-text-primary-rgb), 0.08);
     }
 
     * { box-sizing: border-box; }
@@ -202,7 +212,7 @@ export function downloadSingleTestReport(
       width: 40px;
       height: 40px;
       border-radius: 12px;
-      background: linear-gradient(135deg, #171717, #d21436);
+      background: linear-gradient(135deg, var(--color-text-primary), var(--color-primary));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -279,11 +289,11 @@ export function downloadSingleTestReport(
       height: 54px;
       border-radius: 50%;
       background: linear-gradient(135deg, #ffffff, #ffffff);
-      border: 1px solid #e5e5e5;
+      border: 1px solid var(--color-border);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #171717;
+      color: var(--color-text-primary);
       font-weight: 700;
       font-size: 18px;
     }
@@ -316,8 +326,8 @@ export function downloadSingleTestReport(
     .label-pill {
       display: inline-block;
       background: #ffffff;
-      border: 1px solid #e5e5e5;
-      color: #171717;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-primary);
       padding: 6px 10px;
       border-radius: 999px;
       font-size: 11px;
@@ -465,7 +475,7 @@ export function downloadSingleTestReport(
       width: 110px;
       height: 9px;
       border-radius: 999px;
-      background: #e5e5e5;
+      background: var(--color-border);
       overflow: hidden;
       vertical-align: middle;
       margin-left: 6px;
@@ -475,7 +485,7 @@ export function downloadSingleTestReport(
       display: block;
       height: 100%;
       border-radius: inherit;
-      background: linear-gradient(90deg, #16a085, #d21436);
+      background: linear-gradient(90deg, #16a085, var(--color-primary));
     }
 
     .right-panel .panel {
@@ -601,7 +611,7 @@ export function downloadSingleTestReport(
 
     .chip.good { background: var(--green-soft); color: #16a085; }
     .chip.bad { background: var(--red-soft); color: #dc2626; }
-    .chip.flat { background: #e5e5e5; color: #171717; }
+    .chip.flat { background: var(--color-border); color: var(--color-text-primary); }
 
     .footer-note {
       margin-top: 20px;
@@ -656,7 +666,7 @@ export function downloadSingleTestReport(
           </div>
         </div>
       </div>
-      <span class="label-pill" style="background:${hasPassed ? '#ffffff' : '#f8f8f8'}; color:${hasPassed ? '#171717' : '#dc2626'}; border-color:${hasPassed ? '#e5e5e5' : '#f8f8f8'};">${hasPassed ? 'Qualified' : 'Not Qualified'}</span>
+      <span class="label-pill" style="background:${hasPassed ? '#ffffff' : 'var(--color-surface-secondary)'}; color:${hasPassed ? 'var(--color-text-primary)' : '#dc2626'}; border-color:${hasPassed ? 'var(--color-border)' : 'var(--color-surface-secondary)'};">${hasPassed ? 'Qualified' : 'Not Qualified'}</span>
     </div>
 
     <div class="layout">
@@ -740,7 +750,7 @@ export function downloadSingleTestReport(
             <div class="legend">
               <div class="legend-item"><span class="legend-swatch" style="background: #16a085"></span> Correct: ${correct} (${((correct / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
               <div class="legend-item"><span class="legend-swatch" style="background: #dc2626"></span> Incorrect: ${incorrect} (${((incorrect / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
-              <div class="legend-item"><span class="legend-swatch" style="background: #e5e5e5"></span> Unattempted: ${unanswered} (${((unanswered / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
+              <div class="legend-item"><span class="legend-swatch" style="background: var(--color-border)"></span> Unattempted: ${unanswered} (${((unanswered / Math.max(1, totalQuestions)) * 100).toFixed(1)}%)</div>
             </div>
             <div class="ring"><div class="ring-center">${pct}%</div></div>
           </div>
@@ -845,35 +855,35 @@ export function downloadCompleteSolutionBooklet(
   <meta charset="utf-8"/>
   <title>${examName} - Solutions Booklet</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #171717; max-width: 900px; margin: 0 auto; padding: 32px 20px; background: #ffffff; }
-    .header { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center; }
-    .q-item { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: var(--color-text-primary); max-width: 900px; margin: 0 auto; padding: 32px 20px; background: #ffffff; }
+    .header { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center; }
+    .q-item { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
     .is-correct { border-left: 5px solid #16a085; }
     .is-incorrect { border-left: 5px solid #dc2626; }
-    .is-unattempted { border-left: 5px solid #d21436; }
+    .is-unattempted { border-left: 5px solid var(--color-primary); }
     .q-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .pill { padding: 3px 10px; border-radius: 14px; font-size: 12px; font-weight: 700; }
     .pill-green { background: #ffffff; color: #16a085; border: 1px solid #ffffff; }
-    .pill-red { background: #f8f8f8; color: #dc2626; border: 1px solid #f8f8f8; }
-    .pill-amber { background: #f8f8f8; color: #d21436; border: 1px solid #f8f8f8; }
-    .q-text { font-size: 15.5px; font-weight: 500; margin-bottom: 16px; color: #171717; }
+    .pill-red { background: var(--color-surface-secondary); color: #dc2626; border: 1px solid var(--color-surface-secondary); }
+    .pill-amber { background: var(--color-surface-secondary); color: var(--color-primary); border: 1px solid var(--color-surface-secondary); }
+    .q-text { font-size: 15.5px; font-weight: 500; margin-bottom: 16px; color: var(--color-text-primary); }
     .options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-    .opt { padding: 10px 14px; border: 1px solid #e5e5e5; border-radius: 8px; font-size: 14px; background: #ffffff; }
+    .opt { padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 14px; background: #ffffff; }
     .opt-correct { border-color: #ffffff; background: #ffffff; }
-    .opt-wrong { border-color: #f8f8f8; background: #f8f8f8; }
-    .ans-meta { font-size: 13.5px; color: #171717; padding: 8px 12px; background: #ffffff; border-radius: 6px; margin-bottom: 12px; }
-    .sol-box { background: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px 16px; font-size: 13.5px; color: #171717; margin-top: 10px; }
-    .ai-sol-box { background: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 14px 18px; font-size: 13.5px; margin-top: 12px; }
+    .opt-wrong { border-color: var(--color-surface-secondary); background: var(--color-surface-secondary); }
+    .ans-meta { font-size: 13.5px; color: var(--color-text-primary); padding: 8px 12px; background: #ffffff; border-radius: 6px; margin-bottom: 12px; }
+    .sol-box { background: #ffffff; border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px; font-size: 13.5px; color: var(--color-text-primary); margin-top: 10px; }
+    .ai-sol-box { background: #ffffff; border: 1px solid var(--color-border); border-radius: 8px; padding: 14px 18px; font-size: 13.5px; margin-top: 12px; }
     @media print { body { background: #fff; padding: 0; } .q-item { page-break-inside: avoid; } }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1 style="margin:0 0 6px; color:#d21436;">CET NOVA</h1>
-    <h2 style="margin:0 0 6px; color:#171717;">${examName} - Complete Solutions Booklet</h2>
-    <p style="margin:0; color:#171717; font-size:14px;">Total Questions: ${questions.length} • Generated on ${new Date().toLocaleDateString()}</p>
+    <h1 style="margin:0 0 6px; color:var(--color-primary);">CET NOVA</h1>
+    <h2 style="margin:0 0 6px; color:var(--color-text-primary);">${examName} - Complete Solutions Booklet</h2>
+    <p style="margin:0; color:var(--color-text-primary); font-size:14px;">Total Questions: ${questions.length} • Generated on ${new Date().toLocaleDateString()}</p>
     <div style="margin-top:16px;">
-      <button onclick="window.print()" style="padding:8px 20px; background:#d21436; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Print to PDF</button>
+      <button onclick="window.print()" style="padding:8px 20px; background:var(--color-primary); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Print to PDF</button>
     </div>
   </div>
   ${itemsHtml}
@@ -959,26 +969,26 @@ export function exportQuestionBankHTML(questions: Question[], title = 'CET Quest
   <meta charset="utf-8"/>
   <title>${title} - CET NOVA</title>
   <style>
-    body { font-family: 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #171717; max-width: 960px; margin: 0 auto; padding: 32px 24px; background: #ffffff; }
-    .header { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center; }
-    .qb-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; padding: 20px; margin-bottom: 18px; page-break-inside: avoid; }
+    body { font-family: 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: var(--color-text-primary); max-width: 960px; margin: 0 auto; padding: 32px 24px; background: #ffffff; }
+    .header { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center; }
+    .qb-card { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 20px; margin-bottom: 18px; page-break-inside: avoid; }
     .qb-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #ffffff; padding-bottom: 8px; }
-    .qb-num { font-weight: 700; color: #d21436; font-size: 15px; }
-    .qb-meta { font-size: 12.5px; color: #171717; font-weight: 600; }
-    .qb-text { font-size: 15px; font-weight: 500; margin-bottom: 14px; color: #171717; }
+    .qb-num { font-weight: 700; color: var(--color-primary); font-size: 15px; }
+    .qb-meta { font-size: 12.5px; color: var(--color-text-primary); font-weight: 600; }
+    .qb-text { font-size: 15px; font-weight: 500; margin-bottom: 14px; color: var(--color-text-primary); }
     .qb-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
-    .qb-opt { padding: 8px 12px; border: 1px solid #e5e5e5; border-radius: 6px; font-size: 13.5px; background: #ffffff; }
+    .qb-opt { padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px; font-size: 13.5px; background: #ffffff; }
     .qb-ans { font-size: 13.5px; color: #16a085; background: #ffffff; border: 1px solid #ffffff; padding: 10px 14px; border-radius: 6px; }
     @media print { body { background: #fff; padding: 0; } button { display: none; } }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1 style="margin: 0 0 6px; color: #d21436;">CET NOVA</h1>
-    <h2 style="margin: 0 0 6px; color: #171717;">${title}</h2>
-    <p style="margin: 0; color: #171717; font-size: 14px;">Total Questions: ${questions.length} • Generated on ${new Date().toLocaleDateString()}</p>
+    <h1 style="margin: 0 0 6px; color: var(--color-primary);">CET NOVA</h1>
+    <h2 style="margin: 0 0 6px; color: var(--color-text-primary);">${title}</h2>
+    <p style="margin: 0; color: var(--color-text-primary); font-size: 14px;">Total Questions: ${questions.length} • Generated on ${new Date().toLocaleDateString()}</p>
     <div style="margin-top: 16px;">
-      <button onclick="window.print()" style="padding: 9px 20px; background: #d21436; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Print / Save as PDF</button>
+      <button onclick="window.print()" style="padding: 9px 20px; background: var(--color-primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Print / Save as PDF</button>
     </div>
   </div>
   ${itemsHtml}

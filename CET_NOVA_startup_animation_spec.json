@@ -1,0 +1,246 @@
+{
+  "project": {
+    "name": "CET NOVA Startup Animation",
+    "format": "animation_specification",
+    "version": "1.0",
+    "source_reference": "User-provided 8.04-second CET NOVA logo animation",
+    "duration_seconds": 8.04,
+    "frame_rate": 24,
+    "canvas": {
+      "width": 360,
+      "height": 640,
+      "aspect_ratio": "9:16"
+    },
+    "background": "#F7F5EC",
+    "purpose": "Branded website intro shown while the CET NOVA homepage loads in the background"
+  },
+  "brand": {
+    "name": "CET NOVA",
+    "tagline": "LEARN • PREPARE • EXCEL",
+    "palette": {
+      "background": "#F7F5EC",
+      "ink": "#252525",
+      "gold": "#F2B900",
+      "gold_shadow": "#C99A00",
+      "sparkle": "#FFFFFF"
+    },
+    "logo_direction": "Preserve the supplied CET NOVA logo proportions and wordmark; do not redesign the identity."
+  },
+  "visual_style": {
+    "style": "minimal premium educational motion graphics",
+    "rendering": "clean vector shapes with subtle 2.5D depth",
+    "lighting": "soft warm ambient glow",
+    "shadows": "very subtle diffuse shadow beneath the book and logo",
+    "motion": "smooth ease-in-out, no harsh cuts or flashes"
+  },
+  "elements": [
+    {
+      "id": "background",
+      "type": "solid",
+      "color": "#F7F5EC",
+      "persistent": true
+    },
+    {
+      "id": "opening_line",
+      "type": "thin_curved_line",
+      "color": "#B6A77A",
+      "position": "center",
+      "initial_opacity": 0
+    },
+    {
+      "id": "book_base",
+      "type": "vector_shape",
+      "description": "Symmetrical open-book base with a dark lower page edge and golden and dark layered pages",
+      "colors": [
+        "#252525",
+        "#F2B900"
+      ],
+      "position": "lower_center"
+    },
+    {
+      "id": "book_pages",
+      "type": "vector_shapes",
+      "description": "Pages unfold outward from the central spine, alternating matte black and golden yellow",
+      "anchor": "book_spine"
+    },
+    {
+      "id": "graduate",
+      "type": "vector_silhouette",
+      "description": "Black graduate silhouette emerging from the centre of the open book, wearing a mortarboard and raising one arm",
+      "color": "#252525"
+    },
+    {
+      "id": "star",
+      "type": "four_point_star",
+      "color": "#F2B900",
+      "position": "above_raised_hand"
+    },
+    {
+      "id": "wordmark",
+      "type": "text_or_vector_logo",
+      "text": "CET NOVA",
+      "color": "#252525",
+      "alignment": "center"
+    },
+    {
+      "id": "tagline",
+      "type": "text",
+      "text": "LEARN • PREPARE • EXCEL",
+      "color": "#252525",
+      "alignment": "center"
+    },
+    {
+      "id": "sparkles",
+      "type": "small_four_point_sparkles",
+      "color": "#FFFFFF",
+      "opacity": 0.8,
+      "behavior": "subtle twinkle"
+    }
+  ],
+  "timeline": [
+    {
+      "start": 0.0,
+      "end": 1.5,
+      "name": "Opening reveal",
+      "actions": [
+        {
+          "target": "background",
+          "action": "fade_in",
+          "from": 0,
+          "to": 1
+        },
+        {
+          "target": "opening_line",
+          "action": "draw_on_and_fade_in",
+          "from_opacity": 0,
+          "to_opacity": 1
+        },
+        {
+          "target": "sparkles",
+          "action": "fade_in",
+          "from_opacity": 0,
+          "to_opacity": 0.8
+        }
+      ]
+    },
+    {
+      "start": 1.5,
+      "end": 3.0,
+      "name": "Book formation",
+      "actions": [
+        {
+          "target": "book_base",
+          "action": "scale_and_fade_in",
+          "from_scale": 0.72,
+          "to_scale": 1,
+          "from_opacity": 0,
+          "to_opacity": 1
+        },
+        {
+          "target": "book_pages",
+          "action": "unfold_from_center",
+          "direction": "outward",
+          "easing": "ease_in_out"
+        }
+      ]
+    },
+    {
+      "start": 3.0,
+      "end": 4.5,
+      "name": "Graduate emergence",
+      "actions": [
+        {
+          "target": "graduate",
+          "action": "rise_from_book",
+          "from_y_offset": 34,
+          "to_y_offset": 0,
+          "from_opacity": 0,
+          "to_opacity": 1
+        },
+        {
+          "target": "star",
+          "action": "reveal_above_raised_hand",
+          "scale_from": 0.15,
+          "scale_to": 1,
+          "rotation_degrees": 45
+        }
+      ]
+    },
+    {
+      "start": 4.5,
+      "end": 6.2,
+      "name": "CET NOVA brand reveal",
+      "actions": [
+        {
+          "target": "wordmark",
+          "action": "fade_in_and_move_up",
+          "from_y_offset": 14,
+          "to_y_offset": 0,
+          "from_opacity": 0,
+          "to_opacity": 1
+        },
+        {
+          "target": "tagline",
+          "action": "fade_in",
+          "from_opacity": 0,
+          "to_opacity": 1,
+          "start_offset": 0.35
+        },
+        {
+          "target": "book_base",
+          "action": "settle",
+          "scale_from": 1.03,
+          "scale_to": 1
+        }
+      ]
+    },
+    {
+      "start": 6.2,
+      "end": 8.04,
+      "name": "Hold and handoff",
+      "actions": [
+        {
+          "target": "complete_logo",
+          "action": "hold",
+          "opacity": 1
+        },
+        {
+          "target": "sparkles",
+          "action": "subtle_twinkle"
+        },
+        {
+          "target": "complete_logo",
+          "action": "optional_soft_scale",
+          "from_scale": 1,
+          "to_scale": 1.015
+        }
+      ]
+    }
+  ],
+  "website_handoff": {
+    "start_loading_immediately": true,
+    "load_homepage_in_background": true,
+    "minimum_intro_duration_seconds": 0,
+    "do_not_use_fixed_wait_as_readiness_signal": true,
+    "transition_condition": "Reveal the homepage only after the animation has completed AND the application reports that its essential content is ready.",
+    "if_homepage_ready_early": "Finish the animation naturally, then transition.",
+    "if_animation_finishes_early": "Hold the final CET NOVA logo frame with a restrained progress indicator until the homepage is ready.",
+    "transition": {
+      "type": "soft_fade",
+      "duration_seconds": 0.45,
+      "avoid_white_flash": true
+    },
+    "replay_policy": "Play once per fresh website visit; do not replay on internal route changes.",
+    "fallback": "If the animation asset fails, show a static CET NOVA logo and continue loading the homepage."
+  },
+  "implementation_notes": {
+    "intended_use": "Developer handoff or conversion into a Lottie/After Effects animation",
+    "is_directly_renderable_lottie": false,
+    "recommended_implementation": "Rebuild the described elements as vector layers in Lottie, SVG, or a motion library. Keep the website loading state separate from the animation timeline.",
+    "responsive": true,
+    "mobile_first": true,
+    "reduced_motion": "Skip or greatly shorten the animation when prefers-reduced-motion is enabled.",
+    "performance": "Preload the animation and logo assets; avoid blocking the first meaningful homepage render.",
+    "accessibility": "Mark the intro as decorative and prevent it from trapping keyboard focus."
+  }
+}

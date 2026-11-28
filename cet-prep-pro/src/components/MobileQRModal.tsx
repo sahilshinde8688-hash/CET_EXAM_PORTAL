@@ -75,7 +75,7 @@ export default function MobileQRModal({ isOpen, onClose, currentPath = window.lo
       width: 280,
       margin: 2,
       color: {
-        dark: '#171717',
+        dark: 'var(--color-text-primary)',
         light: '#ffffff',
       },
       errorCorrectionLevel: 'M',

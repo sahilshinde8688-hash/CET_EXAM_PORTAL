@@ -53,7 +53,7 @@ const initialSettings = (): Settings => {
 
 const panelStyle: CSSProperties = {
   background: '#fff',
-  border: '1px solid #e5e5e5',
+  border: '1px solid var(--color-border)',
   borderRadius: 14,
   padding: 20,
   marginBottom: 18,
@@ -61,9 +61,9 @@ const panelStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   width: '100%',
   padding: '10px 12px',
-  border: '1px solid #e5e5e5',
+  border: '1px solid var(--color-border)',
   borderRadius: 8,
-  color: '#171717',
+  color: 'var(--color-text-primary)',
   background: '#fff',
 }
 const actionStyle: CSSProperties = {
@@ -71,14 +71,14 @@ const actionStyle: CSSProperties = {
   border: '0',
   borderRadius: 8,
   color: '#fff',
-  background: '#d21436',
+  background: 'var(--color-primary)',
   fontWeight: 700,
   cursor: 'pointer',
 }
 const secondaryStyle: CSSProperties = {
   ...actionStyle,
   background: '#ffffff',
-  color: '#171717',
+  color: 'var(--color-text-primary)',
 }
 
 const messageOf = (error: unknown) => error instanceof Error ? error.message : 'The request failed. Please try again.'
@@ -351,12 +351,12 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
         <div>
           <button type="button" style={{ ...secondaryStyle, marginBottom: 10, minHeight: 44 }} onClick={onBack}>← Mock tests</button>
           <h1 style={{ margin: 0, fontSize: 24 }}>Mock Test Assignments</h1>
-          <p style={{ margin: '6px 0 0', color: '#171717' }}>Assign saved tests to students and manage deadlines and attempts.</p>
+          <p style={{ margin: '6px 0 0', color: 'var(--color-text-primary)' }}>Assign saved tests to students and manage deadlines and attempts.</p>
         </div>
         {view === 'list' && <button type="button" style={{ ...actionStyle, minHeight: 44 }} onClick={() => startForm()}>Assign Mock Test</button>}
       </header>
 
-      {error && <div role="alert" style={{ ...panelStyle, color: '#dc2626', borderColor: '#f8f8f8', background: '#f8f8f8' }}>{error}</div>}
+      {error && <div role="alert" style={{ ...panelStyle, color: '#dc2626', borderColor: 'var(--color-surface-secondary)', background: 'var(--color-surface-secondary)' }}>{error}</div>}
       {notice && <div role="status" style={{ ...panelStyle, color: '#16a085', borderColor: '#ffffff', background: '#ffffff' }}>{notice}</div>}
 
       {view === 'list' && (
@@ -364,7 +364,7 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
           <div style={{ overflowX: 'auto', ...panelStyle }}>
             {loading ? <LoadingIndicator message="Loading tests and assignments..." /> : (
               <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 920 }}>
-                <thead><tr>{['Mock Test', 'Test ID', 'Subject / Exam Type', 'Questions', 'Marks', 'Duration', 'Created', 'Assigned', 'Status', 'Actions'].map(title => <th key={title} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e5e5e5', fontSize: 12, color: '#171717' }}>{title}</th>)}</tr></thead>
+                <thead><tr>{['Mock Test', 'Test ID', 'Subject / Exam Type', 'Questions', 'Marks', 'Duration', 'Created', 'Assigned', 'Status', 'Actions'].map(title => <th key={title} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--color-border)', fontSize: 12, color: 'var(--color-text-primary)' }}>{title}</th>)}</tr></thead>
                 <tbody>{tests.map(test => (
                   <tr key={test._id}>
                     <td style={{ padding: 10, borderBottom: '1px solid #ffffff', fontWeight: 700 }}>{test.title}</td>
@@ -384,13 +384,13 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
           </div>
           <div style={panelStyle}>
             <h2 style={{ marginTop: 0 }}>Assigned Mock Tests</h2>
-            {loading ? <LoadingIndicator message="Loading assignments..." /> : assignments.length === 0 ? <p style={{ color: '#171717' }}>No assignments yet.</p> : (
+            {loading ? <LoadingIndicator message="Loading assignments..." /> : assignments.length === 0 ? <p style={{ color: 'var(--color-text-primary)' }}>No assignments yet.</p> : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 900 }}>
-                  <thead><tr>{['Mock Test', 'Assigned Students', 'Start', 'End', 'Attempts', 'Status', 'Actions'].map(title => <th key={title} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #e5e5e5' }}>{title}</th>)}</tr></thead>
+                  <thead><tr>{['Mock Test', 'Assigned Students', 'Start', 'End', 'Attempts', 'Status', 'Actions'].map(title => <th key={title} style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid var(--color-border)' }}>{title}</th>)}</tr></thead>
                   <tbody>{assignments.map(assignment => (
                     <tr key={assignment._id}>
-                      <td style={{ padding: 10, borderBottom: '1px solid #ffffff' }}><strong>{assignment.mockTestName}</strong><small style={{ display: 'block', color: '#171717' }}>{assignment._id}</small></td>
+                      <td style={{ padding: 10, borderBottom: '1px solid #ffffff' }}><strong>{assignment.mockTestName}</strong><small style={{ display: 'block', color: 'var(--color-text-primary)' }}>{assignment._id}</small></td>
                       <td style={{ padding: 10, borderBottom: '1px solid #ffffff' }}>{assignment.assignedStudentCount}</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #ffffff' }}>{new Date(assignment.startDateTime).toLocaleString('en-IN', { timeZone: assignment.timeZone || 'Asia/Kolkata' })} ({assignment.timeZone || 'Asia/Kolkata'})</td>
                       <td style={{ padding: 10, borderBottom: '1px solid #ffffff' }}>{new Date(assignment.endDateTime).toLocaleString('en-IN', { timeZone: assignment.timeZone || 'Asia/Kolkata' })}</td>
@@ -432,7 +432,7 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
             <div style={{ maxHeight: 250, overflow: 'auto' }}>
               {tests.map(test => <label key={test._id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #ffffff', padding: '10px 4px' }}>
                 <input type="checkbox" disabled={Boolean(editing)} checked={selectedTestIds.includes(test._id)} onChange={() => setSelectedTestIds(current => current.includes(test._id) ? current.filter(id => id !== test._id) : [...current, test._id])} />
-                <span style={{ flex: 1 }}><strong>{test.title}</strong><small style={{ display: 'block', color: '#171717' }}>{test._id} · {test.subject} · {test.examType || 'Exam type not set'} · {test.questionIds?.length || 0} questions · {marks[test._id] ?? '—'} marks · {test.duration} min · {test.status}</small></span>
+                <span style={{ flex: 1 }}><strong>{test.title}</strong><small style={{ display: 'block', color: 'var(--color-text-primary)' }}>{test._id} · {test.subject} · {test.examType || 'Exam type not set'} · {test.questionIds?.length || 0} questions · {marks[test._id] ?? '—'} marks · {test.duration} min · {test.status}</small></span>
               </label>)}
             </div>
           </div>
@@ -450,15 +450,15 @@ export default function AdminMockTestAssignments({ onBack }: Props) {
             {target === 'students' && (
               <>
                 <input style={{ ...inputStyle, maxWidth: 500 }} value={studentSearch} onChange={event => setStudentSearch(event.target.value)} placeholder="Search by name, email, or student ID" />
-                <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}><button disabled={Boolean(editing)} style={secondaryStyle} type="button" onClick={() => toggleVisibleStudents(true)}>Select all shown</button><button disabled={Boolean(editing)} style={secondaryStyle} type="button" onClick={() => toggleVisibleStudents(false)}>Deselect shown</button><span style={{ alignSelf: 'center', color: '#171717' }}>{selectedStudentIds.length} selected</span></div>
-                <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid #e5e5e5', borderRadius: 8, padding: '0 10px' }}>
-                  {filteredStudents.map(student => <label key={studentId(student)} style={{ display: 'flex', gap: 10, padding: 8, borderBottom: '1px solid #ffffff' }}><input type="checkbox" disabled={Boolean(editing)} checked={selectedStudentIds.includes(studentId(student))} onChange={() => toggleStudent(studentId(student))} /><span>{studentLabel(student)}<small style={{ display: 'block', color: '#171717' }}>{student.branch || 'No branch'} · {student.batch || 'No batch'} · {student.examType || 'No exam category'}</small></span></label>)}
-                  {!filteredStudents.length && <p style={{ color: '#171717' }}>No approved students match this search/filter.</p>}
+                <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}><button disabled={Boolean(editing)} style={secondaryStyle} type="button" onClick={() => toggleVisibleStudents(true)}>Select all shown</button><button disabled={Boolean(editing)} style={secondaryStyle} type="button" onClick={() => toggleVisibleStudents(false)}>Deselect shown</button><span style={{ alignSelf: 'center', color: 'var(--color-text-primary)' }}>{selectedStudentIds.length} selected</span></div>
+                <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0 10px' }}>
+                  {filteredStudents.map(student => <label key={studentId(student)} style={{ display: 'flex', gap: 10, padding: 8, borderBottom: '1px solid #ffffff' }}><input type="checkbox" disabled={Boolean(editing)} checked={selectedStudentIds.includes(studentId(student))} onChange={() => toggleStudent(studentId(student))} /><span>{studentLabel(student)}<small style={{ display: 'block', color: 'var(--color-text-primary)' }}>{student.branch || 'No branch'} · {student.batch || 'No batch'} · {student.examType || 'No exam category'}</small></span></label>)}
+                  {!filteredStudents.length && <p style={{ color: 'var(--color-text-primary)' }}>No approved students match this search/filter.</p>}
                 </div>
-                <div style={{ marginTop: 10, color: '#171717' }}><strong>Selected before assignment:</strong> {selectedStudents.length ? selectedStudents.map(student => student.name).join(', ') : 'No students selected'}</div>
+                <div style={{ marginTop: 10, color: 'var(--color-text-primary)' }}><strong>Selected before assignment:</strong> {selectedStudents.length ? selectedStudents.map(student => student.name).join(', ') : 'No students selected'}</div>
               </>
             )}
-            {target !== 'students' && <p style={{ color: '#171717' }}>Matching students: <strong>{estimatedRecipientIds.length}</strong>{target === 'examType' && !estimatedRecipientIds.length && <span> — confirm students have this exam category saved in their profile.</span>}</p>}
+            {target !== 'students' && <p style={{ color: 'var(--color-text-primary)' }}>Matching students: <strong>{estimatedRecipientIds.length}</strong>{target === 'examType' && !estimatedRecipientIds.length && <span> — confirm students have this exam category saved in their profile.</span>}</p>}
             {!editing && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}><input type="checkbox" checked={allowDuplicateAssignment} onChange={event => setAllowDuplicateAssignment(event.target.checked)} />Allow intentional repeat assignments to students already assigned these tests.</label>}
           </div>
 

@@ -21,7 +21,7 @@
   margin-top: 0;
   border-radius: 10px;
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 19px;
   font-variation-settings: 'FILL' 0, 'wght' 550;
   transition: background .2s ease, color .2s ease, transform .2s ease;
@@ -29,14 +29,14 @@
 
 .as-nav-item:hover > .material-symbols-outlined {
   background: #ffffff;
-  color: #d21436;
+  color: var(--color-primary);
   transform: translateY(-1px);
 }
 
 .as-nav-item--active > .material-symbols-outlined {
-  background: #d21436;
+  background: var(--color-primary);
   color: #fff;
-  box-shadow: 0 5px 12px rgba(210, 20, 54, .24);
+  box-shadow: 0 5px 12px rgba(var(--color-primary-rgb), .24);
   font-variation-settings: 'FILL' 1, 'wght' 600;
 }
 
@@ -47,14 +47,14 @@
   height: 34px;
   border-radius: 10px;
   background: #ffffff;
-  color: #d21436;
+  color: var(--color-primary);
   font-size: 19px;
   font-variation-settings: 'FILL' 1, 'wght' 500;
 }
 
 .as-section-icon {
-  border: 1px solid #e5e5e5;
-  box-shadow: 0 7px 16px rgba(210, 20, 54, .1);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 7px 16px rgba(var(--color-primary-rgb), .1);
   font-variation-settings: 'FILL' 1, 'wght' 500;
 }
 

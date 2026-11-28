@@ -49,8 +49,8 @@ export default function FullscreenWarningModal({
     alignItems: 'center',
     justifyContent: 'center',
     background: isFullscreenWarning
-      ? 'rgba(23, 44, 79, 0.92)'
-      : 'rgba(23, 44, 79, 0.70)',
+      ? 'rgba(var(--color-text-primary-rgb), 0.92)'
+      : 'rgba(var(--color-text-primary-rgb), 0.70)',
     backdropFilter: 'blur(6px)',
     WebkitBackdropFilter: 'blur(6px)',
     animation: 'fsw-fadein 0.18s ease',
@@ -77,7 +77,7 @@ export default function FullscreenWarningModal({
     height: '5px',
     background: isFullscreenWarning
       ? 'linear-gradient(90deg, #dc2626, #dc2626)'
-      : 'linear-gradient(90deg, #d21436, #d21436)',
+      : 'linear-gradient(90deg, var(--color-primary), var(--color-primary))',
     borderRadius: '20px 20px 0 0',
   }
 
@@ -85,7 +85,7 @@ export default function FullscreenWarningModal({
     width: '72px',
     height: '72px',
     borderRadius: '50%',
-    background: isFullscreenWarning ? '#f8f8f8' : '#f8f8f8',
+    background: isFullscreenWarning ? 'var(--color-surface-secondary)' : 'var(--color-surface-secondary)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -101,9 +101,9 @@ export default function FullscreenWarningModal({
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     marginBottom: '14px',
-    background: isFullscreenWarning ? '#f8f8f8' : '#f8f8f8',
-    color: isFullscreenWarning ? '#dc2626' : '#d21436',
-    border: `1px solid ${isFullscreenWarning ? '#f8f8f8' : '#f8f8f8'}`,
+    background: isFullscreenWarning ? 'var(--color-surface-secondary)' : 'var(--color-surface-secondary)',
+    color: isFullscreenWarning ? '#dc2626' : 'var(--color-primary)',
+    border: `1px solid ${isFullscreenWarning ? 'var(--color-surface-secondary)' : 'var(--color-surface-secondary)'}`,
   }
 
   const primaryBtnStyle: React.CSSProperties = {
@@ -120,12 +120,12 @@ export default function FullscreenWarningModal({
     cursor: 'pointer',
     fontFamily: 'inherit',
     background: isFullscreenWarning
-      ? 'linear-gradient(135deg, #171717, #d21436)'
-      : 'linear-gradient(135deg, #d21436, #d21436)',
+      ? 'linear-gradient(135deg, var(--color-text-primary), var(--color-primary))'
+      : 'linear-gradient(135deg, var(--color-primary), var(--color-primary))',
     color: '#ffffff',
     boxShadow: isFullscreenWarning
-      ? '0 6px 20px rgba(210, 20, 54, 0.35)'
-      : '0 6px 20px rgba(210, 20, 54, 0.35)',
+      ? '0 6px 20px rgba(var(--color-primary-rgb), 0.35)'
+      : '0 6px 20px rgba(var(--color-primary-rgb), 0.35)',
     transition: 'transform 0.1s, box-shadow 0.1s',
   }
 
@@ -137,13 +137,13 @@ export default function FullscreenWarningModal({
     width: '100%',
     padding: '11px 24px',
     borderRadius: '12px',
-    border: '1.5px solid #e5e5e5',
+    border: '1.5px solid var(--color-border)',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
     background: '#ffffff',
-    color: '#171717',
+    color: 'var(--color-text-primary)',
     marginTop: '10px',
   }
 
@@ -170,7 +170,7 @@ export default function FullscreenWarningModal({
               className="material-symbols-outlined fsw-icon"
               style={{
                 fontSize: '36px',
-                color: isFullscreenWarning ? '#dc2626' : '#d21436',
+                color: isFullscreenWarning ? '#dc2626' : 'var(--color-primary)',
                 fontVariationSettings: "'FILL' 1",
               }}
             >
@@ -186,7 +186,7 @@ export default function FullscreenWarningModal({
           {/* Heading */}
           <h2
             id="fsw-title"
-            style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 800, color: '#171717', lineHeight: 1.3 }}
+            style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1.3 }}
           >
             {isFullscreenWarning
               ? 'Please switch to full screen to continue the test.'
@@ -194,7 +194,7 @@ export default function FullscreenWarningModal({
           </h2>
 
           {/* Description */}
-          <p style={{ margin: '0 0 28px', fontSize: '13.5px', color: '#171717', lineHeight: 1.65 }}>
+          <p style={{ margin: '0 0 28px', fontSize: '13.5px', color: 'var(--color-text-primary)', lineHeight: 1.65 }}>
             {timerContinues
               ? isFullscreenWarning
                 ? 'Return to full-screen mode to continue. Your assigned-test countdown continues while this warning is displayed.'
@@ -219,9 +219,9 @@ export default function FullscreenWarningModal({
                 Return to Full Screen
               </button>
             ) : (
-              <div style={{ background: '#ffffff', border: '1px solid #e5e5e5', borderRadius: '10px', padding: '16px', fontSize: '13px', color: '#171717', textAlign: 'left', lineHeight: 1.6 }}>
-                <strong style={{ color: '#171717', display: 'block', marginBottom: '4px' }}>Full-screen not supported</strong>
-                Your browser does not support the Fullscreen API. Please press <kbd style={{ background: '#e5e5e5', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>F11</kbd> to manually enter full-screen mode, then return to this tab.
+              <div style={{ background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'var(--color-text-primary)', textAlign: 'left', lineHeight: 1.6 }}>
+                <strong style={{ color: 'var(--color-text-primary)', display: 'block', marginBottom: '4px' }}>Full-screen not supported</strong>
+                Your browser does not support the Fullscreen API. Please press <kbd style={{ background: 'var(--color-border)', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>F11</kbd> to manually enter full-screen mode, then return to this tab.
               </div>
             )
           ) : (
@@ -240,12 +240,12 @@ export default function FullscreenWarningModal({
 
           {/* Timer status */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '20px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: '#171717', fontVariationSettings: "'FILL' 0" }}>{timerContinues ? 'timer' : 'timer_off'}</span>
-            <span style={{ fontSize: '12px', color: '#171717', fontWeight: 500 }}>{timerContinues ? 'Assignment countdown continues' : 'Exam timer is paused'}</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '15px', color: 'var(--color-text-primary)', fontVariationSettings: "'FILL' 0" }}>{timerContinues ? 'timer' : 'timer_off'}</span>
+            <span style={{ fontSize: '12px', color: 'var(--color-text-primary)', fontWeight: 500 }}>{timerContinues ? 'Assignment countdown continues' : 'Exam timer is paused'}</span>
           </div>
 
           {/* Exam integrity notice */}
-          {!timerContinues && <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#171717', lineHeight: 1.5 }}>
+          {!timerContinues && <p style={{ margin: '16px 0 0', fontSize: '11px', color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
             Your answers and progress are safe. This incident has been logged for exam integrity purposes.
           </p>}
         </div>

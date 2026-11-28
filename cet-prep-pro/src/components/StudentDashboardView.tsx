@@ -40,6 +40,7 @@ import {
 import { Line } from 'react-chartjs-2'
 import Sidebar, { type Page } from './Sidebar'
 import NotificationCenter from './NotificationCenter'
+import { BRAND_COLORS } from '../theme'
 import {
   authAPI,
   session,
@@ -266,12 +267,12 @@ export default function StudentDashboardView({
     datasets: [{
       label: selectedTrendSubject === 'all' ? 'Percentile' : `${selectedTrendSubject} score`,
       data: trendPoints.map(point => point.value),
-      borderColor: '#D41236',
-      backgroundColor: 'rgba(212, 18, 54, 0.08)',
+      borderColor: BRAND_COLORS.primary,
+      backgroundColor: `rgba(${BRAND_COLORS.primaryRgb}, 0.08)`,
       borderWidth: 2.5,
       pointRadius: 3,
       pointHoverRadius: 5,
-      pointBackgroundColor: '#D41236',
+      pointBackgroundColor: BRAND_COLORS.primary,
       pointBorderColor: '#FFFFFF',
       pointBorderWidth: 2,
       tension: 0.35,
@@ -287,7 +288,7 @@ export default function StudentDashboardView({
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#171923',
+        backgroundColor: BRAND_COLORS.textPrimary,
         padding: 10,
         displayColors: false,
         callbacks: {
@@ -299,14 +300,14 @@ export default function StudentDashboardView({
       x: {
         grid: { display: false },
         border: { display: false },
-        ticks: { color: '#94A3B8', maxRotation: 0, autoSkip: true },
+        ticks: { color: BRAND_COLORS.textSecondary, maxRotation: 0, autoSkip: true },
       },
       y: {
         min: 0,
         max: 100,
         border: { display: false, dash: [4, 4] },
-        grid: { color: '#F0F1F4' },
-        ticks: { color: '#94A3B8', stepSize: 25, callback: value => `${value}` },
+        grid: { color: BRAND_COLORS.surfaceSecondary },
+        ticks: { color: BRAND_COLORS.textSecondary, stepSize: 25, callback: value => `${value}` },
       },
     },
   }), [selectedTrendSubject])

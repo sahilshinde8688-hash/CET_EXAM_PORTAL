@@ -268,7 +268,7 @@ export default function SignIn({
             <span className="hero-purpose-text">
               purpose.
               <svg className="hero-swoosh" viewBox="0 0 200 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 11C45 3 145 3 196 9C145 15 55 14 4 11Z" fill="#d21436"/>
+                <path d="M4 11C45 3 145 3 196 9C145 15 55 14 4 11Z" fill="var(--color-primary)"/>
               </svg>
             </span>
           </h1>
@@ -322,7 +322,7 @@ export default function SignIn({
                       <stop stopColor="#ffffff" stopOpacity="0.45" />
                     </linearGradient>
                     <linearGradient id="hero-wave-grad-2" x1="60" y1="80" x2="440" y2="460" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#e5e5e5" stopOpacity="0.6" />
+                      <stop stopColor="var(--color-border)" stopOpacity="0.6" />
                       <stop stopColor="#ffffff" stopOpacity="0.3" />
                     </linearGradient>
                   </defs>
@@ -908,7 +908,7 @@ export default function SignIn({
                   Your credentials will be dispatched to:
                 </p>
                 <div className="signin-pending-email-badge">
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#d21436' }}>outgoing_mail</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--color-primary)' }}>outgoing_mail</span>
                   <span>{regEmail}</span>
                 </div>
                 <button

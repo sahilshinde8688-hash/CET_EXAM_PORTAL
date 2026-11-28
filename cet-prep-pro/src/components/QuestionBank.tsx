@@ -1023,7 +1023,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                       </div>
                       <div style={{display:'flex', flexDirection:'column', gap: 8, marginTop: 24}}>
                         <button className="qb-btn-icon" title="Mark as Correct" onClick={() => setForm({...form, correctIndex: i})}>
-                          <CheckCircle2 size={20} color={form.correctIndex === i ? '#16a085' : '#e5e5e5'}/>
+                          <CheckCircle2 size={20} color={form.correctIndex === i ? '#16a085' : 'var(--color-border)'}/>
                         </button>
                         <button className="qb-btn-icon danger" onClick={() => {
                           if ((form.options || []).length <= 2) return showToast('Minimum 2 options required', 'error');
@@ -1152,7 +1152,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                   <span><strong>{spreadsheetReview.errors.length}</strong> invalid rows</span>
                 </div>
                 {spreadsheetReview.errors.length > 0 && (
-                  <div role="alert" style={{marginBottom: 16, padding: 14, borderRadius: 10, background: '#f8f8f8', color: '#dc2626'}}>
+                  <div role="alert" style={{marginBottom: 16, padding: 14, borderRadius: 10, background: 'var(--color-surface-secondary)', color: '#dc2626'}}>
                     <strong>Rows needing correction</strong>
                     <ul style={{marginBottom: 0, paddingLeft: 20}}>
                       {spreadsheetReview.errors.slice(0, 25).map((error, index) => (
@@ -1294,7 +1294,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                   </div>
                 )}
                 {!uploading && uploadError && (
-                  <div style={{marginTop: 16, textAlign: 'left', color: '#dc2626', background: '#f8f8f8', borderRadius: 12, padding: 16}}>
+                  <div style={{marginTop: 16, textAlign: 'left', color: '#dc2626', background: 'var(--color-surface-secondary)', borderRadius: 12, padding: 16}}>
                     <p style={{margin: 0, fontWeight: 700}}>Upload failed:</p>
                     <p style={{margin: '8px 0 0'}}>{uploadError.message}</p>
                     {uploadError.details && (
@@ -1303,7 +1303,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                   </div>
                 )}
                 {!uploading && pdfStage !== 'working' && pdfError && (
-                  <div style={{marginTop: 16, textAlign: 'left', color: '#dc2626', background: '#f8f8f8', borderRadius: 12, padding: 16}}>
+                  <div style={{marginTop: 16, textAlign: 'left', color: '#dc2626', background: 'var(--color-surface-secondary)', borderRadius: 12, padding: 16}}>
                     <p style={{margin: 0, fontWeight: 700}}>PDF extraction failed:</p>
                     <p style={{margin: '8px 0 0'}}>{pdfError.message}</p>
                   </div>
@@ -1348,7 +1348,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                 <div>
                   {previewQ.options.map((opt, i) => (
                     <div key={i} className={`qb-preview-option ${previewQ.correctIndex === i ? 'correct' : ''}`}>
-                      <div style={{width: 24, height: 24, borderRadius: '50%', background: previewQ.correctIndex === i ? '#16a085' : '#e5e5e5', color: previewQ.correctIndex === i ? '#fff' : '#171717', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700}}>
+                      <div style={{width: 24, height: 24, borderRadius: '50%', background: previewQ.correctIndex === i ? '#16a085' : 'var(--color-border)', color: previewQ.correctIndex === i ? '#fff' : 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700}}>
                         {String.fromCharCode(65+i)}
                       </div>
                       <div><RichQuestionContent content={opt} /></div>

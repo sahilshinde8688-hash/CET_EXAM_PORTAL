@@ -487,7 +487,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
       `}</style>
       <div style={{
         position: 'fixed', inset: 0, zIndex: 999998,
-        background: 'rgba(23, 44, 79, 0.75)', backdropFilter: 'blur(6px)',
+        background: 'rgba(var(--color-text-primary-rgb), 0.75)', backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         animation: 'rd-fadein 0.18s ease',
@@ -500,22 +500,22 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           position: 'relative', overflow: 'hidden',
         }}>
           {/* Blue accent strip */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '5px', background: 'linear-gradient(90deg,#172c4f,#d21436)', borderRadius: '20px 20px 0 0' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '5px', background: 'linear-gradient(90deg,var(--color-primary-hover),var(--color-primary))', borderRadius: '20px 20px 0 0' }} />
 
           {/* Icon */}
           <div style={{ width: '68px', height: '68px', borderRadius: '50%', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '34px', color: '#d21436', fontVariationSettings: "'FILL' 1" }}>quiz</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '34px', color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}>quiz</span>
           </div>
 
           {/* Tag */}
-          <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '12px', background: '#ffffff', color: '#171717', border: '1px solid #e5e5e5' }}>
+          <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '12px', background: '#ffffff', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
             Exam In Progress
           </div>
 
-          <h2 style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 800, color: '#171717', lineHeight: 1.3 }}>
+          <h2 style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: 800, color: 'var(--color-text-primary)', lineHeight: 1.3 }}>
             You have an exam in progress
           </h2>
-          <p style={{ margin: '0 0 28px', fontSize: '13.5px', color: '#171717', lineHeight: 1.65 }}>
+          <p style={{ margin: '0 0 28px', fontSize: '13.5px', color: 'var(--color-text-primary)', lineHeight: 1.65 }}>
             Your answers and timer are saved. Would you like to resume your test or exit?
           </p>
 
@@ -525,9 +525,9 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             onClick={() => setShowResumeDialog(false)}
             style={{
               width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg,#172c4f,#d21436)', color: '#fff',
+              background: 'linear-gradient(135deg,var(--color-primary-hover),var(--color-primary))', color: '#fff',
               fontSize: '15px', fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 6px 20px rgba(210, 20, 54, 0.35)', marginBottom: '10px',
+              boxShadow: '0 6px 20px rgba(var(--color-primary-rgb), 0.35)', marginBottom: '10px',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}
           >
@@ -545,8 +545,8 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
               window.history.go(-1)
             }}
             style={{
-              width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid #e5e5e5',
-              background: '#ffffff', color: '#171717',
+              width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid var(--color-border)',
+              background: '#ffffff', color: 'var(--color-text-primary)',
               fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}
@@ -555,7 +555,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             Exit Exam & Go Back
           </button>
 
-          <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#171717' }}>
+          <p style={{ margin: '16px 0 0', fontSize: '11px', color: 'var(--color-text-primary)' }}>
             Exiting will end your current exam session. Your progress may not be saved.
           </p>
         </div>
@@ -575,11 +575,11 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 999999,
-          background: '#f8f8f8',
-          color: '#d21436',
-          border: '1px solid #d21436',
+          background: 'var(--color-surface-secondary)',
+          color: 'var(--color-primary)',
+          border: '1px solid var(--color-primary)',
           borderRadius: '12px',
-          boxShadow: '0 20px 45px rgba(23, 44, 79, 0.18)',
+          boxShadow: '0 20px 45px rgba(var(--color-text-primary-rgb), 0.18)',
           padding: '14px 18px',
           display: 'flex',
           alignItems: 'center',
@@ -597,7 +597,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           style={{
             border: 'none',
             background: 'transparent',
-            color: '#d21436',
+            color: 'var(--color-primary)',
             fontWeight: 700,
             cursor: 'pointer',
             marginLeft: '8px',
@@ -683,7 +683,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
               title="Open on Phone / QR Scanner"
               aria-label="Open on Phone or scan QR code"
             >
-              <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
+              <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)' }}>qr_code_2</span>
             </button>
             <NotificationCenter onOpenNotification={handleNotification} />
             <button className="mt-icon-btn">
@@ -1024,7 +1024,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
                         <circle cx="40" cy="40" r="32" fill="transparent" stroke="#E8ECF2" strokeWidth="8" />
                         {answeredQuestions > 0 && (
                           <circle cx="40" cy="40" r="32" fill="transparent"
-                            stroke="#D41236" strokeWidth="8"
+                            stroke="var(--color-primary)" strokeWidth="8"
                             strokeDasharray="200" strokeDashoffset={200 - (200 * completion) / 100}
                             strokeLinecap="round"
                             style={{ transform: 'rotate(-90deg)', transformOrigin: 'center' }}

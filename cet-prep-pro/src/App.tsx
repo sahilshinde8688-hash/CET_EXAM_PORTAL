@@ -75,6 +75,8 @@ const PAGE_LABELS: Record<string, string> = {
 }
 
 const SESSION_CHECK_TIMEOUT_MS = 10_000
+const STARTUP_ANIMATION_DURATION_MS = 8_000
+const STARTUP_ANIMATION_SESSION_KEY = 'cetNovaStartupAnimationPlayed'
 
 /* ── Page transition loader ── */
 function PageLoader({ target }: { target: Page }) {
@@ -122,6 +124,9 @@ export default function App() {
   const [page, setPage] = useState<Page>(() => pathToPage(window.location.pathname))
   const [navigatingTo, setNavigatingTo] = useState<Page | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [showStartupAnimation, setShowStartupAnimation] = useState(
+    () => sessionStorage.getItem(STARTUP_ANIMATION_SESSION_KEY) !== 'true',
+  )
   const [sessionExpired, setSessionExpired] = useState(false)
   const [sessionCheckError, setSessionCheckError] = useState<string | null>(null)
   const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null)
@@ -135,6 +140,16 @@ export default function App() {
   const activityRequestInProgressRef = useRef(false)
   const restoreSessionRef = useRef<(requestedPage: Page, showLoader?: boolean) => Promise<void>>(async () => {})
   const sessionRestoreGenerationRef = useRef(0)
+
+  useEffect(() => {
+    if (!showStartupAnimation) return
+    sessionStorage.setItem(STARTUP_ANIMATION_SESSION_KEY, 'true')
+    const timeoutId = window.setTimeout(
+      () => setShowStartupAnimation(false),
+      STARTUP_ANIMATION_DURATION_MS,
+    )
+    return () => window.clearTimeout(timeoutId)
+  }, [showStartupAnimation])
 
   const restoreSession = async (requestedPage: Page, showLoader = true) => {
     const generation = ++sessionRestoreGenerationRef.current
@@ -448,11 +463,18 @@ export default function App() {
   if (maintenanceMessage !== null) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#ffffff' }}>
-        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 16 }}>
+        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 16 }}>
           <h1>System Maintenance</h1>
           <p>{maintenanceMessage}</p>
           <button type="button" onClick={() => window.location.reload()}>Check again</button>
         </div>
+      </div>
+    )
+  }
+  if (showStartupAnimation) {
+    return (
+      <div className="startup-animation" role="status" aria-label="CET Nova is loading">
+        <img src="/logo.png" alt="" aria-hidden="true" />
       </div>
     )
   }
@@ -484,7 +506,7 @@ export default function App() {
       {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
       {page === 'unauthorized' && (
         <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#ffffff' }}>
-          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: '#fff', border: '1px solid #e5e5e5', borderRadius: 16 }}>
+          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 16 }}>
             <h1>403</h1>
             <h2>Access Denied</h2>
             <p>You don't have permission to access this area.</p>

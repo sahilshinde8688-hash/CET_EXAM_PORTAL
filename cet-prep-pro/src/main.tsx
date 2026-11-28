@@ -11,9 +11,9 @@ window.addEventListener('error', (event) => {
   document.body.innerHTML = `
     <div style="padding: 40px; text-align: center; font-family: sans-serif;">
       <h1 style="color: #dc2626;">Application Error</h1>
-      <p style="color: #171717; margin: 20px 0;">${event.message}</p>
+      <p style="color: var(--color-text-primary); margin: 20px 0;">${event.message}</p>
       <pre style="background: #ffffff; padding: 20px; border-radius: 8px; text-align: left; overflow: auto;">${event.error?.stack || ''}</pre>
-      <button onclick="location.reload()" style="padding: 12px 24px; background: #d21436; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px;">
+      <button onclick="location.reload()" style="padding: 12px 24px; background: var(--color-primary); color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px;">
         Reload Page
       </button>
     </div>

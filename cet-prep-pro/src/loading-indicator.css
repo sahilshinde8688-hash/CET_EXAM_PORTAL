@@ -4,12 +4,12 @@
   justify-content: center;
   gap: 10px;
   padding: 20px;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 14px;
 }
 
 .inline-loading-spinner {
-  color: #d21436;
+  color: var(--color-primary);
   animation: inline-loading-spin 0.8s linear infinite;
 }
 

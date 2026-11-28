@@ -23,16 +23,16 @@
   border: 1px solid #ffffff;
   border-radius: 6px;
   background: #fff;
-  color: #171717;
+  color: var(--color-text-primary);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 
 .rich-question-toolbar button:hover {
-  border-color: #171717;
+  border-color: var(--color-text-primary);
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .rich-question-equation-trigger {
@@ -48,7 +48,7 @@
 
 .rich-question-toolbar-hint {
   margin-left: auto;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 12px;
 }
 
@@ -57,10 +57,10 @@
   z-index: 4;
   margin-bottom: 8px;
   padding: 12px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 0 0 10px 10px;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(23, 44, 79, 0.12);
+  box-shadow: 0 8px 24px rgba(var(--color-text-primary-rgb), 0.12);
 }
 
 .rich-question-equation-panel-heading,
@@ -74,17 +74,17 @@
 .rich-question-equation-panel-heading {
   justify-content: space-between;
   margin-bottom: 10px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .rich-question-equation-panel button,
 .rich-question-equation-mode select {
   min-height: 32px;
   padding: 5px 9px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   background: #fff;
-  color: #171717;
+  color: var(--color-text-primary);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
@@ -112,14 +112,14 @@
 }
 
 .rich-question-equation-panel .rich-question-equation-input-modes button.active {
-  border-color: #e5e5e5;
+  border-color: var(--color-border);
   background: #fff;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .rich-question-equation-mode label,
 .rich-question-equation-actions span {
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 12px;
 }
 
@@ -130,7 +130,7 @@
 }
 
 .rich-question-latex-editor > label {
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -139,16 +139,16 @@
   width: 100%;
   min-height: 76px;
   padding: 10px;
-  border: 1px solid #171717;
+  border: 1px solid var(--color-text-primary);
   border-radius: 8px;
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
   font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
   resize: vertical;
 }
 
 .rich-question-latex-editor textarea:focus {
-  outline: 2px solid rgba(210, 20, 54, 0.2);
+  outline: 2px solid rgba(var(--color-primary-rgb), 0.2);
 }
 
 .rich-question-latex-preview {
@@ -163,7 +163,7 @@
 .rich-question-latex-preview > strong {
   display: block;
   margin-bottom: 8px;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 11px;
 }
 
@@ -191,11 +191,11 @@
   width: 100%;
   min-height: 56px;
   padding: 10px;
-  border: 1px solid #171717;
+  border: 1px solid var(--color-text-primary);
   border-radius: 8px;
   background: #ffffff;
   font-size: 1.25rem;
-  --caret-color: #d21436;
+  --caret-color: var(--color-primary);
   --selection-background-color: #ffffff;
 }
 
@@ -211,9 +211,9 @@
 }
 
 .rich-question-equation-categories button.active {
-  border-color: #d21436;
+  border-color: var(--color-primary);
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .rich-question-equation-templates {
@@ -229,7 +229,7 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   padding-top: 8px;
-  border-top: 1px solid #e5e5e5;
+  border-top: 1px solid var(--color-border);
 }
 
 .rich-question-equation-actions span {
@@ -237,15 +237,15 @@
 }
 
 .rich-question-equation-actions button.primary {
-  border-color: #d21436;
-  background: #d21436;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: #fff;
 }
 
 .rich-question-paste-warning {
   padding: 8px 12px;
-  border: 1px solid #f8f8f8;
-  background: #f8f8f8;
+  border: 1px solid var(--color-surface-secondary);
+  background: var(--color-surface-secondary);
   color: #dc2626;
   font-size: 13px;
 }
@@ -256,7 +256,7 @@
   border: 1px solid #ffffff;
   border-radius: 0 0 9px 9px;
   background: #fff;
-  color: #171717;
+  color: var(--color-text-primary);
   font: inherit;
   line-height: 1.65;
   overflow-wrap: anywhere;
@@ -264,12 +264,12 @@
 }
 
 .rich-question-editor-surface:focus {
-  border-color: #171717;
-  outline: 2px solid rgba(210, 20, 54, 0.2);
+  border-color: var(--color-text-primary);
+  outline: 2px solid rgba(var(--color-primary-rgb), 0.2);
 }
 
 .rich-question-editor-surface:empty::before {
-  color: #171717;
+  color: var(--color-text-primary);
   content: attr(data-placeholder);
   pointer-events: none;
 }
@@ -291,7 +291,7 @@
 
 .rich-question-equation:hover,
 .rich-question-equation:focus {
-  outline: 1px solid #171717;
+  outline: 1px solid var(--color-text-primary);
   background: #ffffff;
 }
 
@@ -332,7 +332,7 @@
 .rich-question-content th {
   min-width: 2em;
   padding: 3px 7px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   text-align: inherit;
 }
 
@@ -345,7 +345,7 @@
   border: 1px solid #ffffff;
   border-radius: 7px;
   background: #fff;
-  color: #171717;
+  color: var(--color-text-primary);
   font: inherit;
   font-size: 12px;
   cursor: pointer;

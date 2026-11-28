@@ -4,7 +4,7 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(23, 44, 79, 0.65);
+  background: rgba(var(--color-text-primary-rgb), 0.65);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
@@ -30,7 +30,7 @@
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(23, 44, 79, 0.25), 0 0 0 1px rgba(229, 229, 229, 0.8);
+  box-shadow: 0 25px 50px -12px rgba(var(--color-text-primary-rgb), 0.25), 0 0 0 1px rgba(229, 229, 229, 0.8);
   overflow: hidden;
   animation: mqrSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -62,7 +62,7 @@
 
 .mqr-header-icon {
   font-size: 28px;
-  color: #d21436;
+  color: var(--color-primary);
   background: #ffffff;
   padding: 8px;
   border-radius: 12px;
@@ -72,19 +72,19 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .mqr-header-title p {
   margin: 2px 0 0;
   font-size: 12px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .mqr-close-btn {
   background: transparent;
   border: none;
-  color: #171717;
+  color: var(--color-text-primary);
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;
@@ -96,7 +96,7 @@
 
 .mqr-close-btn:hover {
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 /* Tabs */
@@ -105,7 +105,7 @@
   background: #ffffff;
   padding: 6px;
   gap: 6px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .mqr-tab-btn {
@@ -120,7 +120,7 @@
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
-  color: #171717;
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -131,7 +131,7 @@
 
 .mqr-tab-btn--active {
   background: #ffffff;
-  color: #d21436;
+  color: var(--color-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
@@ -149,7 +149,7 @@
   flex-direction: column;
   align-items: center;
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 16px;
   padding: 18px 16px;
 }
@@ -158,8 +158,8 @@
   background: #ffffff;
   padding: 12px;
   border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(23, 44, 79, 0.06);
-  border: 1px solid #e5e5e5;
+  box-shadow: 0 4px 12px rgba(var(--color-text-primary-rgb), 0.06);
+  border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -179,7 +179,7 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 13px;
 }
 
@@ -198,7 +198,7 @@
   display: flex;
   align-items: center;
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 4px 6px 4px 10px;
   gap: 8px;
@@ -206,7 +206,7 @@
 
 .mqr-link-icon {
   font-size: 18px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .mqr-url-input {
@@ -216,12 +216,12 @@
   background: transparent;
   font-size: 12px;
   font-family: monospace;
-  color: #171717;
+  color: var(--color-text-primary);
   width: 100%;
 }
 
 .mqr-copy-btn {
-  background: #d21436;
+  background: var(--color-primary);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -237,7 +237,7 @@
 }
 
 .mqr-copy-btn:hover {
-  background: #172c4f;
+  background: var(--color-primary-hover);
 }
 
 .mqr-copy-btn .material-symbols-outlined {
@@ -251,17 +251,17 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .mqr-select {
   flex: 1;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   background: #ffffff;
   font-size: 12px;
-  color: #171717;
+  color: var(--color-text-primary);
   outline: none;
 }
 
@@ -284,7 +284,7 @@
 
 .mqr-step-badge {
   background: #ffffff;
-  color: #d21436;
+  color: var(--color-primary);
   font-weight: 700;
   font-size: 12px;
   width: 22px;
@@ -299,13 +299,13 @@
 .mqr-step-item strong {
   display: block;
   font-size: 13px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .mqr-step-item p {
   margin: 2px 0 0;
   font-size: 11.5px;
-  color: #171717;
+  color: var(--color-text-primary);
   line-height: 1.35;
 }
 
@@ -323,8 +323,8 @@
   max-width: 320px;
   border-radius: 14px;
   overflow: hidden;
-  border: 2px dashed #e5e5e5;
-  background: #172c4f;
+  border: 2px dashed var(--color-border);
+  background: var(--color-primary-hover);
 }
 
 .mqr-camera-feed video {
@@ -333,8 +333,8 @@
 }
 
 .mqr-camera-alert {
-  background: #f8f8f8;
-  border: 1px solid #f8f8f8;
+  background: var(--color-surface-secondary);
+  border: 1px solid var(--color-surface-secondary);
   color: #dc2626;
   padding: 12px;
   border-radius: 10px;
@@ -391,9 +391,9 @@
   font-weight: 600;
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
   cursor: pointer;
   text-decoration: none;
 }
@@ -409,19 +409,19 @@
   align-items: center;
   gap: 6px;
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   padding: 8px 16px;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
-  color: #171717;
+  color: var(--color-text-primary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .mqr-upload-btn:hover {
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 /* Footer */
@@ -434,7 +434,7 @@
 }
 
 .mqr-done-btn {
-  background: #172c4f;
+  background: var(--color-primary-hover);
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -446,7 +446,7 @@
 }
 
 .mqr-done-btn:hover {
-  background: #172c4f;
+  background: var(--color-primary-hover);
 }
 
 /* Mobile responsive trigger button style */
@@ -456,30 +456,30 @@
   justify-content: center;
   gap: 8px;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #e5e5e5;
-  color: #171717;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
   padding: 8px 14px;
   border-radius: 9999px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(23, 44, 79, 0.04);
+  box-shadow: 0 1px 3px rgba(var(--color-text-primary-rgb), 0.04);
 }
 
 .btn-phone-qr:hover {
   background: #ffffff;
-  border-color: #e5e5e5;
+  border-color: var(--color-border);
 }
 
 .btn-phone-qr:focus-visible {
-  outline: 3px solid rgba(210, 20, 54, 0.2);
+  outline: 3px solid rgba(var(--color-primary-rgb), 0.2);
   outline-offset: 2px;
 }
 
 .btn-phone-qr .material-symbols-outlined {
   font-size: 20px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 @media (max-width: 640px) {

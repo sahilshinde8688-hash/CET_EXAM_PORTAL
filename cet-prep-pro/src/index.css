@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @import "tailwindcss";
+@config "../tailwind.config.js";
 
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined', sans-serif;
@@ -168,6 +169,98 @@
   --color-gray-900: #171717;
   --color-gray-950: #171717;
 
+  --color-background: #F4F4F6;
+  --color-surface: #FFFFFF;
+  --color-surface-secondary: #E7E7E7;
+  --color-border: #D2D2D4;
+  --color-primary: #FF634A;
+  --color-primary-hover: #C94332;
+  --color-text-primary: #252525;
+  --color-text-secondary: #666666;
+  --color-primary-rgb: 255, 99, 74;
+  --color-text-primary-rgb: 37, 37, 37;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: var(--color-background);
+  --color-on-primary-container: var(--color-text-primary);
+  --color-secondary: var(--color-text-primary);
+  --color-on-secondary: #FFFFFF;
+  --color-tertiary: var(--color-primary);
+  --color-accent: var(--color-primary);
+  --color-surface-lowest: #FFFFFF;
+  --color-surface-low: #FFFFFF;
+  --color-surface-variant: var(--color-surface-secondary);
+  --color-on-surface: var(--color-text-primary);
+  --color-on-surface-variant: var(--color-text-secondary);
+  --color-outline: var(--color-border);
+  --color-outline-variant: var(--color-border);
+
+  --color-blue-50: #FFFFFF;
+  --color-blue-100: var(--color-background);
+  --color-blue-200: var(--color-surface-secondary);
+  --color-blue-300: var(--color-border);
+  --color-blue-400: var(--color-primary);
+  --color-blue-500: var(--color-primary);
+  --color-blue-600: var(--color-primary);
+  --color-blue-700: var(--color-primary-hover);
+  --color-blue-800: var(--color-primary-hover);
+  --color-blue-900: var(--color-text-primary);
+  --color-blue-950: var(--color-text-primary);
+  --color-indigo-50: #FFFFFF;
+  --color-indigo-100: var(--color-background);
+  --color-indigo-200: var(--color-surface-secondary);
+  --color-indigo-300: var(--color-border);
+  --color-indigo-400: var(--color-primary);
+  --color-indigo-500: var(--color-primary);
+  --color-indigo-600: var(--color-primary);
+  --color-indigo-700: var(--color-primary-hover);
+  --color-indigo-800: var(--color-primary-hover);
+  --color-indigo-900: var(--color-text-primary);
+  --color-indigo-950: var(--color-text-primary);
+  --color-violet-50: #FFFFFF;
+  --color-violet-100: var(--color-background);
+  --color-violet-200: var(--color-surface-secondary);
+  --color-violet-300: var(--color-border);
+  --color-violet-400: var(--color-primary);
+  --color-violet-500: var(--color-primary);
+  --color-violet-600: var(--color-primary);
+  --color-violet-700: var(--color-primary-hover);
+  --color-violet-800: var(--color-primary-hover);
+  --color-violet-900: var(--color-text-primary);
+  --color-violet-950: var(--color-text-primary);
+  --color-purple-50: #FFFFFF;
+  --color-purple-100: var(--color-background);
+  --color-purple-200: var(--color-surface-secondary);
+  --color-purple-300: var(--color-border);
+  --color-purple-400: var(--color-primary);
+  --color-purple-500: var(--color-primary);
+  --color-purple-600: var(--color-primary);
+  --color-purple-700: var(--color-primary-hover);
+  --color-purple-800: var(--color-primary-hover);
+  --color-purple-900: var(--color-text-primary);
+  --color-purple-950: var(--color-text-primary);
+  --color-slate-50: #FFFFFF;
+  --color-slate-100: var(--color-background);
+  --color-slate-200: var(--color-surface-secondary);
+  --color-slate-300: var(--color-border);
+  --color-slate-400: var(--color-text-secondary);
+  --color-slate-500: var(--color-text-secondary);
+  --color-slate-600: var(--color-text-primary);
+  --color-slate-700: var(--color-text-primary);
+  --color-slate-800: var(--color-text-primary);
+  --color-slate-900: var(--color-text-primary);
+  --color-slate-950: var(--color-text-primary);
+  --color-gray-50: #FFFFFF;
+  --color-gray-100: var(--color-background);
+  --color-gray-200: var(--color-surface-secondary);
+  --color-gray-300: var(--color-border);
+  --color-gray-400: var(--color-text-secondary);
+  --color-gray-500: var(--color-text-secondary);
+  --color-gray-600: var(--color-text-primary);
+  --color-gray-700: var(--color-text-primary);
+  --color-gray-800: var(--color-text-primary);
+  --color-gray-900: var(--color-text-primary);
+  --color-gray-950: var(--color-text-primary);
+
   /* Safe area insets for notched mobile devices */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -188,11 +281,16 @@ html, body {
 
 body {
   font-family: 'Public Sans', sans-serif;
-  background-color: var(--color-surface);
+  background-color: var(--color-background);
   color: var(--color-on-surface);
   font-size: 16px;
   line-height: 24px;
   -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 #app {
@@ -264,17 +362,17 @@ body {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(23, 44, 79, 0.48);
+  background: rgba(var(--color-text-primary-rgb), 0.48);
   backdrop-filter: blur(4px);
 }
 
 .session-inactivity-dialog {
   width: min(100%, 440px);
   padding: 32px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 20px;
   background: #fff;
-  box-shadow: 0 24px 70px rgba(23, 44, 79, 0.24);
+  box-shadow: 0 24px 70px rgba(var(--color-text-primary-rgb), 0.24);
   text-align: center;
 }
 
@@ -286,20 +384,20 @@ body {
   place-items: center;
   border-radius: 50%;
   background: #ffffff;
-  color: #d21436;
+  color: var(--color-primary);
   font-size: 24px;
   font-weight: 700;
 }
 
 .session-inactivity-dialog h2 {
   margin-bottom: 8px;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 22px;
 }
 
 .session-inactivity-dialog p {
   margin-bottom: 24px;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .session-inactivity-dialog button {
@@ -307,7 +405,7 @@ body {
   min-height: 46px;
   border: 0;
   border-radius: 10px;
-  background: #d21436;
+  background: var(--color-primary);
   color: #fff;
   cursor: pointer;
   font: inherit;
@@ -315,7 +413,7 @@ body {
 }
 
 .session-inactivity-dialog button:hover {
-  background: #172c4f;
+  background: var(--color-primary-hover);
 }
 
 /* ─── Layout ─────────────────────────────── */
@@ -342,7 +440,7 @@ body {
   inset: 0;
   opacity: 0.05;
   pointer-events: none;
-  background-image: radial-gradient(#d21436 0.5px, transparent 0.5px);
+  background-image: radial-gradient(var(--color-primary) 0.5px, transparent 0.5px);
   background-size: 24px 24px;
 }
 
@@ -371,8 +469,8 @@ body {
   background: #ffffff;
   border-radius: 22px;
   padding: 10px;
-  box-shadow: 0 16px 30px rgba(23, 44, 79, 0.08);
-  border: 1px solid rgba(23, 23, 23, 0.18);
+  box-shadow: 0 16px 30px rgba(var(--color-text-primary-rgb), 0.08);
+  border: 1px solid rgba(var(--color-text-primary-rgb), 0.18);
 }
 
 .brand-title {
@@ -538,7 +636,7 @@ body {
   outline: none;
   background: #ffffff;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(210, 20, 54, 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.15);
 }
 
 /* Password wrapper */
@@ -611,7 +709,7 @@ body {
   font-family: 'Inter', sans-serif;
   cursor: pointer;
   margin-top: 4px;
-  box-shadow: 0 8px 24px rgba(210, 20, 54, 0.25);
+  box-shadow: 0 8px 24px rgba(var(--color-primary-rgb), 0.25);
   transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
 }
 
@@ -706,7 +804,7 @@ body {
   height: 180px;
   top: 40px;
   right: 40px;
-  background: rgba(210, 20, 54, 0.35);
+  background: rgba(var(--color-primary-rgb), 0.35);
   animation-delay: -2s;
 }
 
@@ -870,7 +968,7 @@ body {
 .page-loader {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, #d21436 0%, #172c4f 60%, #16a085 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 60%, #16a085 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -949,8 +1047,8 @@ body {
 /* ── Sign In Error Message ─────────────── */
 .signin-error-msg {
   display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px; background: #f8f8f8;
-  border: 1px solid #f8f8f8; border-radius: 12px;
+  padding: 12px 16px; background: var(--color-surface-secondary);
+  border: 1px solid var(--color-surface-secondary); border-radius: 12px;
   font-size: 14px; color: #dc2626;
   font-family: 'Inter', sans-serif;
 }
@@ -962,7 +1060,7 @@ body {
   justify-content: center;
   padding: 0;
   border: 0;
-  background: #d21436;
+  background: var(--color-primary);
   color: #fff;
   font: inherit;
   font-weight: 700;
@@ -982,54 +1080,54 @@ body {
 }
 .pending-icon-wrap {
   width: 72px; height: 72px; border-radius: 50%;
-  background: rgba(210, 20, 54, 0.1);
+  background: rgba(var(--color-primary-rgb), 0.1);
   display: flex; align-items: center; justify-content: center;
 }
 .pending-icon {
-  font-size: 36px !important; color: #d21436;
+  font-size: 36px !important; color: var(--color-primary);
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
 }
 .pending-title {
-  font-size: 20px; font-weight: 700; color: #171717; margin: 0;
+  font-size: 20px; font-weight: 700; color: var(--color-text-primary); margin: 0;
 }
 .pending-msg {
-  font-size: 14px; color: #171717; line-height: 1.6; margin: 0;
+  font-size: 14px; color: var(--color-text-primary); line-height: 1.6; margin: 0;
   max-width: 340px;
 }
 .pending-email-chip {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 18px; background: #ffffff;
-  border: 1px solid #e5e5e5; border-radius: 999px;
-  font-size: 13px; font-weight: 500; color: #171717;
+  border: 1px solid var(--color-border); border-radius: 999px;
+  font-size: 13px; font-weight: 500; color: var(--color-text-primary);
   font-family: 'Inter', sans-serif;
 }
-.pending-email-chip .material-symbols-outlined { font-size: 16px; color: #d21436; }
+.pending-email-chip .material-symbols-outlined { font-size: 16px; color: var(--color-primary); }
 .pending-back-btn {
   width: 100%; padding: 14px;
-  background: #d21436; color: #fff; border: none; border-radius: 12px;
+  background: var(--color-primary); color: #fff; border: none; border-radius: 12px;
   font-size: 14px; font-weight: 700; font-family: 'Inter', sans-serif;
   cursor: pointer; transition: background 0.18s;
   margin-top: 4px;
 }
-.pending-back-btn:hover { background: rgba(210, 20, 54, 0.88); }
+.pending-back-btn:hover { background: rgba(var(--color-primary-rgb), 0.88); }
 
 /* ── Reset Password Banner ─────────────── */
 .reset-banner {
   display: flex; align-items: center; gap: 14px;
-  padding: 16px 18px; background: #f8f8f8;
-  border: 1px solid #f8f8f8; border-radius: 12px;
+  padding: 16px 18px; background: var(--color-surface-secondary);
+  border: 1px solid var(--color-surface-secondary); border-radius: 12px;
   animation: fadeSlideUp 0.4s ease both;
 }
 .reset-banner .material-symbols-outlined {
-  font-size: 28px !important; color: #d21436; flex-shrink: 0;
+  font-size: 28px !important; color: var(--color-primary); flex-shrink: 0;
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
 }
 .reset-title {
-  font-size: 15px; font-weight: 700; color: #d21436; margin: 0;
+  font-size: 15px; font-weight: 700; color: var(--color-primary); margin: 0;
   font-family: 'Public Sans', sans-serif;
 }
 .reset-sub {
-  font-size: 12px; color: #d21436; line-height: 1.5; margin: 2px 0 0 0;
+  font-size: 12px; color: var(--color-primary); line-height: 1.5; margin: 2px 0 0 0;
   font-family: 'Inter', sans-serif;
 }
 
@@ -1039,7 +1137,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: clamp(20px, 4vw, 56px);
-  background: linear-gradient(135deg, #172c4f 0%, var(--color-primary) 56%, var(--color-tertiary) 100%);
+  background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary) 56%, var(--color-tertiary) 100%);
 }
 
 .signin-shell {
@@ -1052,7 +1150,7 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 24px;
   background: var(--color-surface-lowest);
-  box-shadow: 0 28px 80px rgba(23, 44, 79, 0.24);
+  box-shadow: 0 28px 80px rgba(var(--color-text-primary-rgb), 0.24);
 }
 
 .signin-shell .left-panel {
@@ -1198,7 +1296,7 @@ body {
 .signin-shell .right-panel {
   min-width: 0;
   padding: 44px clamp(34px, 5vw, 72px) 28px;
-  background: linear-gradient(150deg, var(--color-primary) 0%, #d21436 58%, var(--color-tertiary) 100%);
+  background: linear-gradient(150deg, var(--color-primary) 0%, var(--color-primary) 58%, var(--color-tertiary) 100%);
 }
 
 .signin-shell .blob-1 {
@@ -1215,7 +1313,7 @@ body {
   height: 280px;
   bottom: -100px;
   left: -80px;
-  background: rgba(23, 44, 79, 0.24);
+  background: rgba(var(--color-text-primary-rgb), 0.24);
 }
 
 .signin-shell .glass-card {

@@ -95,7 +95,7 @@ const defaults: SettingsData = {
   email_notifications: true, in_app_notifications: true, registration_notifications: true, completion_notifications: true, result_notifications: true, announcements: true,
   transactional_result_emails_enabled: true, parent_result_emails_enabled: false, student_welcome_emails_enabled: true,
   google_oauth: false, smtp_host: '', smtp_port: 587, external_api_url: '', webhook_url: '',
-  primary_color: '#d21436', secondary_color: '#171717', dark_mode: false, login_branding: true,
+  primary_color: '#FF634A', secondary_color: '#252525', dark_mode: false, login_branding: true,
   student_registration: true, mock_test_system: true, google_login: false, result_publishing: true, new_user_registration: true, email_notifications_feature: true,
   retention_days: 365,
 }
@@ -615,7 +615,7 @@ export default function AdminSettings() {
                 maxLength={1000}
                 rows={4}
                 placeholder="Write the information students need to know."
-                style={{ width: '100%', minHeight: 96, resize: 'vertical', padding: '11px 12px', border: '1px solid #e5e5e5', borderRadius: 9, font: 'inherit', color: '#171717' }}
+                style={{ width: '100%', minHeight: 96, resize: 'vertical', padding: '11px 12px', border: '1px solid var(--color-border)', borderRadius: 9, font: 'inherit', color: 'var(--color-text-primary)' }}
                 onChange={event => {
                   setAnnouncementMessage(event.target.value)
                   setAnnouncementRequestId(null)

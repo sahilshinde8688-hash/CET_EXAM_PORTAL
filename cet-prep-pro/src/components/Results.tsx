@@ -214,7 +214,7 @@ export default function Results({ onNavigate }: ResultsProps) {
               {searchTerm && (
                 <button 
                   onClick={() => setSearchTerm('')} 
-                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#171717', display: 'flex', alignItems: 'center', padding: '0 4px' }}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', padding: '0 4px' }}
                   title="Clear search"
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
@@ -227,7 +227,7 @@ export default function Results({ onNavigate }: ResultsProps) {
               <button 
                 className="rs-filter-btn" 
                 onClick={() => setShowFilterDropdown(prev => !prev)}
-                style={selectedSubjectFilter !== 'All' ? { background: '#ffffff', borderColor: '#d21436', color: '#171717', fontWeight: 600 } : {}}
+                style={selectedSubjectFilter !== 'All' ? { background: '#ffffff', borderColor: 'var(--color-primary)', color: 'var(--color-text-primary)', fontWeight: 600 } : {}}
               >
                 <span className="material-symbols-outlined">filter_list</span>
                 <span>{selectedSubjectFilter === 'All' ? 'Test Type' : selectedSubjectFilter}</span>
@@ -236,7 +236,7 @@ export default function Results({ onNavigate }: ResultsProps) {
               {showFilterDropdown && (
                 <div style={{
                   position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                  background: '#fff', border: '1px solid #e5e5e5', borderRadius: '8px',
+                  background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px',
                   boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '160px',
                   overflow: 'hidden'
                 }}>
@@ -247,7 +247,7 @@ export default function Results({ onNavigate }: ResultsProps) {
                       style={{
                         display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px',
                         border: 'none', background: selectedSubjectFilter === type ? '#ffffff' : 'transparent',
-                        color: selectedSubjectFilter === type ? '#d21436' : '#171717',
+                        color: selectedSubjectFilter === type ? 'var(--color-primary)' : 'var(--color-text-primary)',
                         fontWeight: selectedSubjectFilter === type ? 700 : 500,
                         cursor: 'pointer', fontSize: '13px'
                       }}
@@ -273,7 +273,7 @@ export default function Results({ onNavigate }: ResultsProps) {
               onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
               title="Open on Phone / QR Scanner"
             >
-              <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
+              <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)' }}>qr_code_2</span>
               <span>Phone QR</span>
             </button>
             <div className="rs-divider" />
@@ -435,8 +435,8 @@ export default function Results({ onNavigate }: ResultsProps) {
                     <tbody>
                       {displayedTests.length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ textAlign: 'center', padding: '36px 16px', color: '#171717' }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#171717', display: 'block', marginBottom: '8px' }}>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--color-text-primary)' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '36px', color: 'var(--color-text-primary)', display: 'block', marginBottom: '8px' }}>
                               search_off
                             </span>
                             No test results match your search or filter criteria.

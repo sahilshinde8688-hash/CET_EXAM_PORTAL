@@ -2,7 +2,7 @@
   min-height: 100vh;
   overflow-x: hidden;
   background-color: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
 }
 
 .admin-dashboard__sidebar {
@@ -24,7 +24,7 @@
   height: 2.5rem;
   border-radius: 9999px;
   overflow: hidden;
-  background: #d21436;
+  background: var(--color-primary);
 }
 
 .admin-dashboard__sidebar__avatar img {
@@ -35,7 +35,7 @@
 
 .glass-card {
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
 }
@@ -46,19 +46,19 @@
 
 .glass-header {
   background: #ffffff;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--color-border);
 }
 
 /* Button Styles */
 button[class*="bg-primary"] {
-  background: #d21436;
-  box-shadow: 0 2px 4px rgba(210, 20, 54, 0.2);
+  background: var(--color-primary);
+  box-shadow: 0 2px 4px rgba(var(--color-primary-rgb), 0.2);
   transition: all 0.2s ease;
 }
 
 button[class*="bg-primary"]:hover {
-  background: #d21436;
-  box-shadow: 0 4px 8px rgba(210, 20, 54, 0.3);
+  background: var(--color-primary);
+  box-shadow: 0 4px 8px rgba(var(--color-primary-rgb), 0.3);
 }
 
 button[class*="bg-primary"]:active {
@@ -87,13 +87,13 @@ button[class*="bg-primary"]:active {
 .quick-action-btn {
   transition: all 0.2s ease;
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
 }
 
 .quick-action-btn:hover {
   background: #ffffff;
-  border-color: #d21436;
-  box-shadow: 0 2px 6px rgba(210, 20, 54, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 6px rgba(var(--color-primary-rgb), 0.1);
 }
 
 /* Activity Section */
@@ -111,10 +111,10 @@ button[class*="bg-primary"]:active {
 }
 
 .activity-section::-webkit-scrollbar-thumb {
-  background: #e5e5e5;
+  background: var(--color-border);
   border-radius: 3px;
 }
 
 .activity-section::-webkit-scrollbar-thumb:hover {
-  background: #172c4f;
+  background: var(--color-primary-hover);
 }

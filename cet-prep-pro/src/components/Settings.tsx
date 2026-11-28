@@ -131,7 +131,7 @@ export default function Settings({ onNavigate }: SettingsProps) {
           onClick={() => window.dispatchEvent(new CustomEvent('cet:open-qr'))}
           title="Open on Phone / QR Scanner"
         >
-          <span className="material-symbols-outlined" style={{ color: '#d21436' }}>qr_code_2</span>
+          <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)' }}>qr_code_2</span>
           Phone QR
         </button>
       </header>

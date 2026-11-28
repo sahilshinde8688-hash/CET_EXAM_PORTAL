@@ -1,6 +1,7 @@
 import { lazy, startTransition, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { Chart as ChartInstance } from 'chart.js'
 import { adminDashboardAPI, authAPI, session, usersAPI, AuthUser, type TestResult } from '../lib/api'
+import { BRAND_COLORS } from '../theme'
 import { supabase } from '../lib/supabaseClient'
 const StudentProfile = lazy(() => import('./StudentProfile'))
 const TestInterface = lazy(() => import('./TestInterface'))
@@ -636,13 +637,13 @@ function RegistrationReview() {
                   {viewingStudent.name?.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 4px', fontSize: 17, color: '#171717' }}>{viewingStudent.name}</h4>
+                  <h4 style={{ margin: '0 0 4px', fontSize: 17, color: 'var(--color-text-primary)' }}>{viewingStudent.name}</h4>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span className="rr-branch-badge">{viewingStudent.branch || 'Branch N/A'}</span>
                     <span style={{
                       padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                      background: viewingStudent.status === 'approved' ? '#ffffff' : viewingStudent.status === 'rejected' ? '#f8f8f8' : '#ffffff',
-                      color: viewingStudent.status === 'approved' ? '#16a085' : viewingStudent.status === 'rejected' ? '#dc2626' : '#171717'
+                      background: viewingStudent.status === 'approved' ? '#ffffff' : viewingStudent.status === 'rejected' ? 'var(--color-surface-secondary)' : '#ffffff',
+                      color: viewingStudent.status === 'approved' ? '#16a085' : viewingStudent.status === 'rejected' ? '#dc2626' : 'var(--color-text-primary)'
                     }}>
                       {viewingStudent.status?.toUpperCase() || 'PENDING'}
                     </span>
@@ -669,7 +670,7 @@ function RegistrationReview() {
                 </div>
                 <div className="rr-detail-item">
                   <label>Student Unique No. (MHT-CET ID)</label>
-                  <span style={{ color: '#d21436', fontWeight: 700 }}>{viewingStudent.mhcetId || 'Pending Generation'}</span>
+                  <span style={{ color: 'var(--color-primary)', fontWeight: 700 }}>{viewingStudent.mhcetId || 'Pending Generation'}</span>
                 </div>
                 <div className="rr-detail-item">
                   <label>Account setup</label>
@@ -701,7 +702,7 @@ function RegistrationReview() {
                   <button
                     type="button"
                     className="rr-bulk-btn rr-bulk-btn--approve"
-                    style={{ background: '#d21436', color: '#fff', borderColor: '#d21436' }}
+                    style={{ background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)' }}
                     onClick={() => {
                       const s = viewingStudent
                       setViewingStudent(null)
@@ -1171,8 +1172,8 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       if (!ctx) return
 
     const grad = ctx.createLinearGradient(0, 0, 0, 340)
-    grad.addColorStop(0, 'rgba(210, 20, 54, 0.35)')
-    grad.addColorStop(1, 'rgba(210, 20, 54, 0)')
+    grad.addColorStop(0, `rgba(${BRAND_COLORS.primaryRgb}, 0.35)`)
+    grad.addColorStop(1, `rgba(${BRAND_COLORS.primaryRgb}, 0)`)
 
     let chartLabels: string[] = []
     let chartData: number[] = []
@@ -1195,7 +1196,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
         datasets: [{
           label: 'Test Attempts',
           data: chartData,
-          borderColor: '#d21436',
+          borderColor: BRAND_COLORS.primary,
           borderWidth: 2.5,
           fill: true,
           backgroundColor: grad,
@@ -1203,7 +1204,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           pointRadius: 2,
           pointHoverRadius: 6,
           pointHoverBackgroundColor: '#fff',
-          pointHoverBorderColor: '#d21436',
+          pointHoverBorderColor: BRAND_COLORS.primary,
           pointHoverBorderWidth: 2,
         }],
       },
@@ -1215,7 +1216,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           tooltip: {
             mode: 'index',
             intersect: false,
-            backgroundColor: '#172c4f',
+            backgroundColor: BRAND_COLORS.primaryHover,
             titleFont: { size: 12, family: 'Inter' },
             bodyFont: { size: 12, family: 'Inter' },
             padding: 10,
@@ -1223,12 +1224,12 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           },
         },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: '#171717' } },
+          x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 10 }, color: BRAND_COLORS.textPrimary } },
           y: {
             grid: { color: 'rgba(0,0,0,0.05)' },
             ticks: {
               font: { family: 'Inter', size: 10 },
-              color: '#171717',
+              color: BRAND_COLORS.textPrimary,
               callback: v => Number(v) >= 1000 ? `${Number(v) / 1000}k` : String(v),
             },
           },
@@ -1502,18 +1503,18 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
               </button>
             </div>
             <div className="rr-modal-body">
-              <h4 style={{ margin: '0 0 8px', color: '#d21436' }}>Student Approval & Excel Export</h4>
-              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#171717', margin: '0 0 16px' }}>
+              <h4 style={{ margin: '0 0 8px', color: 'var(--color-primary)' }}>Student Approval & Excel Export</h4>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-primary)', margin: '0 0 16px' }}>
                 Under <strong>Registrations</strong>, review new student sign-ups. Click <strong>Approve</strong> or <strong>Bulk Approve</strong> to assign an official MHT-CET ID and send a secure password setup link. Use <strong>Resend setup email</strong> from a student's profile when a new link is needed. Excel exports contain student identity and enrollment details only; passwords are never exported.
               </p>
 
-              <h4 style={{ margin: '0 0 8px', color: '#d21436' }}>Mock Tests & Questions</h4>
-              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#171717', margin: '0 0 16px' }}>
+              <h4 style={{ margin: '0 0 8px', color: 'var(--color-primary)' }}>Mock Tests & Questions</h4>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-primary)', margin: '0 0 16px' }}>
                 Build full-length and subject-wise exams under <strong>Mock Tests</strong>. Add questions with LaTeX formulas, options, and full step-by-step solutions in the <strong>Question Bank</strong>.
               </p>
 
-              <h4 style={{ margin: '0 0 8px', color: '#d21436' }}>Exam Telemetry & Live Proctoring</h4>
-              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#171717', margin: 0 }}>
+              <h4 style={{ margin: '0 0 8px', color: 'var(--color-primary)' }}>Exam Telemetry & Live Proctoring</h4>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-primary)', margin: 0 }}>
                 Click <strong>Enter Control Room</strong> from the overview to observe real-time candidate connections, proctoring alerts, and completion rates.
               </p>
             </div>
@@ -1541,7 +1542,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
             </div>
             <div className="rr-modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {testResults.length === 0 ? (
-                <p style={{ textAlign: 'center', color: '#171717' }}>No activities recorded yet.</p>
+                <p style={{ textAlign: 'center', color: 'var(--color-text-primary)' }}>No activities recorded yet.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {testResults.slice(0, 30).map((r) => {
@@ -1550,14 +1551,14 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                     return (
                       <div key={r._id} style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '12px 14px', background: '#ffffff', borderRadius: 8, border: '1px solid #e5e5e5'
+                        padding: '12px 14px', background: '#ffffff', borderRadius: 8, border: '1px solid var(--color-border)'
                       }}>
                         <div>
-                          <strong style={{ fontSize: 14, color: '#171717' }}>{studentName}</strong>
-                          <p style={{ margin: '2px 0 0', fontSize: 12, color: '#171717' }}>{r.testName || 'Mock Test'} • {dt}</p>
+                          <strong style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>{studentName}</strong>
+                          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--color-text-primary)' }}>{r.testName || 'Mock Test'} • {dt}</p>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontWeight: 700, color: '#d21436', fontSize: 14 }}>{Math.round(r.score)}/{r.totalMarks}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--color-primary)', fontSize: 14 }}>{Math.round(r.score)}/{r.totalMarks}</span>
                           <p style={{ margin: '2px 0 0', fontSize: 11, color: '#16a085', fontWeight: 600 }}>{Number(r.percentile || 0).toFixed(1)}th %ile</p>
                         </div>
                       </div>
@@ -1579,12 +1580,12 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       {showControlRoomModal && (
         <div className="rr-modal-backdrop" onClick={() => setShowControlRoomModal(false)}>
           <div className="rr-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
-            <div className="rr-modal-header" style={{ background: '#172c4f', color: '#fff' }}>
+            <div className="rr-modal-header" style={{ background: 'var(--color-primary-hover)', color: '#fff' }}>
               <h3 className="rr-modal-title" style={{ color: '#fff' }}>
                 <span className="material-symbols-outlined" style={{ color: '#16a085' }}>monitoring</span>
                 MHT-CET Phase 1 — Live Control Room
               </h3>
-              <button className="rr-modal-close-btn" style={{ color: '#171717' }} onClick={() => setShowControlRoomModal(false)}>
+              <button className="rr-modal-close-btn" style={{ color: 'var(--color-text-primary)' }} onClick={() => setShowControlRoomModal(false)}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -1594,11 +1595,11 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#16a085', textTransform: 'uppercase' }}>Active Connections</span>
                   <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#16a085' }}>12,402</h4>
                 </div>
-                <div style={{ padding: 12, background: '#ffffff', border: '1px solid #e5e5e5', borderRadius: 10, textAlign: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#d21436', textTransform: 'uppercase' }}>Average Latency</span>
-                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#171717' }}>24 ms</h4>
+                <div style={{ padding: 12, background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: 10, textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase' }}>Average Latency</span>
+                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: 'var(--color-text-primary)' }}>24 ms</h4>
                 </div>
-                <div style={{ padding: 12, background: '#f8f8f8', border: '1px solid #f8f8f8', borderRadius: 10, textAlign: 'center' }}>
+                <div style={{ padding: 12, background: 'var(--color-surface-secondary)', border: '1px solid var(--color-surface-secondary)', borderRadius: 10, textAlign: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase' }}>Errors Reported</span>
                   <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#dc2626' }}>0</h4>
                 </div>
@@ -1609,12 +1610,12 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   <span>Overall Exam Phase Completion</span>
                   <span>74% Complete</span>
                 </div>
-                <div style={{ height: 8, background: '#e5e5e5', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ width: '74%', height: '100%', background: '#d21436', borderRadius: 4 }} />
+                <div style={{ height: 8, background: 'var(--color-border)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: '74%', height: '100%', background: 'var(--color-primary)', borderRadius: 4 }} />
                 </div>
               </div>
 
-              <div style={{ padding: 12, background: '#ffffff', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 13, color: '#171717' }}>
+              <div style={{ padding: 12, background: '#ffffff', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-primary)' }}>
                 <p style={{ margin: '0 0 6px' }}><strong>Proctoring Status:</strong> All automated browser fullscreen & focus tracking systems are armed and operating normally.</p>
                 <p style={{ margin: 0 }}><strong>Security:</strong> CSRF and Rate Limiting protections are active on all exam submission endpoints.</p>
               </div>
@@ -1623,7 +1624,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
               <button
                 type="button"
                 className="rr-bulk-btn"
-                style={{ background: '#d21436', color: '#fff', borderColor: '#d21436' }}
+                style={{ background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)' }}
                 onClick={() => {
                   setShowControlRoomModal(false)
                   setShowAlertComposer(true)
@@ -1786,24 +1787,24 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                     </div>
                     <div className="adb-notif-list">
                       <div className="adb-notif-item">
-                        <span className="material-symbols-outlined" style={{ color: '#d21436' }}>how_to_reg</span>
+                        <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)' }}>how_to_reg</span>
                         <div>
                           <strong>Student Approvals Active</strong>
-                          <p style={{ margin: '2px 0 0', color: '#171717' }}>Check the registrations tab to review pending candidates.</p>
+                          <p style={{ margin: '2px 0 0', color: 'var(--color-text-primary)' }}>Check the registrations tab to review pending candidates.</p>
                         </div>
                       </div>
                       <div className="adb-notif-item">
                         <span className="material-symbols-outlined" style={{ color: '#16a085' }}>table_view</span>
                         <div>
                           <strong>Excel Export Ready</strong>
-                          <p style={{ margin: '2px 0 0', color: '#171717' }}>Download batch-wise student spreadsheets with passwords anytime.</p>
+                          <p style={{ margin: '2px 0 0', color: 'var(--color-text-primary)' }}>Download batch-wise student spreadsheets with passwords anytime.</p>
                         </div>
                       </div>
                       <div className="adb-notif-item">
-                        <span className="material-symbols-outlined" style={{ color: '#d21436' }}>quiz</span>
+                        <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)' }}>quiz</span>
                         <div>
                           <strong>{overviewStats.totalMockTests} Active Mock Exams</strong>
-                          <p style={{ margin: '2px 0 0', color: '#171717' }}>Platform ready for incoming candidate attempts.</p>
+                          <p style={{ margin: '2px 0 0', color: 'var(--color-text-primary)' }}>Platform ready for incoming candidate attempts.</p>
                         </div>
                       </div>
                     </div>

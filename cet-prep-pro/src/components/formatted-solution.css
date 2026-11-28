@@ -1,6 +1,6 @@
 .formatted-solution {
   min-width: 0;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 0.96em;
   line-height: 1.7;
   overflow-wrap: anywhere;
@@ -8,7 +8,7 @@
 
 .formatted-solution-heading {
   margin: 18px 0 8px;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 1em;
   font-weight: 700;
 }
@@ -28,7 +28,7 @@
 .formatted-solution h5,
 .formatted-solution h6 {
   margin: 14px 0 6px;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 1em;
   font-weight: 700;
 }
@@ -75,17 +75,17 @@
 
 .formatted-solution-list-item > span {
   flex: 0 0 auto;
-  color: #d21436;
+  color: var(--color-primary);
   font-weight: 700;
 }
 
 .formatted-solution-final-heading {
   margin: 18px 0 8px;
   padding: 10px 14px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 9px 9px 0 0;
   background: #ffffff;
-  color: #d21436;
+  color: var(--color-primary);
   font-size: 1em;
   font-weight: 700;
 }
@@ -93,11 +93,11 @@
 .formatted-solution-final-answer {
   margin: -8px 0 0;
   padding: 12px 14px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-top: 0;
   border-radius: 0 0 9px 9px;
   background: #ffffff;
-  color: #171717;
+  color: var(--color-text-primary);
   font-size: 1.05em;
   font-weight: 700;
 }
@@ -109,7 +109,7 @@
 .formatted-solution-final-equation {
   margin: -8px 0 0;
   padding: 12px 14px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-top: 0;
   border-radius: 0 0 9px 9px;
   background: #ffffff;
@@ -117,7 +117,7 @@
 
 .formatted-solution-rich-final {
   margin-top: 18px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid var(--color-border);
   border-radius: 9px;
   background: #ffffff;
 }
