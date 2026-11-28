@@ -1,4 +1,4 @@
-export type Page = 'landing' | 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin-dashboard'
+export type Page = 'landing' | 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'unauthorized'
 
 import { useEffect, useState } from 'react'
 import {
@@ -25,7 +25,7 @@ interface SidebarProps {
   onCloseMobile?: () => void
 }
 
-type AnimatedPage = Exclude<Page, 'landing' | 'signin' | 'admin-dashboard'>
+type AnimatedPage = Exclude<Page, 'landing' | 'signin' | 'admin' | 'unauthorized'>
 type NavItem = { icon: LucideIcon; label: string; page?: Page; secondary?: boolean; disabled?: boolean }
 
 const NAV_ITEMS: NavItem[] = [
@@ -36,7 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: BookOpen, label: 'Study Resources', page: 'mocktests', secondary: true },
   { icon: Trophy, label: 'Leaderboard', disabled: true },
   { icon: Settings, label: 'Settings', page: 'settings' },
-  { icon: Settings, label: 'Admin', page: 'admin-dashboard' },
+  { icon: Settings, label: 'Admin', page: 'admin' },
 ]
 
 const BOTTOM_NAV_ITEMS: Array<NavItem & { page: AnimatedPage }> = [
@@ -78,7 +78,7 @@ export default function Sidebar({ activePage, onNavigate, onStartTest, mobileOpe
 
   const user = session.get<{ role: string }>()
   const isAdmin = user?.role === 'admin'
-  const navItems = isAdmin ? NAV_ITEMS : NAV_ITEMS.filter(item => item.page !== 'admin-dashboard')
+  const navItems = isAdmin ? NAV_ITEMS : NAV_ITEMS.filter(item => item.page !== 'admin')
 
   const handleNavClick = (page: Page) => {
     closeDrawer()

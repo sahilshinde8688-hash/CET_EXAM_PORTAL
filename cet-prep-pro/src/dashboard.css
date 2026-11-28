@@ -878,10 +878,12 @@
 }
 
 .db-sidebar {
+  box-sizing: border-box;
   width: var(--db-sidebar-width);
-  min-height: 100vh;
+  height: 100vh;
   padding: 22px 14px 18px;
   gap: 0;
+  font-family: Inter, 'Public Sans', sans-serif;
   background: var(--db-card);
   border-right: 1px solid var(--db-border);
   box-shadow: none;
@@ -923,8 +925,8 @@
   background: transparent;
   border-radius: 9px;
   color: #171923;
-  font-size: 13px;
-  font-weight: 550;
+  font-size: 18px;
+  font-weight: 400;
   text-align: left;
   cursor: pointer;
   transition: background .16s ease, color .16s ease, transform .16s ease;
@@ -938,7 +940,7 @@
 .db-nav-item--active:hover {
   color: #171923 !important;
   background: var(--db-red-soft);
-  font-weight: 650;
+  font-weight: 400;
   box-shadow: inset 3px 0 0 var(--db-red);
 }
 .db-nav-item--active svg { color: #171923; }

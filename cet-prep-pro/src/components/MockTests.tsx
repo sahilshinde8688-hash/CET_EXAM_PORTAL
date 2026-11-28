@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import Sidebar, { type Page } from './Sidebar'
+import { type Page } from './Sidebar'
 import TestInterface from './TestInterface'
 import ExamInstructions from './ExamInstructions'
 import UserAvatar from './UserAvatar'
@@ -637,7 +637,6 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
       />
     ) : notificationAssignmentId ? (
       <div className="db-root mt-page-content">
-        <Sidebar activePage="mocktests" onNavigate={onNavigate} onStartTest={enterExamInstructions} />
         <main className="db-main">
           <div className="db-content">
             <AssignedMockTests
@@ -655,9 +654,6 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
       </div>
     ) : (
     <div className="db-root mt-page-content">
-
-      {/* ── Sidebar ──────────────────────────────── */}
-      <Sidebar activePage="mocktests" onNavigate={onNavigate} onStartTest={enterExamInstructions} />
 
       {/* ── Main ─────────────────────────────────── */}
       <main className="db-main">

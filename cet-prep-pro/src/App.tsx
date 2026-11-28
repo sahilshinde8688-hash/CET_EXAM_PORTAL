@@ -1,6 +1,7 @@
 import { lazy, startTransition, Suspense, useEffect, useRef, useState } from 'react'
 import './page-loader.css'
 import SignIn from './components/SignIn'
+import Sidebar, { type Page as SidebarPage } from './components/Sidebar'
 import { clearAdminCredentials } from './adminAuth'
 import { ApiResponseError, authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
 
@@ -13,7 +14,7 @@ const Analysis = lazy(() => import('./components/Analysis'))
 const Settings = lazy(() => import('./components/Settings'))
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'))
 
-export type Page = 'landing' | 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'unauthorized'
+export type Page = SidebarPage
 
 const getLoginDestination = (user: AuthUser): { page: Page; path: string } => {
   if (user.role === 'admin') {
@@ -480,8 +481,12 @@ export default function App() {
   }
   if (authLoading && page !== 'landing') return signInView
   if (navigatingTo) return <PageLoader target={navigatingTo} />
+  const studentPages: Page[] = ['dashboard', 'mocktests', 'results', 'analytics', 'settings']
   return (
     <>
+    {studentPages.includes(page) && (
+      <Sidebar activePage={page} onNavigate={navigate} />
+    )}
     <Suspense fallback={<PageLoader target={page} />}>
       {page === 'signin' && signInView}
       {page === 'landing' && (

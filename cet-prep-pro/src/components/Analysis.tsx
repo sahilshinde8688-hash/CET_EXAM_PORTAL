@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Sidebar, { type Page } from './Sidebar'
+import { type Page } from './Sidebar'
 import UserAvatar from './UserAvatar'
 import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import { shareTestReport } from '../lib/exportUtils'
@@ -119,9 +119,6 @@ export default function Analysis({ onNavigate }: AnalysisProps) {
           <UserAvatar user={user} className="an-avatar" onClick={() => onNavigate?.('settings')} />
         </div>
       </nav>
-
-      {/* ── Sidebar ───────────────────────────── */}
-      <Sidebar activePage="analytics" onNavigate={onNavigate} />
 
       {/* ── Main ──────────────────────────────── */}
       <main className="an-main">

@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useMemo } from 'react'
-import Sidebar, { type Page } from './Sidebar'
+import { type Page } from './Sidebar'
 import { session, testsAPI, type AuthUser, type TestResult } from '../lib/api'
 import { downloadTestHistoryCSV, downloadSingleTestReport } from '../lib/exportUtils'
 import TestInterface from './TestInterface'
@@ -148,7 +148,6 @@ export default function Results({ onNavigate }: ResultsProps) {
   if (loading) {
     return (
       <div className="rs-root">
-        <Sidebar activePage="results" onNavigate={onNavigate} />
         <main className="rs-main">
           <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
             <LoadingIndicator message="Loading test results..." />
@@ -183,9 +182,6 @@ export default function Results({ onNavigate }: ResultsProps) {
 
   return (
     <div className="rs-root">
-
-      {/* ── Sidebar ─────────────────────────────── */}
-      <Sidebar activePage="results" onNavigate={onNavigate} />
 
       {/* ── Main ────────────────────────────────── */}
       <main className="rs-main">

@@ -14,7 +14,7 @@ import '../admin.css'
 import '../testInterface.css'
 import '../questionBank.css'
 
-type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin' | 'admin-dashboard'
+type Page = 'signin' | 'dashboard' | 'mocktests' | 'results' | 'analytics' | 'settings' | 'admin'
 type AdminView = 'overview' | 'registrations' | 'students' | 'questions' | 'mocktests' | 'analytics' | 'settings' | 'superadmin'
 
 const adminPathToView = (pathname: string): AdminView => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import Sidebar, { type Page } from './Sidebar'
+import { type Page } from './Sidebar'
 import ImageCropModal from './ImageCropModal'
 import { session, testsAPI, usersAPI, type AuthUser, type TestResult } from '../lib/api'
 import '../settings.css'
@@ -108,7 +108,6 @@ export default function Settings({ onNavigate }: SettingsProps) {
 
   return <div className="settings-root settings-profile-root">
     {cropImage && <ImageCropModal image={cropImage} onCancel={() => { URL.revokeObjectURL(cropImage); setCropImage(null) }} onConfirm={handleCroppedPhoto} />}
-    <Sidebar activePage="settings" onNavigate={onNavigate} />
     <main className="settings-profile-workspace">
       <header className="profile-toolbar">
         <button

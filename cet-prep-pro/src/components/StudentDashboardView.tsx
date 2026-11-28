@@ -38,7 +38,7 @@ import {
   type ChartOptions,
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
-import Sidebar, { type Page } from './Sidebar'
+import { type Page } from './Sidebar'
 import NotificationCenter from './NotificationCenter'
 import { BRAND_COLORS } from '../theme'
 import {
@@ -454,7 +454,6 @@ export default function StudentDashboardView({
 
   return (
     <div className="db-root">
-      <Sidebar activePage="dashboard" onNavigate={onNavigate} onStartTest={onStartTest} />
 
       <main className="db-main">
         <header className="db-topbar">
