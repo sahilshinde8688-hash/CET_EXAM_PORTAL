@@ -40,7 +40,7 @@ import {
 import { Line } from 'react-chartjs-2'
 import { type Page } from './Sidebar'
 import NotificationCenter from './NotificationCenter'
-import { BRAND_COLORS } from '../theme'
+import { BRAND_COLORS, THEME_CHANGE_EVENT } from '../theme'
 import {
   authAPI,
   session,
@@ -129,6 +129,18 @@ export default function StudentDashboardView({
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTrendSubject, setSelectedTrendSubject] = useState('all')
   const [copyMessage, setCopyMessage] = useState('')
+  const [, setThemeRevision] = useState(0)
+
+  useEffect(() => {
+    const handleThemeChange = () => setThemeRevision(revision => revision + 1)
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange)
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange)
+  }, [])
+  const chartPrimary = BRAND_COLORS.primary
+  const chartPrimaryRgb = BRAND_COLORS.primaryRgb
+  const chartTextPrimary = BRAND_COLORS.textPrimary
+  const chartTextSecondary = BRAND_COLORS.textSecondary
+  const chartSurfaceSecondary = BRAND_COLORS.surfaceSecondary
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -267,19 +279,19 @@ export default function StudentDashboardView({
     datasets: [{
       label: selectedTrendSubject === 'all' ? 'Percentile' : `${selectedTrendSubject} score`,
       data: trendPoints.map(point => point.value),
-      borderColor: BRAND_COLORS.primary,
-      backgroundColor: `rgba(${BRAND_COLORS.primaryRgb}, 0.08)`,
+      borderColor: chartPrimary,
+      backgroundColor: `rgba(${chartPrimaryRgb}, 0.08)`,
       borderWidth: 2.5,
       pointRadius: 3,
       pointHoverRadius: 5,
-      pointBackgroundColor: BRAND_COLORS.primary,
+      pointBackgroundColor: chartPrimary,
       pointBorderColor: '#FFFFFF',
       pointBorderWidth: 2,
       tension: 0.35,
       fill: true,
       spanGaps: true,
     }],
-  }), [selectedTrendSubject, trendPoints])
+  }), [chartPrimary, chartPrimaryRgb, selectedTrendSubject, trendPoints])
 
   const chartOptions = useMemo<ChartOptions<'line'>>(() => ({
     responsive: true,
@@ -288,7 +300,7 @@ export default function StudentDashboardView({
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: BRAND_COLORS.textPrimary,
+        backgroundColor: chartTextPrimary,
         padding: 10,
         displayColors: false,
         callbacks: {
@@ -300,17 +312,17 @@ export default function StudentDashboardView({
       x: {
         grid: { display: false },
         border: { display: false },
-        ticks: { color: BRAND_COLORS.textSecondary, maxRotation: 0, autoSkip: true },
+        ticks: { color: chartTextSecondary, maxRotation: 0, autoSkip: true },
       },
       y: {
         min: 0,
         max: 100,
         border: { display: false, dash: [4, 4] },
-        grid: { color: BRAND_COLORS.surfaceSecondary },
-        ticks: { color: BRAND_COLORS.textSecondary, stepSize: 25, callback: value => `${value}` },
+        grid: { color: chartSurfaceSecondary },
+        ticks: { color: chartTextSecondary, stepSize: 25, callback: value => `${value}` },
       },
     },
-  }), [selectedTrendSubject])
+  }), [chartSurfaceSecondary, chartTextPrimary, chartTextSecondary, selectedTrendSubject])
 
   const recentResults = useMemo(() => {
     const query = searchTerm.trim().toLocaleLowerCase()

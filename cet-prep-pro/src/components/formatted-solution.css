@@ -44,7 +44,7 @@
   overflow-x: auto;
   padding: 10px;
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .formatted-solution-equation {
@@ -84,7 +84,7 @@
   padding: 10px 14px;
   border: 1px solid var(--color-border);
   border-radius: 9px 9px 0 0;
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-primary);
   font-size: 1em;
   font-weight: 700;
@@ -96,7 +96,7 @@
   border: 1px solid var(--color-border);
   border-top: 0;
   border-radius: 0 0 9px 9px;
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font-size: 1.05em;
   font-weight: 700;
@@ -112,14 +112,14 @@
   border: 1px solid var(--color-border);
   border-top: 0;
   border-radius: 0 0 9px 9px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .formatted-solution-rich-final {
   margin-top: 18px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .formatted-solution-rich-final .formatted-solution-final-heading {

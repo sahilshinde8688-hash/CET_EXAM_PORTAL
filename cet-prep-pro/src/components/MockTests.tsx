@@ -493,7 +493,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
         animation: 'rd-fadein 0.18s ease',
       }}>
         <div style={{
-          background: '#fff', borderRadius: '20px', width: '90%', maxWidth: '440px',
+          background: 'var(--color-surface)', borderRadius: '20px', width: '90%', maxWidth: '440px',
           padding: '40px 36px 32px', textAlign: 'center',
           boxShadow: '0 32px 64px rgba(0,0,0,0.3)',
           animation: 'rd-slidein 0.22s cubic-bezier(0.34,1.56,0.64,1)',
@@ -503,12 +503,12 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '5px', background: 'linear-gradient(90deg,var(--color-primary-hover),var(--color-primary))', borderRadius: '20px 20px 0 0' }} />
 
           {/* Icon */}
-          <div style={{ width: '68px', height: '68px', borderRadius: '50%', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+          <div style={{ width: '68px', height: '68px', borderRadius: '50%', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '34px', color: 'var(--color-primary)', fontVariationSettings: "'FILL' 1" }}>quiz</span>
           </div>
 
           {/* Tag */}
-          <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '12px', background: '#ffffff', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '12px', background: 'var(--color-surface)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
             Exam In Progress
           </div>
 
@@ -525,7 +525,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             onClick={() => setShowResumeDialog(false)}
             style={{
               width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
-              background: 'linear-gradient(135deg,var(--color-primary-hover),var(--color-primary))', color: '#fff',
+              background: 'linear-gradient(135deg,var(--color-primary-hover),var(--color-primary))', color: 'var(--color-on-primary)',
               fontSize: '15px', fontWeight: 700, cursor: 'pointer',
               boxShadow: '0 6px 20px rgba(var(--color-primary-rgb), 0.35)', marginBottom: '10px',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -546,7 +546,7 @@ export default function MockTests({ onNavigate }: MockTestsProps) {
             }}
             style={{
               width: '100%', padding: '12px', borderRadius: '12px', border: '1.5px solid var(--color-border)',
-              background: '#ffffff', color: 'var(--color-text-primary)',
+              background: 'var(--color-surface)', color: 'var(--color-text-primary)',
               fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
             }}

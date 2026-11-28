@@ -1,12 +1,12 @@
 .admin-dashboard {
   min-height: 100vh;
   overflow-x: hidden;
-  background-color: #ffffff;
+  background-color: var(--color-surface);
   color: var(--color-text-primary);
 }
 
 .admin-dashboard__sidebar {
-  background: #ffffff;
+  background: var(--color-surface);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
@@ -16,7 +16,7 @@
 
 .admin-dashboard__sidebar a:hover {
   transform: translateX(2px);
-  background-color: #ffffff;
+  background-color: var(--color-surface);
 }
 
 .admin-dashboard__sidebar__avatar {
@@ -34,7 +34,7 @@
 }
 
 .glass-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
@@ -45,7 +45,7 @@
 }
 
 .glass-header {
-  background: #ffffff;
+  background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -80,18 +80,18 @@ button[class*="bg-primary"]:active {
 }
 
 .activity-item:hover {
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 /* Quick Action Buttons */
 .quick-action-btn {
   transition: all 0.2s ease;
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
 
 .quick-action-btn:hover {
-  background: #ffffff;
+  background: var(--color-surface);
   border-color: var(--color-primary);
   box-shadow: 0 2px 6px rgba(var(--color-primary-rgb), 0.1);
 }

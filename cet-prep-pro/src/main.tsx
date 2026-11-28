@@ -10,10 +10,10 @@ window.addEventListener('error', (event) => {
   console.error('Global error:', event.error)
   document.body.innerHTML = `
     <div style="padding: 40px; text-align: center; font-family: sans-serif;">
-      <h1 style="color: #dc2626;">Application Error</h1>
+      <h1 style="color: var(--color-error);">Application Error</h1>
       <p style="color: var(--color-text-primary); margin: 20px 0;">${event.message}</p>
-      <pre style="background: #ffffff; padding: 20px; border-radius: 8px; text-align: left; overflow: auto;">${event.error?.stack || ''}</pre>
-      <button onclick="location.reload()" style="padding: 12px 24px; background: var(--color-primary); color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px;">
+      <pre style="background: var(--color-surface); color: var(--color-text-primary); padding: 20px; border-radius: 8px; text-align: left; overflow: auto;">${event.error?.stack || ''}</pre>
+      <button onclick="location.reload()" style="padding: 12px 24px; background: var(--color-primary); color: var(--color-on-primary); border: none; border-radius: 8px; cursor: pointer; margin-top: 20px;">
         Reload Page
       </button>
     </div>

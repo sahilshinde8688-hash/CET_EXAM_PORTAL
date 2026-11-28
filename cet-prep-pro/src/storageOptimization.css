@@ -26,7 +26,7 @@
   background: var(--color-primary);
   border: 0;
   border-radius: 0.5rem;
-  color: white;
+  color: var(--color-on-primary);
   cursor: pointer;
   display: inline-flex;
   gap: 0.5rem;
@@ -55,7 +55,7 @@
 
 .storage-metric-cards article,
 .storage-card {
-  background: white;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.75rem;
   padding: 1rem;
@@ -82,7 +82,7 @@
 }
 
 .storage-info {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 0.6rem;
   color: var(--color-text-primary);
@@ -120,7 +120,7 @@
 
 .storage-card th,
 .storage-card td {
-  border-bottom: 1px solid #ffffff;
+  border-bottom: 1px solid var(--color-border-highlight);
   padding: 0.65rem 0.5rem;
   white-space: nowrap;
 }
@@ -152,7 +152,7 @@
   background: var(--color-surface-secondary);
   border: 1px solid var(--color-surface-secondary);
   border-radius: 0.5rem;
-  color: #dc2626;
+  color: var(--color-error);
   margin-bottom: 1rem;
   padding: 0.75rem 1rem;
 }

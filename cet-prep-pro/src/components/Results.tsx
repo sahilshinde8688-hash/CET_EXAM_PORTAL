@@ -223,7 +223,7 @@ export default function Results({ onNavigate }: ResultsProps) {
               <button 
                 className="rs-filter-btn" 
                 onClick={() => setShowFilterDropdown(prev => !prev)}
-                style={selectedSubjectFilter !== 'All' ? { background: '#ffffff', borderColor: 'var(--color-primary)', color: 'var(--color-text-primary)', fontWeight: 600 } : {}}
+                style={selectedSubjectFilter !== 'All' ? { background: 'var(--color-surface)', borderColor: 'var(--color-primary)', color: 'var(--color-text-primary)', fontWeight: 600 } : {}}
               >
                 <span className="material-symbols-outlined">filter_list</span>
                 <span>{selectedSubjectFilter === 'All' ? 'Test Type' : selectedSubjectFilter}</span>
@@ -232,7 +232,7 @@ export default function Results({ onNavigate }: ResultsProps) {
               {showFilterDropdown && (
                 <div style={{
                   position: 'absolute', top: '100%', right: 0, marginTop: '6px',
-                  background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px',
+                  background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px',
                   boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '160px',
                   overflow: 'hidden'
                 }}>
@@ -242,7 +242,7 @@ export default function Results({ onNavigate }: ResultsProps) {
                       onClick={() => { setSelectedSubjectFilter(type); setShowFilterDropdown(false) }}
                       style={{
                         display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px',
-                        border: 'none', background: selectedSubjectFilter === type ? '#ffffff' : 'transparent',
+                        border: 'none', background: selectedSubjectFilter === type ? 'var(--color-surface)' : 'transparent',
                         color: selectedSubjectFilter === type ? 'var(--color-primary)' : 'var(--color-text-primary)',
                         fontWeight: selectedSubjectFilter === type ? 700 : 500,
                         cursor: 'pointer', fontSize: '13px'

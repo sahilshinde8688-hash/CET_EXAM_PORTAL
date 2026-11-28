@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, type CSSProperties } from 'react'
 import './landingPage.css'
+import ThemeToggle from './ThemeToggle'
 
 function Glyph({ name, size = 20 }: { name: string; size?: number }) {
   return <span className="lp-glyph material-symbols-outlined" style={{ fontSize: size }} aria-hidden="true">{name}</span>
@@ -173,8 +174,6 @@ function DashboardPreview() {
 }
 
 export default function LandingPage({ onLogin, onStartPreparing }: LandingPageProps) {
-  const [isDark, setIsDark] = useState(false)
-
   useEffect(() => {
     const root = document.querySelector('.lp-page')
     if (!root || !('IntersectionObserver' in window)) return
@@ -198,7 +197,7 @@ export default function LandingPage({ onLogin, onStartPreparing }: LandingPagePr
   }, [])
 
   return (
-    <div className={`lp-page${isDark ? ' lp-dark' : ''}`}>
+    <div className="lp-page">
       <a className="lp-skip-link" href="#main-content">Skip to content</a>
       <header className="lp-header">
         <div className="lp-header-inner">
@@ -207,15 +206,7 @@ export default function LandingPage({ onLogin, onStartPreparing }: LandingPagePr
           </a>
 
           <div className="lp-header-actions">
-            <button
-              type="button"
-              className="lp-theme-toggle"
-              aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-              aria-pressed={isDark}
-              onClick={() => setIsDark(dark => !dark)}
-            >
-              <Glyph name={isDark ? 'light_mode' : 'dark_mode'} size={19} />
-            </button>
+            <ThemeToggle className="lp-theme-toggle" />
             <button type="button" className="lp-button lp-button-small lp-login-cta" onClick={onLogin}>
               Log in
             </button>

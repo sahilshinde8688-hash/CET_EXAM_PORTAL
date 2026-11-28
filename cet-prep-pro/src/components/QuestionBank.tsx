@@ -962,7 +962,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                     </div>
                   )}
                   {form.imageUrl && !uploadingImage && (
-                    <div style={{marginBottom: 12, border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: '#fff'}}>
+                    <div style={{marginBottom: 12, border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: 'var(--color-surface)'}}>
                       <img src={form.imageUrl} alt={form.imageAltText || 'Question attachment'} style={{maxHeight: 220, width: '100%', objectFit: 'contain', borderRadius: 8}} />
                       <label className="qb-label" htmlFor="question-image-alt">Image description (alt text)</label>
                       <input
@@ -1009,7 +1009,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                   </div>
                   
                   {(form.options || []).map((opt, i) => (
-                    <div key={i} className={`qb-option-block ${form.correctIndex === i ? 'correct' : ''}`} style={form.correctIndex === i ? {borderColor: '#16a085', background: '#ffffff'} : {}}>
+                    <div key={i} className={`qb-option-block ${form.correctIndex === i ? 'correct' : ''}`} style={form.correctIndex === i ? {borderColor: 'var(--color-success)', background: 'var(--color-surface)'} : {}}>
                       <div className="qb-option-handle"><GripVertical size={18}/></div>
                       <div className="qb-option-input-wrap">
                         <label className="qb-label">Option {String.fromCharCode(65+i)} {form.correctIndex === i && '(Correct Answer)'}</label>
@@ -1023,7 +1023,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                       </div>
                       <div style={{display:'flex', flexDirection:'column', gap: 8, marginTop: 24}}>
                         <button className="qb-btn-icon" title="Mark as Correct" onClick={() => setForm({...form, correctIndex: i})}>
-                          <CheckCircle2 size={20} color={form.correctIndex === i ? '#16a085' : 'var(--color-border)'}/>
+                          <CheckCircle2 size={20} color={form.correctIndex === i ? 'var(--color-success)' : 'var(--color-border)'}/>
                         </button>
                         <button className="qb-btn-icon danger" onClick={() => {
                           if ((form.options || []).length <= 2) return showToast('Minimum 2 options required', 'error');
@@ -1152,7 +1152,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                   <span><strong>{spreadsheetReview.errors.length}</strong> invalid rows</span>
                 </div>
                 {spreadsheetReview.errors.length > 0 && (
-                  <div role="alert" style={{marginBottom: 16, padding: 14, borderRadius: 10, background: 'var(--color-surface-secondary)', color: '#dc2626'}}>
+                  <div role="alert" style={{marginBottom: 16, padding: 14, borderRadius: 10, background: 'var(--color-surface-secondary)', color: 'var(--color-error)'}}>
                     <strong>Rows needing correction</strong>
                     <ul style={{marginBottom: 0, paddingLeft: 20}}>
                       {spreadsheetReview.errors.slice(0, 25).map((error, index) => (
@@ -1263,7 +1263,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
 
               <div
                 className="qb-dropzone"
-                style={{border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', padding: '40px 20px', margin: '24px 0', cursor: 'pointer', background: '#ffffff'}}
+                style={{border: '2px dashed var(--border)', borderRadius: 'var(--radius-lg)', padding: '40px 20px', margin: '24px 0', cursor: 'pointer', background: 'var(--color-surface)'}}
                 onClick={handleBulkImportClick}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleBulkDrop}
@@ -1283,7 +1283,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                     {uploadResult.errors.length > 0 && (
                       <div>
                         <p><strong>Errors:</strong></p>
-                        <ul style={{margin: 0, paddingLeft: 20, color: '#dc2626'}}>
+                        <ul style={{margin: 0, paddingLeft: 20, color: 'var(--color-error)'}}>
                           {uploadResult.errors.slice(0, 3).map((err, idx) => (
                             <li key={idx}>{err.row ? `Row ${err.row}: ` : ''}{err.message}</li>
                           ))}
@@ -1294,16 +1294,16 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                   </div>
                 )}
                 {!uploading && uploadError && (
-                  <div style={{marginTop: 16, textAlign: 'left', color: '#dc2626', background: 'var(--color-surface-secondary)', borderRadius: 12, padding: 16}}>
+                  <div style={{marginTop: 16, textAlign: 'left', color: 'var(--color-error)', background: 'var(--color-surface-secondary)', borderRadius: 12, padding: 16}}>
                     <p style={{margin: 0, fontWeight: 700}}>Upload failed:</p>
                     <p style={{margin: '8px 0 0'}}>{uploadError.message}</p>
                     {uploadError.details && (
-                      <pre style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 8, fontSize: 12, color: '#dc2626'}}>{JSON.stringify(uploadError.details, null, 2)}</pre>
+                      <pre style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: 8, fontSize: 12, color: 'var(--color-error)'}}>{JSON.stringify(uploadError.details, null, 2)}</pre>
                     )}
                   </div>
                 )}
                 {!uploading && pdfStage !== 'working' && pdfError && (
-                  <div style={{marginTop: 16, textAlign: 'left', color: '#dc2626', background: 'var(--color-surface-secondary)', borderRadius: 12, padding: 16}}>
+                  <div style={{marginTop: 16, textAlign: 'left', color: 'var(--color-error)', background: 'var(--color-surface-secondary)', borderRadius: 12, padding: 16}}>
                     <p style={{margin: 0, fontWeight: 700}}>PDF extraction failed:</p>
                     <p style={{margin: '8px 0 0'}}>{pdfError.message}</p>
                   </div>
@@ -1340,7 +1340,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                 
                 <div className="qb-preview-text"><RichQuestionContent content={previewQ.text} /></div>
                 {previewQ.imageUrl && (
-                  <div style={{marginTop: 18, borderRadius: 12, overflow: 'hidden', background: '#fff', border: '1px solid var(--border)'}}>
+                  <div style={{marginTop: 18, borderRadius: 12, overflow: 'hidden', background: 'var(--color-surface)', border: '1px solid var(--border)'}}>
                     <img src={previewQ.imageUrl} alt={previewQ.imageAltText || 'Question preview'} style={{width: '100%', maxHeight: 280, objectFit: 'contain', display: 'block'}} />
                   </div>
                 )}
@@ -1348,11 +1348,11 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
                 <div>
                   {previewQ.options.map((opt, i) => (
                     <div key={i} className={`qb-preview-option ${previewQ.correctIndex === i ? 'correct' : ''}`}>
-                      <div style={{width: 24, height: 24, borderRadius: '50%', background: previewQ.correctIndex === i ? '#16a085' : 'var(--color-border)', color: previewQ.correctIndex === i ? '#fff' : 'var(--color-text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700}}>
+                      <div style={{width: 24, height: 24, borderRadius: '50%', background: previewQ.correctIndex === i ? 'var(--color-success)' : 'var(--color-border)', color: 'var(--color-on-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700}}>
                         {String.fromCharCode(65+i)}
                       </div>
                       <div><RichQuestionContent content={opt} /></div>
-                      {previewQ.correctIndex === i && <CheckCircle2 size={18} color="#16a085" style={{marginLeft: 'auto'}}/>}
+                      {previewQ.correctIndex === i && <CheckCircle2 size={18} color="var(--color-success)" style={{marginLeft: 'auto'}}/>}
                     </div>
                   ))}
                 </div>
@@ -1386,7 +1386,7 @@ export default function QuestionBank({ onCreateTest, searchQuery = '' }: Questio
         <AnimatePresence>
           {toast && (
             <motion.div initial={{opacity: 0, y: 20}} animate={{opacity: 1, y: 0}} exit={{opacity: 0, scale: 0.9}} className={`qb-toast ${toast.type}`}>
-              {toast.type === 'success' ? <CheckCircle2 size={18} color="#16a085"/> : <AlertCircle size={18} color="#dc2626"/>}
+              {toast.type === 'success' ? <CheckCircle2 size={18} color="var(--color-success)"/> : <AlertCircle size={18} color="var(--color-error)"/>}
               {toast.msg}
             </motion.div>
           )}

@@ -8,10 +8,10 @@
   gap: 5px;
   flex-wrap: wrap;
   padding: 8px;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-bottom: 0;
   border-radius: 9px 9px 0 0;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .rich-question-toolbar button {
@@ -20,9 +20,9 @@
   height: 30px;
   place-items: center;
   padding: 0 7px;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font: inherit;
   font-weight: 600;
@@ -31,7 +31,7 @@
 
 .rich-question-toolbar button:hover {
   border-color: var(--color-text-primary);
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
 }
 
@@ -59,8 +59,8 @@
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 0 0 10px 10px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(var(--color-text-primary-rgb), 0.12);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgba(var(--color-shadow-rgb), 0.12);
 }
 
 .rich-question-equation-panel-heading,
@@ -83,7 +83,7 @@
   padding: 5px 9px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font: inherit;
   font-size: 12px;
@@ -100,9 +100,9 @@
   gap: 4px;
   margin-left: auto;
   padding: 3px;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .rich-question-equation-panel .rich-question-equation-input-modes button {
@@ -113,7 +113,7 @@
 
 .rich-question-equation-panel .rich-question-equation-input-modes button.active {
   border-color: var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
 }
 
@@ -141,7 +141,7 @@
   padding: 10px;
   border: 1px solid var(--color-text-primary);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
   resize: vertical;
@@ -155,9 +155,9 @@
   min-height: 64px;
   padding: 10px;
   overflow-x: auto;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-radius: 8px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .rich-question-latex-preview > strong {
@@ -174,7 +174,7 @@
 .rich-question-latex-preview > p,
 .rich-question-equation-error {
   margin: 4px 0 0;
-  color: #dc2626 !important;
+  color: var(--color-error);
   font-size: 12px !important;
 }
 
@@ -193,10 +193,10 @@
   padding: 10px;
   border: 1px solid var(--color-text-primary);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--color-surface);
   font-size: 1.25rem;
   --caret-color: var(--color-primary);
-  --selection-background-color: #ffffff;
+  --selection-background-color: var(--color-surface);
 }
 
 .rich-question-equation-categories {
@@ -212,7 +212,7 @@
 
 .rich-question-equation-categories button.active {
   border-color: var(--color-primary);
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
 }
 
@@ -239,23 +239,23 @@
 .rich-question-equation-actions button.primary {
   border-color: var(--color-primary);
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
 }
 
 .rich-question-paste-warning {
   padding: 8px 12px;
   border: 1px solid var(--color-surface-secondary);
   background: var(--color-surface-secondary);
-  color: #dc2626;
+  color: var(--color-error);
   font-size: 13px;
 }
 
 .rich-question-editor-surface {
   min-height: 180px;
   padding: 12px 14px;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-radius: 0 0 9px 9px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font: inherit;
   line-height: 1.65;
@@ -292,7 +292,7 @@
 .rich-question-equation:hover,
 .rich-question-equation:focus {
   outline: 1px solid var(--color-text-primary);
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .rich-question-equation-block {
@@ -342,9 +342,9 @@
   gap: 6px;
   margin-top: 8px;
   padding: 6px 9px;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-radius: 7px;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font: inherit;
   font-size: 12px;

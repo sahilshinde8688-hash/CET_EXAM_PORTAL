@@ -1,7 +1,7 @@
 import { lazy, startTransition, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { Chart as ChartInstance } from 'chart.js'
 import { adminDashboardAPI, authAPI, session, usersAPI, AuthUser, type TestResult } from '../lib/api'
-import { BRAND_COLORS } from '../theme'
+import { BRAND_COLORS, THEME_CHANGE_EVENT } from '../theme'
 import { supabase } from '../lib/supabaseClient'
 const StudentProfile = lazy(() => import('./StudentProfile'))
 const TestInterface = lazy(() => import('./TestInterface'))
@@ -642,8 +642,8 @@ function RegistrationReview() {
                     <span className="rr-branch-badge">{viewingStudent.branch || 'Branch N/A'}</span>
                     <span style={{
                       padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                      background: viewingStudent.status === 'approved' ? '#ffffff' : viewingStudent.status === 'rejected' ? 'var(--color-surface-secondary)' : '#ffffff',
-                      color: viewingStudent.status === 'approved' ? '#16a085' : viewingStudent.status === 'rejected' ? '#dc2626' : 'var(--color-text-primary)'
+                      background: viewingStudent.status === 'approved' ? 'var(--color-surface)' : viewingStudent.status === 'rejected' ? 'var(--color-error-surface)' : 'var(--color-surface)',
+                      color: viewingStudent.status === 'approved' ? 'var(--color-success)' : viewingStudent.status === 'rejected' ? 'var(--color-error)' : 'var(--color-text-primary)'
                     }}>
                       {viewingStudent.status?.toUpperCase() || 'PENDING'}
                     </span>
@@ -702,7 +702,7 @@ function RegistrationReview() {
                   <button
                     type="button"
                     className="rr-bulk-btn rr-bulk-btn--approve"
-                    style={{ background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)' }}
+                    style={{ background: 'var(--color-primary)', color: 'var(--color-on-primary)', borderColor: 'var(--color-primary)' }}
                     onClick={() => {
                       const s = viewingStudent
                       setViewingStudent(null)
@@ -922,7 +922,7 @@ function RegistrationReview() {
                           </>
                         )}
                         {s.status === 'approved' && (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#16a085', padding: '4px 8px' }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-success)', padding: '4px 8px' }}>
                             ✓ Approved
                           </span>
                         )}
@@ -997,6 +997,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const [attemptCounts, setAttemptCounts] = useState<number[]>(() => Array(30).fill(0))
   const [yearlyAttemptCounts, setYearlyAttemptCounts] = useState<number[]>(() => Array(12).fill(0))
   const [chartRange, setChartRange] = useState<'30d' | 'yearly'>('30d')
+  const [themeRevision, setThemeRevision] = useState(0)
   const [showAlertComposer, setShowAlertComposer] = useState(false)
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -1008,6 +1009,12 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
   const [topbarSearch, setTopbarSearch] = useState('')
   const [alertMessage, setAlertMessage] = useState('')
   const [alertSent, setAlertSent] = useState(false)
+
+  useEffect(() => {
+    const handleThemeChange = () => setThemeRevision(revision => revision + 1)
+    window.addEventListener(THEME_CHANGE_EVENT, handleThemeChange)
+    return () => window.removeEventListener(THEME_CHANGE_EVENT, handleThemeChange)
+  }, [])
   const [currentAdmin, setCurrentAdmin] = useState<AuthUser | null>(() => session.get<AuthUser>())
   const [adminProfileForm, setAdminProfileForm] = useState({ name: '', email: '', phone: '' })
   const [adminProfileSaving, setAdminProfileSaving] = useState(false)
@@ -1203,7 +1210,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
           tension: 0.4,
           pointRadius: 2,
           pointHoverRadius: 6,
-          pointHoverBackgroundColor: '#fff',
+          pointHoverBackgroundColor: BRAND_COLORS.surfaceSecondary,
           pointHoverBorderColor: BRAND_COLORS.primary,
           pointHoverBorderWidth: 2,
         }],
@@ -1244,7 +1251,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       chartRef.current?.destroy()
       chartRef.current = null
     }
-  }, [view, attemptCounts, chartRange, yearlyAttemptCounts])
+  }, [view, attemptCounts, chartRange, yearlyAttemptCounts, themeRevision])
 
   const topbarTitle = view === 'registrations'
     ? 'Student Approval & Registrations'
@@ -1551,7 +1558,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                     return (
                       <div key={r._id} style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '12px 14px', background: '#ffffff', borderRadius: 8, border: '1px solid var(--color-border)'
+                        padding: '12px 14px', background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)'
                       }}>
                         <div>
                           <strong style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>{studentName}</strong>
@@ -1559,7 +1566,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <span style={{ fontWeight: 700, color: 'var(--color-primary)', fontSize: 14 }}>{Math.round(r.score)}/{r.totalMarks}</span>
-                          <p style={{ margin: '2px 0 0', fontSize: 11, color: '#16a085', fontWeight: 600 }}>{Number(r.percentile || 0).toFixed(1)}th %ile</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--color-success)', fontWeight: 600 }}>{Number(r.percentile || 0).toFixed(1)}th %ile</p>
                         </div>
                       </div>
                     )
@@ -1580,9 +1587,9 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
       {showControlRoomModal && (
         <div className="rr-modal-backdrop" onClick={() => setShowControlRoomModal(false)}>
           <div className="rr-modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 640 }}>
-            <div className="rr-modal-header" style={{ background: 'var(--color-primary-hover)', color: '#fff' }}>
-              <h3 className="rr-modal-title" style={{ color: '#fff' }}>
-                <span className="material-symbols-outlined" style={{ color: '#16a085' }}>monitoring</span>
+            <div className="rr-modal-header" style={{ background: 'var(--color-primary-hover)', color: 'var(--color-on-primary)' }}>
+              <h3 className="rr-modal-title" style={{ color: 'var(--color-on-primary)' }}>
+                <span className="material-symbols-outlined" style={{ color: 'var(--color-success)' }}>monitoring</span>
                 MHT-CET Phase 1 — Live Control Room
               </h3>
               <button className="rr-modal-close-btn" style={{ color: 'var(--color-text-primary)' }} onClick={() => setShowControlRoomModal(false)}>
@@ -1591,17 +1598,17 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
             </div>
             <div className="rr-modal-body">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-                <div style={{ padding: 12, background: '#ffffff', border: '1px solid #ffffff', borderRadius: 10, textAlign: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#16a085', textTransform: 'uppercase' }}>Active Connections</span>
-                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#16a085' }}>12,402</h4>
+                <div style={{ padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border-highlight)', borderRadius: 10, textAlign: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-success)', textTransform: 'uppercase' }}>Active Connections</span>
+                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: 'var(--color-success)' }}>12,402</h4>
                 </div>
-                <div style={{ padding: 12, background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: 10, textAlign: 'center' }}>
+                <div style={{ padding: 12, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10, textAlign: 'center' }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase' }}>Average Latency</span>
                   <h4 style={{ margin: '4px 0 0', fontSize: 20, color: 'var(--color-text-primary)' }}>24 ms</h4>
                 </div>
                 <div style={{ padding: 12, background: 'var(--color-surface-secondary)', border: '1px solid var(--color-surface-secondary)', borderRadius: 10, textAlign: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase' }}>Errors Reported</span>
-                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: '#dc2626' }}>0</h4>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-error)', textTransform: 'uppercase' }}>Errors Reported</span>
+                  <h4 style={{ margin: '4px 0 0', fontSize: 20, color: 'var(--color-error)' }}>0</h4>
                 </div>
               </div>
 
@@ -1615,7 +1622,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                 </div>
               </div>
 
-              <div style={{ padding: 12, background: '#ffffff', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-primary)' }}>
+              <div style={{ padding: 12, background: 'var(--color-surface)', borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-primary)' }}>
                 <p style={{ margin: '0 0 6px' }}><strong>Proctoring Status:</strong> All automated browser fullscreen & focus tracking systems are armed and operating normally.</p>
                 <p style={{ margin: 0 }}><strong>Security:</strong> CSRF and Rate Limiting protections are active on all exam submission endpoints.</p>
               </div>
@@ -1624,7 +1631,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
               <button
                 type="button"
                 className="rr-bulk-btn"
-                style={{ background: 'var(--color-primary)', color: '#fff', borderColor: 'var(--color-primary)' }}
+                style={{ background: 'var(--color-primary)', color: 'var(--color-on-primary)', borderColor: 'var(--color-primary)' }}
                 onClick={() => {
                   setShowControlRoomModal(false)
                   setShowAlertComposer(true)
@@ -1762,7 +1769,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                   {!readNotifications && (
                     <span style={{
                       position: 'absolute', top: 6, right: 6, width: 8, height: 8,
-                      borderRadius: '50%', background: '#dc2626'
+                      borderRadius: '50%', background: 'var(--color-error)'
                     }} />
                   )}
                 </button>
@@ -1794,7 +1801,7 @@ export default function AdminDashboard({ onNavigate, onLogout }: AdminDashboardP
                         </div>
                       </div>
                       <div className="adb-notif-item">
-                        <span className="material-symbols-outlined" style={{ color: '#16a085' }}>table_view</span>
+                        <span className="material-symbols-outlined" style={{ color: 'var(--color-success)' }}>table_view</span>
                         <div>
                           <strong>Excel Export Ready</strong>
                           <p style={{ margin: '2px 0 0', color: 'var(--color-text-primary)' }}>Download batch-wise student spreadsheets with passwords anytime.</p>

@@ -1,6 +1,7 @@
 import { lazy, startTransition, Suspense, useEffect, useRef, useState } from 'react'
 import './page-loader.css'
 import SignIn from './components/SignIn'
+import ThemeToggle from './components/ThemeToggle'
 import Sidebar, { type Page as SidebarPage } from './components/Sidebar'
 import { clearAdminCredentials } from './adminAuth'
 import { ApiResponseError, authAPI, SessionExpiredError, session, type AuthUser } from './lib/api'
@@ -76,7 +77,6 @@ const PAGE_LABELS: Record<string, string> = {
 }
 
 const SESSION_CHECK_TIMEOUT_MS = 10_000
-const STARTUP_ANIMATION_DURATION_MS = 8_000
 const STARTUP_ANIMATION_SESSION_KEY = 'cetNovaStartupAnimationPlayed'
 
 /* ── Page transition loader ── */
@@ -145,11 +145,6 @@ export default function App() {
   useEffect(() => {
     if (!showStartupAnimation) return
     sessionStorage.setItem(STARTUP_ANIMATION_SESSION_KEY, 'true')
-    const timeoutId = window.setTimeout(
-      () => setShowStartupAnimation(false),
-      STARTUP_ANIMATION_DURATION_MS,
-    )
-    return () => window.clearTimeout(timeoutId)
   }, [showStartupAnimation])
 
   const restoreSession = async (requestedPage: Page, showLoader = true) => {
@@ -450,6 +445,7 @@ export default function App() {
   }
 
   const signInView = (
+    <>
     <SignIn
       sessionExpired={sessionExpired}
       sessionExpiredMessage={sessionExpiredMessage}
@@ -459,12 +455,14 @@ export default function App() {
       sessionChecking={authLoading}
       onRetrySession={() => void restoreSession(pathToPage(window.location.pathname))}
     />
+    <ThemeToggle />
+    </>
   )
 
   if (maintenanceMessage !== null) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#ffffff' }}>
-        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 16 }}>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: 'var(--color-surface)' }}>
+        <div style={{ maxWidth: 520, textAlign: 'center', padding: 36, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 16 }}>
           <h1>System Maintenance</h1>
           <p>{maintenanceMessage}</p>
           <button type="button" onClick={() => window.location.reload()}>Check again</button>
@@ -475,7 +473,15 @@ export default function App() {
   if (showStartupAnimation) {
     return (
       <div className="startup-animation" role="status" aria-label="CET Nova is loading">
-        <img src="/logo.png" alt="" aria-hidden="true" />
+        <video
+          src="/startup-animation.mp4"
+          autoPlay
+          muted
+          playsInline
+          aria-hidden="true"
+          onEnded={() => setShowStartupAnimation(false)}
+          onError={() => setShowStartupAnimation(false)}
+        />
       </div>
     )
   }
@@ -484,6 +490,7 @@ export default function App() {
   const studentPages: Page[] = ['dashboard', 'mocktests', 'results', 'analytics', 'settings']
   return (
     <>
+    {page !== 'landing' && page !== 'signin' && <ThemeToggle />}
     {studentPages.includes(page) && (
       <Sidebar activePage={page} onNavigate={navigate} />
     )}
@@ -510,8 +517,8 @@ export default function App() {
       )}
       {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
       {page === 'unauthorized' && (
-        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#ffffff' }}>
-          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: '#fff', border: '1px solid var(--color-border)', borderRadius: 16 }}>
+        <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: 'var(--color-surface)' }}>
+          <div style={{ maxWidth: 420, textAlign: 'center', padding: 32, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 16 }}>
             <h1>403</h1>
             <h2>Access Denied</h2>
             <p>You don't have permission to access this area.</p>

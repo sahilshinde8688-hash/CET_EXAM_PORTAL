@@ -6,7 +6,7 @@
   padding: 15px;
   border: 1px solid var(--color-border);
   border-radius: 11px;
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .as-email-config div {
@@ -50,7 +50,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 13px;
-  border: 1px solid #ffffff;
+  border: 1px solid var(--color-border-highlight);
   border-radius: 10px;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .as-email-log-main .as-email-log-error {
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 .as-email-log-status {
@@ -87,7 +87,7 @@
 
 .as-status--red {
   background: var(--color-surface-secondary);
-  color: #dc2626;
+  color: var(--color-error);
 }
 
 @media (max-width: 620px) {

@@ -6,8 +6,8 @@ import TestInterface from './TestInterface'
 
 type Props = { onBack?: () => void; embedded?: boolean; toolbarActions?: ReactNode; focusAssignmentId?: string }
 
-const card: CSSProperties = { background: '#fff', border: '1px solid var(--color-border)', borderRadius: 14, padding: 20 }
-const button: CSSProperties = { border: 0, background: 'var(--color-primary)', color: '#fff', borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: 'pointer' }
+const card: CSSProperties = { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 20 }
+const button: CSSProperties = { border: 0, background: 'var(--color-primary)', color: 'var(--color-on-primary)', borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: 'pointer' }
 const dateLabel = (value: string, timeZone = 'Asia/Kolkata') => new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone })
 const formatCountdown = (value: number) => {
   const seconds = Math.max(0, Math.floor(value / 1000))
@@ -227,7 +227,7 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
         <button className={embedded ? 'mt-quick-btn' : undefined} style={embedded ? undefined : { ...button, background: 'var(--color-primary-hover)' }} onClick={() => void loadAssignments()}>Refresh</button>
       </div>
     </header>
-    {error && <p role="alert" style={{ ...card, color: '#dc2626', borderColor: 'var(--color-surface-secondary)' }}>{error}</p>}
+    {error && <p role="alert" style={{ ...card, color: 'var(--color-error)', borderColor: 'var(--color-surface-secondary)' }}>{error}</p>}
     {focusAssignmentId && !loading && !assignments.some(assignment => assignment._id === focusAssignmentId) && (
       <p role="status" style={{ ...card, color: 'var(--color-text-primary)' }}>This assigned test is no longer available in your account.</p>
     )}
@@ -260,7 +260,7 @@ export default function AssignedMockTests({ onBack, embedded = false, toolbarAct
             {embedded && <div className="mt-card-icon mt-icon--blue"><span className="material-symbols-outlined">assignment</span></div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
               <h3 className={embedded ? 'mt-card-title' : undefined} style={embedded ? undefined : { fontSize: 19, margin: 0 }}>{assignment.mockTestName}</h3>
-              <span className={embedded ? 'mt-diff-badge mt-diff-medium' : undefined} style={embedded ? undefined : { borderRadius: 99, padding: '4px 9px', background: status === 'Available' ? '#ffffff' : '#ffffff', fontSize: 12, fontWeight: 700 }}>{status}</span>
+              <span className={embedded ? 'mt-diff-badge mt-diff-medium' : undefined} style={embedded ? undefined : { borderRadius: 99, padding: '4px 9px', background: 'var(--color-surface)', fontSize: 12, fontWeight: 700 }}>{status}</span>
             </div>
             <p className={embedded ? 'mt-card-desc' : undefined} style={embedded ? undefined : { color: 'var(--color-text-primary)' }}>{assignment.subject || assignment.examType || 'Mock Test'} · {assignment.questionCount ?? '—'} questions</p>
             <div className={embedded ? 'mt-card-meta' : undefined} style={embedded ? undefined : { display: 'grid', gap: 5, margin: '0 0 16px' }}>

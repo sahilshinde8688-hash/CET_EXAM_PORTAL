@@ -895,16 +895,16 @@ export default function TestInterface({
       <div style={{ 
         position: 'fixed', 
         inset: 0, 
-        background: '#ffffff',
+        background: 'var(--color-surface)',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
         zIndex: 99999
       }}>
         <div style={{ textAlign: 'center', padding: '40px' }}>
-          <h2 style={{ fontSize: '24px', color: '#dc2626', marginBottom: '16px' }}>Something went wrong</h2>
+          <h2 style={{ fontSize: '24px', color: 'var(--color-error)', marginBottom: '16px' }}>Something went wrong</h2>
           <p style={{ color: 'var(--color-text-primary)', marginBottom: '24px' }}>{error}</p>
-          <button onClick={onClose} style={{ padding: '12px 24px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+          <button onClick={onClose} style={{ padding: '12px 24px', background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
             Go Back
           </button>
         </div>
@@ -920,7 +920,7 @@ export default function TestInterface({
         left: 0, 
         right: 0, 
         bottom: 0, 
-        background: '#ffffff',
+        background: 'var(--color-surface)',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
@@ -951,7 +951,7 @@ export default function TestInterface({
       <div style={{ 
         position: 'fixed', 
         inset: 0, 
-        background: '#ffffff',
+        background: 'var(--color-surface)',
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center', 
@@ -959,7 +959,7 @@ export default function TestInterface({
         minHeight: '100vh'
       }}>
         <div style={{ textAlign: 'center', padding: '40px', maxWidth: '500px' }}>
-          <span className="material-symbols-outlined" style={{ fontSize: '80px', color: '#dc2626', marginBottom: '24px', display: 'block' }}>error</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '80px', color: 'var(--color-error)', marginBottom: '24px', display: 'block' }}>error</span>
           <h2 style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '12px' }}>Unable to Load Test</h2>
           <p style={{ fontSize: '16px', color: 'var(--color-text-primary)', marginBottom: '32px', lineHeight: 1.6 }}>No questions available at the moment. Please check your internet connection and try again.</p>
           <button 
@@ -967,7 +967,7 @@ export default function TestInterface({
             style={{ 
               padding: '14px 32px', 
               background: 'var(--color-primary)',
-              color: 'white', 
+              color: 'var(--color-on-primary)',
               border: 'none', 
               borderRadius: '12px', 
               fontSize: '16px', 
@@ -1039,7 +1039,7 @@ export default function TestInterface({
     ) : undefined
     return (
       <>
-        {assignedReviewError && <p role="alert" style={{ margin: '12px 24px', color: '#dc2626' }}>Your score is available, but question review could not be loaded: {assignedReviewError}</p>}
+        {assignedReviewError && <p role="alert" style={{ margin: '12px 24px', color: 'var(--color-error)' }}>Your score is available, but question review could not be loaded: {assignedReviewError}</p>}
         <ExamResultDashboard
           onClose={onClose}
           onRetakeExam={() => onAssignedRetake?.()}
@@ -1114,17 +1114,17 @@ export default function TestInterface({
         <div style={{ 
           position: 'fixed', 
           inset: 0, 
-          background: '#ffffff',
+          background: 'var(--color-surface)',
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'center', 
           zIndex: 99999 
         }}>
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '60px', color: '#dc2626', marginBottom: '20px', display: 'block' }}>error</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '60px', color: 'var(--color-error)', marginBottom: '20px', display: 'block' }}>error</span>
             <h2 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '12px' }}>Unable to Load User Data</h2>
             <p style={{ color: 'var(--color-text-primary)', marginBottom: '24px' }}>Please check your connection and try again.</p>
-            <button onClick={onClose} style={{ padding: '12px 24px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+            <button onClick={onClose} style={{ padding: '12px 24px', background: 'var(--color-primary)', color: 'var(--color-on-primary)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
               Go Back
             </button>
           </div>
@@ -1354,7 +1354,7 @@ export default function TestInterface({
                   padding: '6px 12px',
                   borderRadius: '6px',
                   border: '1px solid var(--color-border)',
-                  background: '#ffffff',
+                  background: 'var(--color-surface)',
                   fontSize: '14px',
                   fontWeight: 500,
                   color: 'var(--color-text-primary)',
@@ -1380,7 +1380,7 @@ export default function TestInterface({
             <span className="test-palette-toggle-text">Palette</span>
             <span className="test-palette-badge">{currentIndex + 1}/{questions.length}</span>
           </button>
-          <div className="test-timer" style={timerPaused ? { borderColor: assignedMode ? '#DC2626' : 'var(--color-primary)', background: assignedMode ? 'rgba(220, 38, 38, 0.1)' : 'rgba(var(--color-primary-rgb), 0.1)', color: assignedMode ? '#DC2626' : 'var(--color-primary)' } : {}}>
+          <div className="test-timer" style={timerPaused ? { borderColor: assignedMode ? 'var(--color-error)' : 'var(--color-primary)', background: assignedMode ? 'rgba(var(--color-error-rgb), 0.1)' : 'rgba(var(--color-primary-rgb), 0.1)', color: assignedMode ? 'var(--color-error)' : 'var(--color-primary)' } : {}}>
             <span className="material-symbols-outlined">{timerPaused ? 'timer_off' : 'timer'}</span>
             <span className="test-timer-text">
               {isReviewMode ? 'Review Mode' : formatTime(timeRemaining)}
@@ -1388,7 +1388,7 @@ export default function TestInterface({
             {timerPaused && !isReviewMode && (
               <span style={{
                 fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
-                background: assignedMode ? '#DC2626' : 'var(--color-primary)', color: '#fff', padding: '2px 6px',
+                background: assignedMode ? 'var(--color-error)' : 'var(--color-primary)', color: 'var(--color-on-primary)', padding: '2px 6px',
                 borderRadius: '4px', animation: 'timerPausePulse 1.4s ease-in-out infinite'
               }}>PAUSED</span>
             )}
@@ -1405,7 +1405,7 @@ export default function TestInterface({
           )}
         </div>
       </header>
-      {assignedSaveError && <p role="alert" style={{ color: '#dc2626', margin: '8px 32px 0' }}>{assignedSaveError}</p>}
+      {assignedSaveError && <p role="alert" style={{ color: 'var(--color-error)', margin: '8px 32px 0' }}>{assignedSaveError}</p>}
 
       <main className="test-main">
         <section className="test-question-area">
@@ -1471,8 +1471,8 @@ export default function TestInterface({
                           <span className={`test-option-circle ${isSelected ? 'test-option-circle--active' : ''}`}>{String.fromCharCode(65 + i)}</span>
                           <span className="test-option-text"><RichQuestionContent content={opt} /></span>
                         </div>
-                        {isReviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#16a085'}}>check_circle</span>}
-                        {isReviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: '#dc2626'}}>cancel</span>}
+                        {isReviewMode && isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: 'var(--color-success)'}}>check_circle</span>}
+                        {isReviewMode && isSelected && !isCorrect && <span className="material-symbols-outlined test-option-check" style={{color: 'var(--color-error)'}}>cancel</span>}
                         {!isReviewMode && isSelected && <span className="material-symbols-outlined test-option-check">check_circle</span>}
                       </button>
                     )
@@ -1480,7 +1480,7 @@ export default function TestInterface({
                 </div>
 
                 {isReviewMode && (
-                  <div className="test-review-explanation" style={{ marginTop: '32px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
+                  <div className="test-review-explanation" style={{ marginTop: '32px', padding: '24px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                       <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)' }}>info</span>
@@ -1513,7 +1513,7 @@ export default function TestInterface({
                         disabled={loadingAiSolution[currentQuestion._id || currentQuestion.text.slice(0, 30)]}
                         style={{
                           background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%)',
-                          color: '#fff',
+                          color: 'var(--color-on-primary)',
                           border: 'none',
                           padding: '7px 14px',
                           borderRadius: '8px',
@@ -1536,13 +1536,13 @@ export default function TestInterface({
                     <div style={{ marginBottom: '20px', display: 'flex', gap: '32px' }}>
                       <div>
                         <span style={{ fontSize: '13px', color: 'var(--color-text-primary)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Your Answer</span>
-                        <span style={{ fontSize: '16px', fontWeight: 600, color: Number(answers[currentQuestion._id]) === Number(currentQuestion.correctIndex ?? 0) ? '#16a085' : (answers[currentQuestion._id] !== undefined ? '#dc2626' : 'var(--color-text-primary)') }}>
+                        <span style={{ fontSize: '16px', fontWeight: 600, color: Number(answers[currentQuestion._id]) === Number(currentQuestion.correctIndex ?? 0) ? 'var(--color-success)' : (answers[currentQuestion._id] !== undefined ? 'var(--color-error)' : 'var(--color-text-primary)') }}>
                           {answers[currentQuestion._id] !== undefined ? `Option ${String.fromCharCode(65 + Number(answers[currentQuestion._id]))}` : 'Not Attempted'}
                         </span>
                       </div>
                       <div>
                         <span style={{ fontSize: '13px', color: 'var(--color-text-primary)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Correct Answer</span>
-                        <span style={{ fontSize: '16px', fontWeight: 600, color: '#16a085' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-success)' }}>
                           Option {String.fromCharCode(65 + Number(currentQuestion.correctIndex ?? 0))}
                         </span>
                       </div>
@@ -1564,7 +1564,7 @@ export default function TestInterface({
 
                     {/* AI Deep Solution */}
                     {aiSolutions[currentQuestion._id || currentQuestion.text.slice(0, 30)] && (
-                      <div style={{ background: '#fff', border: '1.5px solid var(--color-border)', borderRadius: '10px', padding: '18px', marginTop: '16px' }}>
+                      <div style={{ background: 'var(--color-surface)', border: '1.5px solid var(--color-border)', borderRadius: '10px', padding: '18px', marginTop: '16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-primary)', fontWeight: 700, fontSize: '13.5px', marginBottom: '12px' }}>
                           <span className="material-symbols-outlined" style={{ fontSize: '18px', color: 'var(--color-primary)' }}>auto_awesome</span>
                           GPT-4o Step-by-Step Mathematical Derivation & Concept Breakdown
@@ -1657,7 +1657,7 @@ export default function TestInterface({
             </p>
             <p className="test-submit-confirm-warning">Once submitted, you cannot change your answers.</p>
             {submitError && (
-              <p role="alert" style={{ color: '#dc2626', fontSize: '14px', marginTop: '8px', marginBottom: '4px' }}>
+              <p role="alert" style={{ color: 'var(--color-error)', fontSize: '14px', marginTop: '8px', marginBottom: '4px' }}>
                 {submitError}
               </p>
             )}
@@ -1741,18 +1741,18 @@ export default function TestInterface({
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
         }} onClick={() => setShowReportModal(false)}>
           <div style={{
-            background: '#fff', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%',
+            background: 'var(--color-surface)', borderRadius: '16px', padding: '28px', maxWidth: '440px', width: '100%',
             boxShadow: '0 24px 48px -12px rgba(0,0,0,0.25)', animation: 'slideUp 0.2s ease-out',
           }} onClick={e => e.stopPropagation()}>
             {reportSuccess ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#16a085', marginBottom: '12px' }}>check_circle</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--color-success)', marginBottom: '12px' }}>check_circle</span>
                 <h3 style={{ margin: '0 0 8px', fontSize: '20px', color: 'var(--color-text-primary)' }}>Report Submitted!</h3>
                 <p style={{ margin: '0 0 20px', color: 'var(--color-text-primary)', fontSize: '14px' }}>
                   Thank you for reporting. Our team will review Q{currentIndex + 1} and correct it if needed.
                 </p>
                 <button onClick={() => setShowReportModal(false)} style={{
-                  padding: '10px 24px', borderRadius: '8px', background: 'var(--color-primary)', color: '#fff',
+                  padding: '10px 24px', borderRadius: '8px', background: 'var(--color-primary)', color: 'var(--color-on-primary)',
                   border: 'none', fontWeight: 600, fontSize: '14px', cursor: 'pointer'
                 }}>Close</button>
               </div>
@@ -1760,7 +1760,7 @@ export default function TestInterface({
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--color-text-primary)', fontWeight: 700 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '22px', verticalAlign: 'middle', marginRight: '8px', color: '#dc2626' }}>report</span>
+                    <span className="material-symbols-outlined" style={{ fontSize: '22px', verticalAlign: 'middle', marginRight: '8px', color: 'var(--color-error)' }}>report</span>
                     Report Issue — Q{currentIndex + 1}
                   </h3>
                   <button onClick={() => setShowReportModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-primary)' }}>
@@ -1782,7 +1782,7 @@ export default function TestInterface({
                       display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
                       borderRadius: '8px', cursor: 'pointer', fontSize: '14px',
                       border: reportType === opt.value ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                      background: reportType === opt.value ? '#ffffff' : '#ffffff',
+                      background: reportType === opt.value ? 'var(--color-surface)' : 'var(--color-surface)',
                       fontWeight: reportType === opt.value ? 600 : 400,
                       transition: 'all 0.1s ease',
                     }}>
@@ -1809,7 +1809,7 @@ export default function TestInterface({
                 />
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                   <button onClick={() => setShowReportModal(false)} style={{
-                    padding: '9px 18px', borderRadius: '8px', background: '#ffffff', color: 'var(--color-text-primary)',
+                    padding: '9px 18px', borderRadius: '8px', background: 'var(--color-surface)', color: 'var(--color-text-primary)',
                     border: '1px solid var(--color-border)', fontWeight: 600, fontSize: '13.5px', cursor: 'pointer'
                   }}>Cancel</button>
                   <button
@@ -1820,7 +1820,7 @@ export default function TestInterface({
                     }}
                     style={{
                       padding: '9px 18px', borderRadius: '8px',
-                      background: reportType ? 'var(--color-primary)' : 'var(--color-text-primary)', color: '#fff',
+                      background: reportType ? 'var(--color-primary)' : 'var(--color-text-primary)', color: 'var(--color-on-primary)',
                       border: 'none', fontWeight: 600, fontSize: '13.5px',
                       cursor: reportType ? 'pointer' : 'not-allowed', opacity: reportType ? 1 : 0.7,
                     }}

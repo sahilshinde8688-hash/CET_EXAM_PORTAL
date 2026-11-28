@@ -58,7 +58,7 @@ export default function FullscreenWarningModal({
 
   /* ── Card ──────────────────────────────────────────────────────────────── */
   const cardStyle: React.CSSProperties = {
-    background: '#ffffff',
+    background: 'var(--color-surface)',
     borderRadius: '20px',
     padding: '44px 40px 36px',
     maxWidth: '460px',
@@ -76,7 +76,7 @@ export default function FullscreenWarningModal({
     top: 0, left: 0, right: 0,
     height: '5px',
     background: isFullscreenWarning
-      ? 'linear-gradient(90deg, #dc2626, #dc2626)'
+      ? 'linear-gradient(90deg, var(--color-error), var(--color-error))'
       : 'linear-gradient(90deg, var(--color-primary), var(--color-primary))',
     borderRadius: '20px 20px 0 0',
   }
@@ -102,7 +102,7 @@ export default function FullscreenWarningModal({
     textTransform: 'uppercase',
     marginBottom: '14px',
     background: isFullscreenWarning ? 'var(--color-surface-secondary)' : 'var(--color-surface-secondary)',
-    color: isFullscreenWarning ? '#dc2626' : 'var(--color-primary)',
+    color: isFullscreenWarning ? 'var(--color-error)' : 'var(--color-primary)',
     border: `1px solid ${isFullscreenWarning ? 'var(--color-surface-secondary)' : 'var(--color-surface-secondary)'}`,
   }
 
@@ -122,7 +122,7 @@ export default function FullscreenWarningModal({
     background: isFullscreenWarning
       ? 'linear-gradient(135deg, var(--color-text-primary), var(--color-primary))'
       : 'linear-gradient(135deg, var(--color-primary), var(--color-primary))',
-    color: '#ffffff',
+    color: 'var(--color-on-primary)',
     boxShadow: isFullscreenWarning
       ? '0 6px 20px rgba(var(--color-primary-rgb), 0.35)'
       : '0 6px 20px rgba(var(--color-primary-rgb), 0.35)',
@@ -142,7 +142,7 @@ export default function FullscreenWarningModal({
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    background: '#ffffff',
+    background: 'var(--color-surface)',
     color: 'var(--color-text-primary)',
     marginTop: '10px',
   }
@@ -157,7 +157,7 @@ export default function FullscreenWarningModal({
         .fsw-icon { animation: fsw-pulse 2.2s ease-in-out infinite }
         .fsw-primary-btn:hover { transform: translateY(-1px); filter: brightness(1.07) }
         .fsw-primary-btn:active { transform: scale(0.98) }
-        .fsw-secondary-btn:hover { background: #ffffff !important }
+        .fsw-secondary-btn:hover { background: var(--color-surface-secondary) !important }
       `}</style>
 
       <div style={backdropStyle} role="dialog" aria-modal="true" aria-labelledby="fsw-title">
@@ -170,7 +170,7 @@ export default function FullscreenWarningModal({
               className="material-symbols-outlined fsw-icon"
               style={{
                 fontSize: '36px',
-                color: isFullscreenWarning ? '#dc2626' : 'var(--color-primary)',
+                color: isFullscreenWarning ? 'var(--color-error)' : 'var(--color-primary)',
                 fontVariationSettings: "'FILL' 1",
               }}
             >
@@ -219,7 +219,7 @@ export default function FullscreenWarningModal({
                 Return to Full Screen
               </button>
             ) : (
-              <div style={{ background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'var(--color-text-primary)', textAlign: 'left', lineHeight: 1.6 }}>
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '10px', padding: '16px', fontSize: '13px', color: 'var(--color-text-primary)', textAlign: 'left', lineHeight: 1.6 }}>
                 <strong style={{ color: 'var(--color-text-primary)', display: 'block', marginBottom: '4px' }}>Full-screen not supported</strong>
                 Your browser does not support the Fullscreen API. Please press <kbd style={{ background: 'var(--color-border)', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>F11</kbd> to manually enter full-screen mode, then return to this tab.
               </div>

@@ -610,10 +610,10 @@ export default function AdminMockTests({ initialQuestionIds = [], onInitialQuest
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'Easy': return '#ffffff'
+      case 'Easy': return 'var(--color-surface)'
       case 'Medium': return 'var(--color-surface-secondary)'
       case 'Hard': return 'var(--color-surface-secondary)'
-      default: return '#ffffff'
+      default: return 'var(--color-surface)'
     }
   }
 
@@ -1101,20 +1101,20 @@ Example:
 
             {formData.visibility === 'assigned' && (
               <div style={{ marginTop: '24px', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', background: '#ffffff', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ padding: '16px 20px', background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Select Students</h4>
                     <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--color-text-primary)' }}>Only selected students will see this test on their dashboard.</p>
                   </div>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-primary)', background: '#ffffff', padding: '4px 12px', borderRadius: '99px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-primary)', background: 'var(--color-surface)', padding: '4px 12px', borderRadius: '99px' }}>
                     {selectedStudentIds.length} selected
                   </span>
-                  <button type="button" onClick={() => void loadApprovedStudents()} disabled={studentsLoading} style={{ padding: '8px 12px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: studentsLoading ? 'wait' : 'pointer', color: 'var(--color-text-primary)' }}>
+                  <button type="button" onClick={() => void loadApprovedStudents()} disabled={studentsLoading} style={{ padding: '8px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: studentsLoading ? 'wait' : 'pointer', color: 'var(--color-text-primary)' }}>
                     {studentsLoading ? 'Loading…' : 'Reload students'}
                   </button>
                 </div>
 
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid #ffffff', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--color-border-highlight)', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <input
                     type="text"
                     placeholder="Search by name, email, or student ID…"
@@ -1131,7 +1131,7 @@ Example:
                       }).map(s => String(s.id || s._id))
                       setSelectedStudentIds(prev => [...new Set([...prev, ...visible])])
                     }}
-                    style={{ padding: '9px 14px', background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}
+                    style={{ padding: '9px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}
                   >
                     Select All Shown
                   </button>
@@ -1144,7 +1144,7 @@ Example:
                       }).map(s => String(s.id || s._id))
                       setSelectedStudentIds(prev => prev.filter(id => !visible.includes(id)))
                     }}
-                    style={{ padding: '9px 14px', background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}
+                    style={{ padding: '9px 14px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}
                   >
                     Deselect All Shown
                   </button>
@@ -1154,7 +1154,7 @@ Example:
                   {studentsLoading ? (
                     <p style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-primary)', fontSize: '14px' }}>Loading students…</p>
                   ) : allStudents.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '24px', color: studentsLoadError ? '#dc2626' : 'var(--color-text-primary)', fontSize: '14px' }}>
+                    <div style={{ textAlign: 'center', padding: '24px', color: studentsLoadError ? 'var(--color-error)' : 'var(--color-text-primary)', fontSize: '14px' }}>
                       <p style={{ margin: 0 }}>{studentsLoadError
                         ? `Could not load students: ${studentsLoadError}`
                         : 'No approved student accounts found. Approve student accounts in the Admin Dashboard, then reload this list.'}</p>
@@ -1172,7 +1172,7 @@ Example:
                       return (
                         <label
                           key={sid}
-                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: '1px solid #ffffff', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: '1px solid var(--color-border-highlight)', cursor: 'pointer' }}
                         >
                           <input
                             type="checkbox"
@@ -1191,7 +1191,7 @@ Example:
                             </div>
                           </div>
                           {checked && (
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a085', background: '#ffffff', padding: '2px 8px', borderRadius: '99px', flexShrink: 0 }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-success)', background: 'var(--color-surface)', padding: '2px 8px', borderRadius: '99px', flexShrink: 0 }}>
                               Selected
                             </span>
                           )}
@@ -1202,7 +1202,7 @@ Example:
                 </div>
 
                 {selectedStudentIds.length > 0 && (
-                  <div style={{ padding: '12px 20px', background: '#ffffff', borderTop: '1px solid #ffffff', fontSize: '13px', color: '#16a085', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ padding: '12px 20px', background: 'var(--color-surface)', borderTop: '1px solid var(--color-border-highlight)', fontSize: '13px', color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '16px' }}>✓</span>
                     <span>
                       <strong>{selectedStudentIds.length} student{selectedStudentIds.length === 1 ? '' : 's'}</strong> will be assigned this test when you save.
@@ -1266,7 +1266,7 @@ Example:
       {/* Stats */}
       <div className="amt-stats-grid">
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#ffffff', color: 'var(--color-primary)' }}>
+          <div className="amt-stat-icon" style={{ background: 'var(--color-surface)', color: 'var(--color-primary)' }}>
             <FileText size={22} />
           </div>
           <div>
@@ -1275,7 +1275,7 @@ Example:
           </div>
         </div>
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#ffffff', color: '#16a085' }}>
+          <div className="amt-stat-icon" style={{ background: 'var(--color-surface)', color: 'var(--color-success)' }}>
             <PlayCircle size={22} />
           </div>
           <div>
@@ -1293,7 +1293,7 @@ Example:
           </div>
         </div>
         <div className="amt-stat-card">
-          <div className="amt-stat-icon" style={{ background: '#ffffff', color: 'var(--color-text-primary)' }}>
+          <div className="amt-stat-icon" style={{ background: 'var(--color-surface)', color: 'var(--color-text-primary)' }}>
             <BarChart3 size={22} />
           </div>
           <div>
@@ -1396,7 +1396,7 @@ Example:
                     </div>
                   </td>
                   <td>
-                    <span className="amt-diff-badge" style={{ background: getDifficultyColor(test.difficulty), color: test.difficulty === 'Easy' ? '#16a085' : test.difficulty === 'Medium' ? 'var(--color-primary)' : '#dc2626' }}>
+                    <span className="amt-diff-badge" style={{ background: getDifficultyColor(test.difficulty), color: test.difficulty === 'Easy' ? 'var(--color-success)' : test.difficulty === 'Medium' ? 'var(--color-primary)' : 'var(--color-error)' }}>
                       {test.difficulty}
                     </span>
                   </td>
@@ -1517,7 +1517,7 @@ Example:
                   border: '1px solid var(--color-surface-secondary)',
                   borderRadius: 10,
                   background: 'var(--color-surface-secondary)',
-                  color: '#dc2626',
+                  color: 'var(--color-error)',
                   fontSize: 14,
                 }}>
                   {createError}

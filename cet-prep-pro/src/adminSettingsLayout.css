@@ -20,7 +20,7 @@
   height: 34px;
   margin-top: 0;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   font-size: 19px;
   font-variation-settings: 'FILL' 0, 'wght' 550;
@@ -28,14 +28,14 @@
 }
 
 .as-nav-item:hover > .material-symbols-outlined {
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-primary);
   transform: translateY(-1px);
 }
 
 .as-nav-item--active > .material-symbols-outlined {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   box-shadow: 0 5px 12px rgba(var(--color-primary-rgb), .24);
   font-variation-settings: 'FILL' 1, 'wght' 600;
 }
@@ -46,7 +46,7 @@
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-primary);
   font-size: 19px;
   font-variation-settings: 'FILL' 1, 'wght' 500;

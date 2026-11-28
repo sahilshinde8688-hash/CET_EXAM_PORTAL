@@ -43,23 +43,23 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
       ]
   const navigationStatuses = assignedTest
     ? [
-        { num: '1', bg: '#0D9488', color: '#fff', label: 'Answered and saved.' },
-        { num: '2', bg: '#FEE2E2', color: 'var(--color-text-primary)', label: 'Viewed but not answered.' },
-        { num: '3', bg: '#F59E0B', color: 'var(--color-text-primary)', label: 'Marked for review.' },
-        { num: '4', bg: '#7C3AED', color: '#fff', label: 'Answered and marked for review.' },
+        { num: '1', bg: 'var(--color-success)', color: 'var(--color-on-primary)', label: 'Answered and saved.' },
+        { num: '2', bg: 'var(--color-error-surface)', color: 'var(--color-text-primary)', label: 'Viewed but not answered.' },
+        { num: '3', bg: 'var(--color-warning)', color: 'var(--color-text-primary)', label: 'Marked for review.' },
+        { num: '4', bg: '#7C3AED', color: 'var(--color-on-primary)', label: 'Answered and marked for review.' },
         { num: '5', bg: 'var(--color-surface-secondary)', color: 'var(--color-text-primary)', label: 'Not yet visited.' },
       ]
     : [
-        { num: '1', bg: '#16a085', color: '#fff', label: 'Indicates questions you have answered and saved.' },
-        { num: '2', bg: '#dc2626', color: '#fff', label: 'Indicates questions you have viewed but not yet answered.' },
-        { num: '3', bg: 'var(--color-primary)', color: '#fff', label: 'Indicates questions marked for later review. These will NOT be evaluated if left unanswered.' },
+        { num: '1', bg: 'var(--color-success)', color: 'var(--color-on-primary)', label: 'Indicates questions you have answered and saved.' },
+        { num: '2', bg: 'var(--color-error)', color: 'var(--color-on-primary)', label: 'Indicates questions you have viewed but not yet answered.' },
+        { num: '3', bg: 'var(--color-primary)', color: 'var(--color-on-primary)', label: 'Indicates questions marked for later review. These will NOT be evaluated if left unanswered.' },
       ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden', background: 'var(--color-background)', fontFamily: "'Public Sans', sans-serif", color: 'var(--color-text-primary)' }}>
 
       {/* ── Header ───────────────────────────────────────── */}
-      <header className="exam-instructions-header" style={{ flexShrink: 0, height: '56px', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(37, 37, 37, 0.06)' }}>
+      <header className="exam-instructions-header" style={{ flexShrink: 0, height: '56px', background: 'var(--color-surface)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(37, 37, 37, 0.06)' }}>
         <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)' }}>{assignmentName || 'CET Exam Session'}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
@@ -90,14 +90,14 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               {[assignmentSubject, durationMinutes ? `${durationMinutes} minutes` : null, totalMarks != null ? `${totalMarks} total marks` : null].filter(Boolean).join(' · ')}
             </p>}
           </div>
-          {startError && <p role="alert" style={{ background: assignedTest ? '#fee2e2' : 'var(--color-surface-secondary)', border: `1px solid ${assignedTest ? '#fca5a5' : 'var(--color-surface-secondary)'}`, borderRadius: '10px', color: '#dc2626', fontSize: '13px', lineHeight: 1.5, margin: '0 0 20px', padding: '12px 14px' }}>{startError}</p>}
+          {startError && <p role="alert" style={{ background: assignedTest ? 'var(--color-error-surface)' : 'var(--color-surface-secondary)', border: `1px solid ${assignedTest ? 'var(--color-error-border)' : 'var(--color-surface-secondary)'}`, borderRadius: '10px', color: 'var(--color-error)', fontSize: '13px', lineHeight: 1.5, margin: '0 0 20px', padding: '12px 14px' }}>{startError}</p>}
 
           {/* Warning Banner */}
-          <div style={{ display: 'flex', gap: '14px', background: assignedTest ? '#fee2e2' : 'var(--color-surface-secondary)', border: `1px solid ${assignedTest ? '#fca5a5' : 'var(--color-surface-secondary)'}`, borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
-            <span className="material-symbols-outlined" style={{ color: '#dc2626', flexShrink: 0, fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>warning</span>
+          <div style={{ display: 'flex', gap: '14px', background: assignedTest ? 'var(--color-error-surface)' : 'var(--color-surface-secondary)', border: `1px solid ${assignedTest ? 'var(--color-error-border)' : 'var(--color-surface-secondary)'}`, borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+            <span className="material-symbols-outlined" style={{ color: 'var(--color-error)', flexShrink: 0, fontSize: '22px', fontVariationSettings: "'FILL' 1" }}>warning</span>
             <div>
-              <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: '#dc2626' }}>Full-Screen Mode Requirement</p>
-              <p style={{ margin: 0, fontSize: '13px', color: assignedTest ? 'var(--color-text-secondary)' : '#dc2626', lineHeight: '1.6' }}>
+              <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: 'var(--color-error)' }}>Full-Screen Mode Requirement</p>
+              <p style={{ margin: 0, fontSize: '13px', color: assignedTest ? 'var(--color-text-secondary)' : 'var(--color-error)', lineHeight: '1.6' }}>
                 {assignedTest
                   ? 'Stay in full-screen mode while taking this test. Your questions will load and the assignment timer will start only after you click Start Test.'
                   : 'This examination requires you to be in full-screen mode at all times. Switching tabs, minimizing the window, or exiting full-screen will result in an automatic submission and potential disqualification.'}
@@ -106,7 +106,7 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
           </div>
 
           {/* Exam Rules Card */}
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)', fontSize: '22px' }}>gavel</span>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Exam Rules</h2>
@@ -122,14 +122,14 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
           </div>
 
           {/* Navigation Guide Card */}
-          <div style={{ background: '#fff', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '20px', marginBottom: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <span className="material-symbols-outlined" style={{ color: 'var(--color-primary)', fontSize: '22px' }}>explore</span>
               <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Navigating the Portal</h2>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {navigationStatuses.map(({ num, bg, color, label }) => (
-                <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: '#ffffff', border: `1px solid ${assignedTest ? 'var(--color-border)' : '#ffffff'}`, borderRadius: '10px', padding: '12px 14px' }}>
+                <div key={num} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'var(--color-surface)', border: `1px solid ${assignedTest ? 'var(--color-border)' : 'var(--color-border-highlight)'}`, borderRadius: '10px', padding: '12px 14px' }}>
                   <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{num}</div>
                   <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{label}</span>
                 </div>
@@ -145,14 +145,14 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_q6iEWQVBFJNuogQSu6iVWtwkyy9ubcjstHmdzvtsAGYlN3ZQLp2XD5dC8yFpGRh5eH2idRAHdfGcTFqovF8M15nmI2HPwTXGI5DPQDViabZcAhkuQTbm0nKv7eL0G_xAi6uCJkUyl6v-qo2sRWXNi2lLFsn-c4Q_f5YvWXVwkb73kLGUVa6_ZVGSX67qJ8KGcXyVKJbXEjEvyyQJfmO1hkbH0zjM3XVtqJR9pUvYb9Hfaqqf3EvIL9iIDfji4MxIdCvLacnHcmc"
             />
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)', display: 'flex', alignItems: 'flex-end', padding: '14px 16px' }}>
-              <p style={{ margin: 0, color: '#fff', fontSize: '12px', fontWeight: 500 }}>
+              <p style={{ margin: 0, color: 'var(--color-on-primary)', fontSize: '12px', fontWeight: 500 }}>
                 {assignedTest ? 'Standardized Digital Testing Environment' : 'Standardized Digital Testing Environment – CET 2024'}
               </p>
             </div>
           </div>
 
           {/* Declaration Checkbox */}
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', background: agreed ? 'rgba(var(--color-primary-rgb), 0.06)' : '#ffffff', border: `1.5px solid ${agreed ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', transition: 'all 0.2s' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', background: agreed ? 'rgba(var(--color-primary-rgb), 0.06)' : 'var(--color-surface)', border: `1.5px solid ${agreed ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: '12px', padding: '16px', cursor: 'pointer', transition: 'all 0.2s' }}>
             <input
               type="checkbox"
               checked={agreed}
@@ -173,7 +173,7 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
       </main>
 
       {/* ── Footer ───────────────────────────────────────── */}
-      <footer style={{ flexShrink: 0, background: '#fff', borderTop: '1px solid var(--color-border)', boxShadow: '0 -2px 8px rgba(0,0,0,0.05)' }}>
+      <footer style={{ flexShrink: 0, background: 'var(--color-surface)', borderTop: '1px solid var(--color-border)', boxShadow: '0 -2px 8px rgba(0,0,0,0.05)' }}>
         <div className="exam-instructions-footer-inner" style={{ maxWidth: '760px', margin: '0 auto', padding: '14px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           {/* Left: Candidate info + fullscreen notice */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -182,8 +182,8 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>CET-2024-9921</p>
             </div>}
             {!assignedTest && <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '13px', color: assignedTest ? '#0D9488' : '#16a085', fontVariationSettings: "'FILL' 1" }}>fullscreen</span>
-              <span style={{ fontSize: '11px', color: assignedTest ? '#0D9488' : '#16a085', fontWeight: 600 }}>Full-screen will be requested on start</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '13px', color: 'var(--color-success)', fontVariationSettings: "'FILL' 1" }}>fullscreen</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-success)', fontWeight: 600 }}>Full-screen will be requested on start</span>
             </div>}
             {assignedTest && <span style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 600 }}>{durationMinutes} minute assignment · Timer starts after confirmation</span>}
           </div>
@@ -203,7 +203,7 @@ export default function ExamInstructions({ onStart, onCancel, assignedTest = fal
               fontSize: '15px', fontWeight: 700,
               cursor: agreed && !starting ? 'pointer' : 'not-allowed',
               background: agreed && !starting ? 'var(--color-primary)' : 'var(--color-surface-secondary)',
-              color: agreed && !starting ? '#fff' : 'var(--color-text-primary)',
+              color: agreed && !starting ? 'var(--color-on-primary)' : 'var(--color-text-primary)',
               boxShadow: agreed && !starting ? '0 4px 16px rgba(var(--color-primary-rgb), 0.25)' : 'none',
               transition: 'all 0.2s',
               flexShrink: 0,

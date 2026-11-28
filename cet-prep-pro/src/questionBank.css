@@ -32,7 +32,7 @@
   border: 1px solid var(--color-border);
   font-size: 13px;
   font-family: 'Inter', sans-serif;
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   outline: none;
   min-width: 140px;
@@ -45,7 +45,7 @@
   padding: 10px 18px;
   border-radius: 10px;
   border: 1px solid var(--color-border);
-  background: #fff;
+  background: var(--color-surface);
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -53,16 +53,16 @@
 }
 .qb-btn--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   border-color: var(--color-primary);
 }
 .qb-btn--danger {
   background: var(--color-surface-secondary);
-  color: #dc2626;
+  color: var(--color-error);
   border-color: var(--color-surface-secondary);
 }
 .qb-card {
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   padding: 24px;
@@ -94,7 +94,7 @@
   align-items: flex-end;
 }
 .qb-table-wrap {
-  background: #fff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   overflow: auto;
@@ -108,13 +108,13 @@
   padding: 12px 14px;
   text-align: left;
   font-size: 13px;
-  border-bottom: 1px solid #ffffff;
+  border-bottom: 1px solid var(--color-border-highlight);
 }
 .qb-table th {
   font-size: 11px;
   text-transform: uppercase;
   color: var(--color-text-primary);
-  background: #ffffff;
+  background: var(--color-surface);
 }
 .qb-text {
   max-width: 260px;
@@ -129,9 +129,9 @@
   font-weight: 800;
   text-transform: uppercase;
 }
-.qb-badge--easy { background: #ffffff; color: #16a085; }
+.qb-badge--easy { background: var(--color-surface); color: var(--color-success); }
 .qb-badge--medium { background: var(--color-surface-secondary); color: var(--color-primary); }
-.qb-badge--hard { background: var(--color-surface-secondary); color: #dc2626; }
+.qb-badge--hard { background: var(--color-surface-secondary); color: var(--color-error); }
 .qb-actions-cell {
   display: flex;
   gap: 8px;
@@ -150,7 +150,7 @@
   padding: 14px 16px;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--color-surface);
   color: var(--color-text-primary);
   margin-bottom: 12px;
 }
@@ -176,7 +176,7 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px;
-  background: #ffffff;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
   margin-top: 12px;
@@ -212,7 +212,7 @@
 }
 
 .qb-toolbar-btn:hover {
-  background: #ffffff;
+  background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-primary);
   transform: translateY(-1px);
@@ -271,7 +271,7 @@
 
 .qb-toolbar-btn:active {
   transform: translateY(0);
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 /* KaTeX & Math responsive overflow protection */
